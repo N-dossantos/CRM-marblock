@@ -54,6 +54,27 @@ RLS-enabled + `staff_all` policy, 19 functions, `anon` can execute **0** of them
 **Rule learned (applies to every future RPC migration):** revoke EXECUTE from `PUBLIC, anon`
 **explicitly on every function including helpers** — don't rely on `ALTER DEFAULT PRIVILEGES`.
 
+## Applied status — expansion phases (post-cutover feature build)
+
+The table above tracks the original **Express → Supabase migration** (Ventas, `0001`–`0013`). After
+that, the CRM was extended sector by sector following `../system_plan.md` (see its **§3.1** for the
+authoritative, prose implementation status of each phase). Those feature migrations are **also applied
+to the same live project** and are summarized here per-block so this file stays the single source of
+truth for "what's applied in the DB". They all follow the same conventions (shared-staff RLS **without**
+`FORCE`, atomic `SECURITY DEFINER` write RPCs, `search_path` pinned, `anon` revoked, jsonb read/informe RPCs).
+
+| Block | Migrations | What | Status |
+|---|---|---|---|
+| **Fase A — Compras + Procesos Generales** | `20260730120000`–`20260730120011` (12; internal `0100`–`0111`) | Schema Compras (proveedores, materiales, alícuotas IVA, facturas/remitos/notas de compra, pagos+retenciones), `cheques.proveedor_id` FK, **shared audit core** (`audit_log` + `audit_trigger()` + `tablas_generales`), RLS, RPCs (totales multi-alícuota, ABMs, comprobantes, pagos, reads/informes incl. Libro IVA Compras), + advisor fixes. E2E smoke-tested, then wiped. | ✅ applied + tested (2026-07-30) |
+| **Fase B — Consultas 360° (Ventas/Compras)** | — (frontend only) | Fichas integrales por cliente/proveedor. **No DB migrations** — reuses existing `informe_*` / `*_list` RPCs. | ✅ done (2026-07-31) |
+| **Fase C — Tesorería** | `20260731120000`–`20260731120007` (8; internal `0200`–`0207`) | Ledger central `movimientos_tesoreria` (± signo, saldo por `SUM`), `cheques_propios`, `conciliaciones_bancarias`, catálogos (agrupaciones, tipos de comprobante), ALTERs de `cuentas_bancarias`/`pago_proveedor_medios`, RLS, RPCs de escritura + integración ventas/compras→tesorería + `crear_transferencia`, informes jsonb, + advisor fix (revoca helper interno `tes_emitir_cobranza`). | ✅ applied (2026-07-31) |
+| **Fase D — Consultas Tesorería + PDF + transferencias** | — (frontend + Edge Function) | Consultas 360° por cuenta + impresión + pantalla de transferencias. **No DB migrations.** ⏳ **Único pendiente: redeploy de la Edge Function `pdf`** con templates de tesorería (la desplegada es `v1`, ~2026-07-27, anterior a Tesorería). | 🔄 code-complete; PDF deploy pending |
+| **Fase E — Núcleo contable** | `20260801120000`–`20260801120004` (5; internal `0300`–`0304`) | `plan_de_cuentas`, `asientos_contables`, `asiento_items` (+ trigger de balanceo diferido), RLS, `crear_asiento`/`anular_asiento` (manual, funciona), informes libro diario/mayor/sumas y saldos. **Aplicado con tablas vacías**; `generar_asiento_desde_*` aplicado pero **stub que lanza excepción** hasta validar la matriz de imputación (bloqueada en datos por Tango, igual que la Fase 7). | ✅ applied empty (2026-08-01) |
+
+> Nota de contexto: estas fases construyen funcionalidad **sobre** el cutover, no lo reemplazan. El
+> **bloqueo raíz sigue siendo el mismo** (credenciales del SQL Server de Tango): frena tanto la carga de
+> datos live (Fase 7, abajo) como poblar `plan_de_cuentas` + la matriz contable (Fase E).
+
 ## Phases
 
 0. **Enable MCP** — ✅ **done.** Supabase MCP active against `kkdbvzixwlyeahgianuc`.
