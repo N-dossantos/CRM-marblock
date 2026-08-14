@@ -139,15 +139,32 @@ vez más.
   residuo). **Sigue bloqueado en datos** (credenciales SQL Server de Tango): poblar `plan_de_cuentas` y
   validar la **matriz de imputación** con el contador → recién ahí se llenan los cuerpos de
   `generar_asiento_desde_factura/_pago_proveedor/_movimiento_tesoreria`, que **hoy lanzan una excepción a
-  propósito**. Frontend de Contabilidad **sin construir**. Ver `system_plan_fase_e_contabilidad.md §8`.
+  propósito**. Ver `system_plan_fase_e_contabilidad.md §8`.
+  **Frontend de Contabilidad: CONSTRUIDO (2026-08-14)** — §8 paso 5, el único que no depende de Tango.
+  `PlanCuentasAPI`/`AsientosAPI`/`InformesAPI.{libroDiario,libroMayor,sumasYSaldos}` en
+  `src/api/index.js`; vistas `ContabilidadPlanCuentas` (ABM del árbol, indentado por `nivel`, marca
+  imputables) y `ContabilidadAsientos` (listado desde `informe_libro_diario` con drill-down de líneas
+  + anular); `Forms/AsientoForm.jsx` con líneas debe/haber excluyentes y preview de balanceo (el
+  servidor revalida igual); 2 rutas `/contabilidad/*`, sección "Contabilidad" en el menú y 3 pestañas
+  nuevas en `Informes` (Libro Diario / Libro Mayor con selector de cuenta / Sumas y Saldos).
+  `npm run build` OK; **falta el smoke contra la base** (estaba caída, ver `MIGRATION_PLAN.md`).
+  Las pestañas "Contabilidad" placeholder de las fichas 360° siguen vacías: necesitan asientos
+  ligados a comprobantes, que sólo aparecen con la generación automática (bloqueada en la matriz).
 - **Fase F — spec redactada; WS1 + WS3(multi-alícuota) implementados (2026-08-01).** Completar/integrar
   Ventas con las funcionalidades nuevas: **WS1 ✅** — el form de recibo (`ReciboForm.jsx`) ya manda
   `cuenta_bancaria_id` por medio efectivo/transferencia, así que las cobranzas impactan el ledger
   (COBRANZA +1). **WS3 · IVA multi-alícuota ✅** — migraciones `20260802120000`..`02` aplicadas
   (`alicuota_iva_id` por ítem + RPCs con `crm_calc_totales_multi_alicuota`, backward-compat 21%); frontend
   (`ItemsTable`/`ComprobanteForm`/`NotaForm` con selector por ítem + `TotalesBoxMulti`) y template de PDF
-  con desglose; smoke E2E OK (factura 21%+10.5% → total 2315). **WS2** Ventas→Contabilidad sigue
-  **bloqueado en la matriz** de Fase E; **WS3 · Pedidos** pendiente de decisión de modelado (backlog §7).
+  con desglose; smoke E2E OK (factura 21%+10.5% → total 2315). **WS2 — enganche escrito (2026-08-14),
+  no aplicado:** migraciones `20260803120000`/`01` con `generar_asiento_desde_nota` (stub),
+  `generar_asientos_ventas_pendientes` (backfill idempotente) y el disparo automático como
+  **CONSTRAINT TRIGGER diferido** en `facturas`/`notas` guardado por
+  `config_empresa('contabilidad_auto_asientos')`, que arranca en `'off'` ⇒ **no-op**. Se implementó
+  como trigger diferido en vez de una línea al final de `crear_factura`/`crear_nota` para no duplicar
+  el cuerpo de esas RPC y para correr al COMMIT, con los ítems ya insertados (mismo mecanismo que
+  `trg_asiento_balanceado`). La **matriz** sigue bloqueada: prender el flag recién tras Fase E §8
+  pasos 2-4. **WS3 · Pedidos** pendiente de decisión de modelado (backlog §7).
   Deploy pendiente: la Edge Function `pdf` (para el desglose impreso; mismo deploy que Fase D).
   Companion: `system_plan_fase_f_integracion_ventas.md`.
 

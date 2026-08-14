@@ -1,6 +1,6 @@
 // src/views/Informes/index.jsx
 import { useState, useEffect } from 'react'
-import { InformesAPI, ClientesAPI, CuentasBancariasAPI, MovimientosTesoreriaAPI, pdfUrl } from '../../api'
+import { InformesAPI, ClientesAPI, CuentasBancariasAPI, MovimientosTesoreriaAPI, PlanCuentasAPI, pdfUrl } from '../../api'
 import { $ar, fFecha, hoy } from '../../utils'
 import { Loading } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
@@ -23,10 +23,15 @@ const TABS = [
   { id: 'cheques_tes',    label: '💳 Cheques' },
   { id: 'comprob_tes',    label: '🧾 Comprobantes tesorería' },
   { id: 'historico_tes',  label: '🕓 Histórico' },
+  { id: 'libro_diario',   label: '📘 Libro Diario' },
+  { id: 'libro_mayor',    label: '📗 Libro Mayor' },
+  { id: 'sumas_saldos',   label: '⚖️ Sumas y Saldos' },
 ]
 
 // tabs de tesorería que usan el rango desde/hasta (saldos es snapshot, no lleva fecha)
 const TES_FECHA_TABS = ['subdiario_tes', 'mayor_tes', 'oper_tes', 'cheques_tes', 'comprob_tes', 'historico_tes']
+// tabs contables (Fase E) — todas van por rango de fechas; el mayor además pide cuenta
+const CTB_FECHA_TABS = ['libro_diario', 'libro_mayor', 'sumas_saldos']
 
 const primerDiaMes = () => {
   const d = new Date(); d.setDate(1)
@@ -43,6 +48,8 @@ export default function Informes() {
   const [cuentasTes, setCuentasTes] = useState([])
   const [cuentaTes, setCuentaTes]   = useState('')
   const [estadoCheque, setEstadoCheque] = useState('')
+  const [cuentasCtb, setCuentasCtb] = useState([])
+  const [cuentaCtb, setCuentaCtb]   = useState('')
   const [data, setData]         = useState(null)
   const [loading, setLoading]   = useState(false)
   const [pdfModal, setPdfModal] = useState(null)
@@ -52,6 +59,13 @@ export default function Informes() {
     CuentasBancariasAPI.list({ activo: true }).then(cs => {
       setCuentasTes(cs)
       setCuentaTes(prev => prev || (cs[0] ? String(cs[0].id) : ''))
+    })
+  }, [])
+  // El libro mayor es por cuenta: sólo tiene sentido sobre cuentas imputables activas.
+  useEffect(() => {
+    PlanCuentasAPI.list({ imputable: true, activo: true }).then(cs => {
+      setCuentasCtb(cs)
+      setCuentaCtb(prev => prev || (cs[0] ? String(cs[0].id) : ''))
     })
   }, [])
   useEffect(() => { cargar() }, [tab])
@@ -108,6 +122,16 @@ export default function Informes() {
         case 'historico_tes':
           setData(await MovimientosTesoreriaAPI.list({ desde, hasta }))
           break
+        case 'libro_diario':
+          setData(await InformesAPI.libroDiario({ desde, hasta }))
+          break
+        case 'libro_mayor':
+          if (!cuentaCtb) { setData(null); break }
+          setData(await InformesAPI.libroMayor(Number(cuentaCtb), { desde, hasta }))
+          break
+        case 'sumas_saldos':
+          setData(await InformesAPI.sumasYSaldos({ desde, hasta }))
+          break
       }
     } finally {
       setLoading(false)
@@ -155,7 +179,7 @@ export default function Informes() {
         </div>
       )}
 
-      {(tab === 'ventas' || tab === 'clientes' || tab === 'iva_compras' || TES_FECHA_TABS.includes(tab)) && (
+      {(tab === 'ventas' || tab === 'clientes' || tab === 'iva_compras' || TES_FECHA_TABS.includes(tab) || CTB_FECHA_TABS.includes(tab)) && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div>
             <label className="lbl">Desde</label>
@@ -180,6 +204,15 @@ export default function Informes() {
               <select className="sel" style={{ width: 220 }} value={cuentaTes} onChange={e => setCuentaTes(e.target.value)}>
                 <option value="">Seleccionar cuenta…</option>
                 {cuentasTes.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
+              </select>
+            </div>
+          )}
+          {tab === 'libro_mayor' && (
+            <div>
+              <label className="lbl">Cuenta</label>
+              <select className="sel" style={{ width: 300 }} value={cuentaCtb} onChange={e => setCuentaCtb(e.target.value)}>
+                <option value="">Seleccionar cuenta…</option>
+                {cuentasCtb.map(c => <option key={c.id} value={c.id}>{c.codigo} — {c.descripcion}</option>)}
               </select>
             </div>
           )}
@@ -928,6 +961,146 @@ export default function Informes() {
                         <td>{m.conciliado ? '✓' : ''}</td>
                       </tr>
                     ))
+                  }
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ═══════════════ CONTABILIDAD (Fase E) ═══════════════ */}
+
+          {/* LIBRO DIARIO — asientos cronológicos con sus líneas */}
+          {tab === 'libro_diario' && data.asientos && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 20 }}>
+                {[
+                  { label: 'Asientos',    val: data.totales?.cantidad ?? 0,     color: 'var(--gray-700)' },
+                  { label: 'Total debe',  val: $ar(data.totales?.debe  || 0),   color: 'var(--blue-600)' },
+                  { label: 'Total haber', val: $ar(data.totales?.haber || 0),   color: 'var(--green-600)' },
+                ].map(k => (
+                  <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
+                    <div className="kpi-label">{k.label}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+              {data.asientos.length === 0
+                ? <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin asientos confirmados en el período</div>
+                : data.asientos.map(a => (
+                  <div className="card" key={a.id} style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 13 }}>
+                      <span><span className="code" style={{ fontWeight: 700 }}>{a.numero}</span> · {fFecha(a.fecha)} · <strong>{a.descripcion}</strong></span>
+                      <span style={{ color: 'var(--gray-500)' }}>{a.origen}</span>
+                    </div>
+                    <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
+                      <table>
+                        <thead><tr>
+                          <th style={{ width: 160 }}>Cuenta</th><th>Descripción</th><th>Detalle</th>
+                          <th className="th-right" style={{ width: 130 }}>Debe</th>
+                          <th className="th-right" style={{ width: 130 }}>Haber</th>
+                        </tr></thead>
+                        <tbody>
+                          {(a.lineas || []).map((l, i) => (
+                            <tr key={i}>
+                              <td><span className="code">{l.codigo}</span></td>
+                              <td>{l.cuenta}</td>
+                              <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{l.detalle || '—'}</td>
+                              <td className="td-right">{Number(l.debe)  > 0 ? $ar(l.debe)  : ''}</td>
+                              <td className="td-right">{Number(l.haber) > 0 ? $ar(l.haber) : ''}</td>
+                            </tr>
+                          ))}
+                          <tr>
+                            <td colSpan={3} className="td-bold" style={{ textAlign: 'right' }}>Totales</td>
+                            <td className="td-right td-bold">{$ar(a.total_debe  || 0)}</td>
+                            <td className="td-right td-bold">{$ar(a.total_haber || 0)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+
+          {/* LIBRO MAYOR — una cuenta, con saldo corrido */}
+          {tab === 'libro_mayor' && data.movimientos && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 20 }}>
+                {[
+                  { label: 'Cuenta',        val: `${data.cuenta?.codigo || ''} ${data.cuenta?.descripcion || '—'}`, color: 'var(--gray-700)' },
+                  { label: 'Saldo inicial', val: $ar(data.saldo_inicial || 0),          color: 'var(--gray-600)' },
+                  { label: 'Saldo final',   val: $ar(data.totales?.saldo_final || 0),   color: 'var(--blue-600)' },
+                ].map(k => (
+                  <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
+                    <div className="kpi-label">{k.label}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <th style={{ width: 110 }}>Fecha</th><th style={{ width: 90 }}>Asiento</th>
+                    <th>Descripción</th><th>Detalle</th>
+                    <th className="th-right" style={{ width: 120 }}>Debe</th>
+                    <th className="th-right" style={{ width: 120 }}>Haber</th>
+                    <th className="th-right" style={{ width: 130 }}>Saldo</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.movimientos.length === 0
+                      ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos en el período</td></tr>
+                      : data.movimientos.map(m => (
+                        <tr key={m.item_id}>
+                          <td>{fFecha(m.fecha)}</td>
+                          <td><span className="code">{m.numero}</span></td>
+                          <td style={{ fontSize: 12 }}>{m.descripcion}</td>
+                          <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.detalle || '—'}</td>
+                          <td className="td-right">{Number(m.debe)  > 0 ? $ar(m.debe)  : ''}</td>
+                          <td className="td-right">{Number(m.haber) > 0 ? $ar(m.haber) : ''}</td>
+                          <td className="td-right td-bold">{$ar(m.saldo || 0)}</td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUMAS Y SALDOS — balance de comprobación */}
+          {tab === 'sumas_saldos' && data.cuentas && (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <th style={{ width: 160 }}>Código</th><th>Cuenta</th><th style={{ width: 110 }}>Tipo</th>
+                  <th className="th-right" style={{ width: 130 }}>Saldo inicial</th>
+                  <th className="th-right" style={{ width: 130 }}>Debe</th>
+                  <th className="th-right" style={{ width: 130 }}>Haber</th>
+                  <th className="th-right" style={{ width: 130 }}>Saldo final</th>
+                </tr></thead>
+                <tbody>
+                  {data.cuentas.length === 0
+                    ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos contables en el período</td></tr>
+                    : <>
+                        {data.cuentas.map(c => (
+                          <tr key={c.id}>
+                            <td><span className="code">{c.codigo}</span></td>
+                            <td className="td-bold">{c.descripcion}</td>
+                            <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.tipo_cuenta}</td>
+                            <td className="td-right">{$ar(c.saldo_inicial || 0)}</td>
+                            <td className="td-right">{$ar(c.debe  || 0)}</td>
+                            <td className="td-right">{$ar(c.haber || 0)}</td>
+                            <td className="td-right td-bold">{$ar(c.saldo_final || 0)}</td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <td colSpan={4} className="td-bold" style={{ textAlign: 'right' }}>Totales</td>
+                          <td className="td-right td-bold">{$ar(data.totales?.debe  || 0)}</td>
+                          <td className="td-right td-bold">{$ar(data.totales?.haber || 0)}</td>
+                          <td className="td-right td-bold">{$ar(data.totales?.saldo_final || 0)}</td>
+                        </tr>
+                      </>
                   }
                 </tbody>
               </table>

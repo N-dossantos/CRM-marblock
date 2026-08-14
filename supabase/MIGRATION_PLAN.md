@@ -69,11 +69,35 @@ truth for "what's applied in the DB". They all follow the same conventions (shar
 | **Fase B — Consultas 360° (Ventas/Compras)** | — (frontend only) | Fichas integrales por cliente/proveedor. **No DB migrations** — reuses existing `informe_*` / `*_list` RPCs. | ✅ done (2026-07-31) |
 | **Fase C — Tesorería** | `20260731120000`–`20260731120007` (8; internal `0200`–`0207`) | Ledger central `movimientos_tesoreria` (± signo, saldo por `SUM`), `cheques_propios`, `conciliaciones_bancarias`, catálogos (agrupaciones, tipos de comprobante), ALTERs de `cuentas_bancarias`/`pago_proveedor_medios`, RLS, RPCs de escritura + integración ventas/compras→tesorería + `crear_transferencia`, informes jsonb, + advisor fix (revoca helper interno `tes_emitir_cobranza`). | ✅ applied (2026-07-31) |
 | **Fase D — Consultas Tesorería + PDF + transferencias** | — (frontend + Edge Function) | Consultas 360° por cuenta + impresión + pantalla de transferencias. **No DB migrations.** ⏳ **Único pendiente: redeploy de la Edge Function `pdf`** con templates de tesorería (la desplegada es `v1`, ~2026-07-27, anterior a Tesorería). | 🔄 code-complete; PDF deploy pending |
-| **Fase E — Núcleo contable** | `20260801120000`–`20260801120004` (5; internal `0300`–`0304`) | `plan_de_cuentas`, `asientos_contables`, `asiento_items` (+ trigger de balanceo diferido), RLS, `crear_asiento`/`anular_asiento` (manual, funciona), informes libro diario/mayor/sumas y saldos. **Aplicado con tablas vacías**; `generar_asiento_desde_*` aplicado pero **stub que lanza excepción** hasta validar la matriz de imputación (bloqueada en datos por Tango, igual que la Fase 7). | ✅ applied empty (2026-08-01) |
+| **Fase E — Núcleo contable** | `20260801120000`–`20260801120004` (5; internal `0300`–`0304`) | `plan_de_cuentas`, `asientos_contables`, `asiento_items` (+ trigger de balanceo diferido), RLS, `crear_asiento`/`anular_asiento` (manual, funciona), informes libro diario/mayor/sumas y saldos. **Aplicado con tablas vacías**; `generar_asiento_desde_*` aplicado pero **stub que lanza excepción** hasta validar la matriz de imputación (bloqueada en datos por Tango, igual que la Fase 7). **Frontend construido el 2026-08-14** (ver abajo). | ✅ applied empty (2026-08-01) |
+| **Fase F/WS3 — IVA multi-alícuota en Ventas** | `20260802120000`–`20260802120002` (3) | `alicuota_iva_id` (nullable) en los 4 `*_items` de Ventas; `crear_/actualizar_` presupuesto/factura + `crear_nota` recalculando con `crm_calc_totales_multi_alicuota` (firmas idénticas ⇒ backward-compat: ítem sin alícuota ⇒ 21%); los `*_list` exponen `alicuota_iva_id` + `iva_porcentaje` por ítem. Smoke E2E: factura 21%+10.5% → total 2315. | ✅ applied + tested (2026-08-01) |
+| **Fase F/WS2 — Ventas → Contabilidad (enganche)** | `20260803120000`–`20260803120001` (2) | `generar_asiento_desde_nota` (stub, como los de `0303`), `generar_asientos_ventas_pendientes` (backfill idempotente por `(referencia_tipo, referencia_id)`), disparo automático como **CONSTRAINT TRIGGER diferido** en `facturas`/`notas` guardado por `config_empresa('contabilidad_auto_asientos')`, + los 2 flags de config (`'off'` / `''`). Con el flag apagado es un **no-op**: no cambia el comportamiento actual. | 📝 escritas, **NO aplicadas** — la base no respondía el 2026-08-14 |
 
 > Nota de contexto: estas fases construyen funcionalidad **sobre** el cutover, no lo reemplazan. El
 > **bloqueo raíz sigue siendo el mismo** (credenciales del SQL Server de Tango): frena tanto la carga de
 > datos live (Fase 7, abajo) como poblar `plan_de_cuentas` + la matriz contable (Fase E).
+
+### Estado al 2026-08-14
+
+- ✅ **Todo el código de las Fases A–F está commiteado y pusheado** a `origin/main`
+  (`N-dossantos/CRM-marblock`) en 6 commits. Hasta esta fecha vivía **sólo en el disco del
+  desarrollador**: `origin/main` tenía únicamente el módulo Ventas, así que la producción de Vercel
+  servía una versión sin Compras/Tesorería/Consultas y las migraciones ya aplicadas no tenían backup
+  en git.
+- ✅ **Frontend de Contabilidad construido** (Fase E §8 paso 5, el único paso de esa lista que no
+  depende de Tango): `PlanCuentasAPI` + `AsientosAPI` + `InformesAPI.{libroDiario,libroMayor,sumasYSaldos}`
+  en `frontend/src/api/index.js`, vistas `ContabilidadPlanCuentas` / `ContabilidadAsientos`,
+  `components/Forms/AsientoForm.jsx` (líneas debe/haber con preview de balanceo), 2 rutas
+  `/contabilidad/*`, sección "Contabilidad" en el menú y 3 pestañas nuevas en `Informes`.
+  `npm run build` OK. **Sin verificar contra la base** (ver abajo).
+- ⏳ **La base `kkdbvzixwlyeahgianuc` no respondía** el 2026-08-14: toda consulta SQL vía MCP devuelve
+  `Connection terminated due to connection timeout` y `get_advisors` devuelve lista vacía (cuando
+  históricamente devolvía ~28 WARN by-design). Última actividad registrada: 2026-08-02. El patrón
+  encaja con un **proyecto pausado por inactividad** — confirmar y restaurar en el dashboard.
+  Bloquea: aplicar `20260803*`, el smoke test del frontend contable, y el deploy de la Edge Function.
+- ⏳ **Sigue pendiente el redeploy de la Edge Function `pdf`** (Fase D + Fase F/WS3). Verificado en
+  vivo: la desplegada es `version 1` (~2026-07-27, anterior a Tesorería), mientras el código local ya
+  tiene los 6 casos de tesorería y el desglose multi-alícuota.
 
 ## Phases
 

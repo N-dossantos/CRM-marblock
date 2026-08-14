@@ -73,6 +73,18 @@ const mat = (d) => ({
   ...(d.activo !== undefined ? { activo: d.activo !== false } : {}),
 })
 
+// Normalizador de plan de cuentas (Fase E). `nivel` e `imputable` los decide el usuario:
+// sólo las cuentas imputables reciben asientos, las de agrupación son títulos del árbol.
+const cta = (d) => ({
+  codigo:          d.codigo?.trim(),
+  descripcion:     d.descripcion?.trim(),
+  tipo_cuenta:     d.tipo_cuenta || 'Activo',
+  cuenta_padre_id: d.cuenta_padre_id ? Number(d.cuenta_padre_id) : null,
+  nivel:           parseInt(d.nivel, 10) || 1,
+  imputable:       d.imputable !== false,
+  ...(d.activo !== undefined ? { activo: d.activo !== false } : {}),
+})
+
 // ── CLIENTES ────────────────────────────────────────────────────────
 export const ClientesAPI = {
   list: ({ q, activo } = {}) =>
@@ -266,6 +278,13 @@ export const InformesAPI = {
     rpc('informe_cheques_tesoreria', { p_estado: estado || null, p_desde: desde || null, p_hasta: hasta || null }),
   comprobantesTesoreria:   ({ desde, hasta } = {}) =>
     rpc('informe_comprobantes_tesoreria', { p_desde: desde || null, p_hasta: hasta || null }),
+  // ── Contabilidad (Fase E) — sólo asientos 'confirmado' ──
+  libroDiario:   ({ desde, hasta } = {}) =>
+    rpc('informe_libro_diario', { p_desde: desde || null, p_hasta: hasta || null }),
+  libroMayor:    (cuentaId, { desde, hasta } = {}) =>
+    rpc('informe_libro_mayor', { p_cuenta_id: cuentaId, p_desde: desde || null, p_hasta: hasta || null }),
+  sumasYSaldos:  ({ desde, hasta } = {}) =>
+    rpc('informe_sumas_y_saldos', { p_desde: desde || null, p_hasta: hasta || null }),
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -520,6 +539,45 @@ export const ConciliacionAPI = {
   }),
   marcar: (id, movimientoIds)  => rpc('marcar_conciliado', { p_conciliacion_id: id, p_movimiento_ids: movimientoIds }),
   cerrar: (id)                 => rpc('cerrar_conciliacion', { p_conciliacion_id: id }),
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// CONTABILIDAD (Fase E) — plan de cuentas + asientos manuales.
+// La generación automática (generar_asiento_desde_*) sigue siendo un stub en la base: hasta que
+// se valide la matriz de imputación, el único alta posible es la manual vía crear_asiento.
+// ═════════════════════════════════════════════════════════════════════
+
+// ── PLAN DE CUENTAS (ABM simple, como materiales/productos) ──────────
+export const PlanCuentasAPI = {
+  list: ({ q, imputable, activo } = {}) => {
+    let query = supabase.from('plan_de_cuentas').select('*').order('codigo')
+    if (q) {
+      const s = String(q).replace(/[,()]/g, ' ')
+      query = query.or(`descripcion.ilike.%${s}%,codigo.ilike.%${s}%`)
+    }
+    if (imputable !== undefined) query = query.eq('imputable', imputable === true || imputable === 'true')
+    if (activo !== undefined)    query = query.eq('activo', activo === true || activo === 'true')
+    return query.then(unwrap)
+  },
+  get:    (id)      => supabase.from('plan_de_cuentas').select('*').eq('id', id).maybeSingle().then(unwrap),
+  create: (data)    => supabase.from('plan_de_cuentas').insert(cta(data)).select().single().then(unwrap),
+  update: (id,data) => supabase.from('plan_de_cuentas').update(cta(data)).eq('id', id).select().single().then(unwrap),
+}
+
+// ── ASIENTOS CONTABLES ───────────────────────────────────────────────
+// El listado sale de informe_libro_diario, que ya devuelve cabecera + líneas + totales
+// (sólo asientos 'confirmado'); no hace falta un *_list propio.
+export const AsientosAPI = {
+  list:   (opts)  => InformesAPI.libroDiario(opts),
+  crear:  (data)  => rpc('crear_asiento', {
+    p_fecha:           data.fecha,
+    p_descripcion:     data.descripcion,
+    p_lineas:          data.lineas,
+    p_origen:          data.origen || 'manual',
+    p_referencia_tipo: data.referencia_tipo || null,
+    p_referencia_id:   data.referencia_id || null,
+  }),
+  anular: (id)    => rpc('anular_asiento', { p_id: id }),
 }
 
 // ── PDF URLS (se usan con PDFModal) ──────────────────────────────────

@@ -36,6 +36,10 @@ import TesoreriaMovimientos    from './views/TesoreriaMovimientos'
 import TesoreriaChequesPropios from './views/TesoreriaChequesPropios'
 import TesoreriaConciliacion   from './views/TesoreriaConciliacion'
 
+// Contabilidad (Fase E) — núcleo manual; la generación automática sigue bloqueada en la matriz
+import ContabilidadPlanCuentas from './views/ContabilidadPlanCuentas'
+import ContabilidadAsientos    from './views/ContabilidadAsientos'
+
 export default function App() {
   const { session, loading } = useAuth()
 
@@ -85,6 +89,10 @@ export default function App() {
         <Route path="/tesoreria/movimientos"    element={<TesoreriaMovimientos />} />
         <Route path="/tesoreria/cheques-propios" element={<TesoreriaChequesPropios />} />
         <Route path="/tesoreria/conciliacion"   element={<TesoreriaConciliacion />} />
+
+        {/* Contabilidad (Fase E) */}
+        <Route path="/contabilidad/plan-cuentas" element={<ContabilidadPlanCuentas />} />
+        <Route path="/contabilidad/asientos"     element={<ContabilidadAsientos />} />
 
         <Route path="*"             element={<Navigate to="/" replace />} />
       </Routes>

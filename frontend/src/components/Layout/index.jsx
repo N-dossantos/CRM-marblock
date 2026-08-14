@@ -40,6 +40,13 @@ const NAV = [
     ],
   },
   {
+    section: 'Contabilidad',
+    items: [
+      { to: '/contabilidad/plan-cuentas', icon: '📗', label: 'Plan de Cuentas' },
+      { to: '/contabilidad/asientos',     icon: '📘', label: 'Asientos' },
+    ],
+  },
+  {
     section: 'Consultas',
     items: [
       { to: '/consultas/cliente',   icon: '🔎', label: 'Ficha de Cliente' },
@@ -88,6 +95,8 @@ const VIEW_TITLES = {
   '/tesoreria/movimientos':     'Movimientos de Tesorería',
   '/tesoreria/cheques-propios': 'Cheques Propios',
   '/tesoreria/conciliacion':    'Conciliación Bancaria',
+  '/contabilidad/plan-cuentas': 'Plan de Cuentas',
+  '/contabilidad/asientos':     'Asientos Contables',
 }
 
 export default function Layout({ children }) {
