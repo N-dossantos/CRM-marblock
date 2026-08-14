@@ -7,7 +7,7 @@ import { Buffer } from 'node:buffer'
 import {
   COLORES, $ar, fFecha,
   dibujarHeader, dibujarCliente, dibujarCabeceraTabla,
-  dibujarFilaItem, dibujarTotales, dibujarFooter,
+  dibujarFilaItem, dibujarTotales, dibujarFooter, calcularDetalleAlicuotas,
 } from './base.ts'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +78,8 @@ export async function generarFactura(factura: any, empresa: any): Promise<Uint8A
       descuento_porcentaje: parseFloat(factura.descuento_general),
       neto_gravado:     parseFloat(factura.neto_gravado),
       iva_monto:        parseFloat(factura.iva_monto),
+      iva_alicuota:     parseFloat(factura.iva_alicuota),
+      detalle:          calcularDetalleAlicuotas(items, factura.descuento_general),
       total:            parseFloat(factura.total),
     }
     y = dibujarTotales(doc, y, totales)
@@ -290,6 +292,7 @@ export async function generarNota(nota: any, empresa: any): Promise<Uint8Array> 
       subtotal:     parseFloat(nota.subtotal),
       neto_gravado: parseFloat(nota.neto_gravado),
       iva_monto:    parseFloat(nota.iva_monto),
+      detalle:      calcularDetalleAlicuotas(nota.items || [], 0),
       total:        parseFloat(nota.total),
     }
     y = dibujarTotales(doc, y, totales)
@@ -488,6 +491,147 @@ export async function generarCtaCte(data: any, empresa: any, filtros: any = {}):
        .text('SALDO FINAL:', M + 8, y + 9)
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12)
        .text($ar(Math.abs(saldo_total)), M + 8, y + 7, { width: ancho - 16, align: 'right' })
+
+    dibujarFooter(doc, empresa)
+    doc.end()
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPROBANTE INTERNO DE MOVIMIENTO DE TESORERÍA  (Fase D)
+// Orden de pago / recibo interno de una fila del ledger. NO es un comprobante fiscal.
+// ─────────────────────────────────────────────────────────────────────────────
+const ORIGEN_LABEL: Record<string, string> = {
+  manual: 'Manual', recibo: 'Recibo de cobro', pago_proveedor: 'Pago a proveedor',
+  cheque: 'Cheque de tercero', cheque_propio: 'Cheque propio',
+  transferencia: 'Transferencia', conciliacion: 'Conciliación',
+}
+
+export async function generarComprobanteTesoreria(mov: any, empresa: any): Promise<Uint8Array> {
+  return await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
+    const buffers: any[] = []
+    doc.on('data', (b: any) => buffers.push(b))
+    doc.on('end',  () => resolve(Buffer.concat(buffers)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 45
+    const ancho = W - M * 2
+    const esEntrada = Number(mov.signo) === 1
+
+    let y = dibujarHeader(doc, empresa, 'COMPROBANTE TESORERÍA', mov.numero || `#${mov.id}`, mov.fecha)
+
+    // Caja de datos de la cuenta / operación
+    doc.rect(M, y + 6, ancho, 70).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('CUENTA', M + 10, y + 14)
+    doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(12)
+       .text(mov.cuenta?.descripcion || '—', M + 10, y + 24, { width: ancho * 0.6 })
+    doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8.5)
+       .text(`Tipo: ${mov.tipo?.descripcion || '—'}${mov.tipo?.codigo ? ` (${mov.tipo.codigo})` : ''}   ·   Origen: ${ORIGEN_LABEL[mov.origen] || mov.origen}`, M + 10, y + 44)
+    if (mov.referencia_id != null) {
+      doc.text(`Referencia: ${mov.referencia_tipo || '—'} #${mov.referencia_id}`, M + 10, y + 56)
+    }
+    y += 84
+
+    // Importe destacado con signo
+    const color = esEntrada ? COLORES.verde : COLORES.rojo
+    doc.rect(M, y, ancho, 46).fill(COLORES.azul_oscuro)
+    doc.fillColor('rgba(255,255,255,0.75)').font('Helvetica-Bold').fontSize(9)
+       .text(esEntrada ? 'ENTRADA (CRÉDITO)' : 'SALIDA (DÉBITO)', M + 14, y + 10)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(20)
+       .text(`${esEntrada ? '' : '− '}${$ar(mov.monto)}`, M + 14, y + 22, { width: ancho - 28, align: 'right' })
+    // Franja de color según signo
+    doc.rect(M, y, 5, 46).fill(color)
+    y += 60
+
+    // Concepto
+    if (mov.concepto) {
+      doc.rect(M, y, ancho, 40).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
+      doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('CONCEPTO', M + 8, y + 8)
+      doc.fillColor(COLORES.gris_oscuro).font('Helvetica').fontSize(9.5).text(mov.concepto, M + 8, y + 20, { width: ancho - 16 })
+      y += 50
+    }
+
+    // Estado
+    const estado = mov.anulado ? 'ANULADO' : (mov.conciliado ? 'CONCILIADO' : 'VIGENTE')
+    doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8.5).text(`Estado: ${estado}`, M, y + 4)
+
+    // Leyenda
+    const yLey = doc.page.height - 95
+    doc.rect(M, yLey, ancho, 32).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
+    doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(7.5)
+       .text('Comprobante interno de tesorería — no constituye comprobante fiscal.', M + 8, yLey + 12, { width: ancho - 16, align: 'center' })
+
+    dibujarFooter(doc, empresa)
+    doc.end()
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPROBANTE INTERNO DE CHEQUE (propio o de tercero)  (Fase D)
+// Respaldo interno — NO es la impresión legal del cheque cartular (ver plan §7).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function generarCheque(cheque: any, empresa: any, clase: 'propio' | 'tercero'): Promise<Uint8Array> {
+  return await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
+    const buffers: any[] = []
+    doc.on('data', (b: any) => buffers.push(b))
+    doc.on('end',  () => resolve(Buffer.concat(buffers)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 45
+    const ancho = W - M * 2
+    const esPropio = clase === 'propio'
+
+    const titulo    = esPropio ? 'CHEQUE PROPIO' : 'CHEQUE DE TERCERO'
+    const banco     = esPropio ? (cheque.cuenta?.descripcion || cheque.cuenta?.banco || '—') : (cheque.banco || '—')
+    const entidad   = esPropio ? (cheque.beneficiario || cheque.proveedor?.razon_social || '—') : (cheque.titular || cheque.cliente?.razon_social || '—')
+    const entLabel  = esPropio ? 'BENEFICIARIO' : 'LIBRADOR / TITULAR'
+    const fEmision  = cheque.fecha_emision
+    const fPagoVto  = esPropio ? cheque.fecha_pago : cheque.fecha_vcto
+    const fPagoLbl  = esPropio ? 'Fecha de pago' : 'Fecha de vencimiento'
+    const tipoTxt   = cheque.tipo === 'echeq' ? 'E-Cheq' : 'Físico'
+
+    let y = dibujarHeader(doc, empresa, titulo, `N° ${cheque.numero || '—'}`, fEmision)
+
+    // Caja de datos del cheque
+    doc.rect(M, y + 6, ancho, 92).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text(esPropio ? 'BANCO / CUENTA' : 'BANCO', M + 10, y + 14)
+    doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(12).text(banco, M + 10, y + 24, { width: ancho * 0.6 })
+
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text(entLabel, M + 10, y + 46)
+    doc.fillColor(COLORES.gris_oscuro).font('Helvetica').fontSize(10).text(entidad, M + 10, y + 56, { width: ancho * 0.6 })
+
+    doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8.5)
+       .text(`Tipo: ${tipoTxt}   ·   Estado: ${(cheque.estado || '—').toUpperCase()}`, M + 10, y + 78)
+
+    // Columna derecha: fechas
+    const colDer = M + ancho * 0.65
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('FECHA EMISIÓN', colDer, y + 14)
+    doc.fillColor(COLORES.gris_oscuro).font('Helvetica').fontSize(9).text(fFecha(fEmision), colDer, y + 24)
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text(fPagoLbl.toUpperCase(), colDer, y + 46)
+    doc.fillColor(COLORES.gris_oscuro).font('Helvetica').fontSize(9).text(fFecha(fPagoVto), colDer, y + 56)
+    y += 106
+
+    // Importe
+    doc.rect(M, y, ancho, 46).fill(COLORES.azul_oscuro)
+    doc.fillColor('rgba(255,255,255,0.75)').font('Helvetica-Bold').fontSize(9).text('IMPORTE', M + 14, y + 10)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(20).text($ar(cheque.monto), M + 14, y + 22, { width: ancho - 28, align: 'right' })
+    y += 60
+
+    if (cheque.observaciones) {
+      doc.rect(M, y, ancho, 40).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
+      doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('OBSERVACIONES', M + 8, y + 8)
+      doc.fillColor(COLORES.gris_oscuro).font('Helvetica').fontSize(9).text(cheque.observaciones, M + 8, y + 20, { width: ancho - 16 })
+    }
+
+    // Leyenda
+    const yLey = doc.page.height - 95
+    doc.rect(M, yLey, ancho, 32).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
+    doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(7.5)
+       .text('Comprobante interno de respaldo — no válido como cheque ni comprobante fiscal.', M + 8, yLey + 12, { width: ancho - 16, align: 'center' })
 
     dibujarFooter(doc, empresa)
     doc.end()

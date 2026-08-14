@@ -1,6 +1,6 @@
 // src/views/Informes/index.jsx
 import { useState, useEffect } from 'react'
-import { InformesAPI, ClientesAPI } from '../../api'
+import { InformesAPI, ClientesAPI, CuentasBancariasAPI, MovimientosTesoreriaAPI, pdfUrl } from '../../api'
 import { $ar, fFecha, hoy } from '../../utils'
 import { Loading } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
@@ -9,11 +9,24 @@ import {
 } from 'recharts'
 
 const TABS = [
-  { id: 'ventas',     label: '📊 Ventas por período' },
-  { id: 'clientes',   label: '🏆 Ranking de clientes' },
-  { id: 'deudores',   label: '🚨 Ranking de deudores' },
-  { id: 'pendientes', label: '⏳ Pendientes' },
+  { id: 'ventas',         label: '📊 Ventas por período' },
+  { id: 'clientes',       label: '🏆 Ranking de clientes' },
+  { id: 'deudores',       label: '🚨 Ranking de deudores' },
+  { id: 'pendientes',     label: '⏳ Pendientes' },
+  { id: 'iva_compras',    label: '📚 Libro IVA Compras' },
+  { id: 'nomina_prov',    label: '🏭 Nómina proveedores' },
+  { id: 'precios_compra', label: '🏷️ Precios de compra' },
+  { id: 'saldos_tes',     label: '🏦 Saldos tesorería' },
+  { id: 'subdiario_tes',  label: '📖 Subdiario por cuenta' },
+  { id: 'mayor_tes',      label: '📊 Mayor tesorería' },
+  { id: 'oper_tes',       label: '🔀 Movimientos por operación' },
+  { id: 'cheques_tes',    label: '💳 Cheques' },
+  { id: 'comprob_tes',    label: '🧾 Comprobantes tesorería' },
+  { id: 'historico_tes',  label: '🕓 Histórico' },
 ]
+
+// tabs de tesorería que usan el rango desde/hasta (saldos es snapshot, no lleva fecha)
+const TES_FECHA_TABS = ['subdiario_tes', 'mayor_tes', 'oper_tes', 'cheques_tes', 'comprob_tes', 'historico_tes']
 
 const primerDiaMes = () => {
   const d = new Date(); d.setDate(1)
@@ -25,12 +38,22 @@ export default function Informes() {
   const [desde, setDesde]       = useState(primerDiaMes())
   const [hasta, setHasta]       = useState(hoy())
   const [filtroCli, setFiltroCli] = useState('')
+  const [qMaterial, setQMaterial] = useState('')
   const [clientes, setClientes] = useState([])
+  const [cuentasTes, setCuentasTes] = useState([])
+  const [cuentaTes, setCuentaTes]   = useState('')
+  const [estadoCheque, setEstadoCheque] = useState('')
   const [data, setData]         = useState(null)
   const [loading, setLoading]   = useState(false)
   const [pdfModal, setPdfModal] = useState(null)
 
   useEffect(() => { ClientesAPI.list().then(setClientes) }, [])
+  useEffect(() => {
+    CuentasBancariasAPI.list({ activo: true }).then(cs => {
+      setCuentasTes(cs)
+      setCuentaTes(prev => prev || (cs[0] ? String(cs[0].id) : ''))
+    })
+  }, [])
   useEffect(() => { cargar() }, [tab])
 
   const cargar = async () => {
@@ -54,6 +77,37 @@ export default function Informes() {
           ])
           setData({ remitos: rems, facturas: facs })
           break
+        case 'iva_compras':
+          setData(await InformesAPI.ivaCompras({ desde, hasta }))
+          break
+        case 'nomina_prov':
+          setData(await InformesAPI.nominaProveedores())
+          break
+        case 'precios_compra':
+          setData(await InformesAPI.preciosCompra({ q: qMaterial || undefined }))
+          break
+        case 'saldos_tes':
+          setData(await InformesAPI.saldosTesoreria())
+          break
+        case 'subdiario_tes':
+          if (!cuentaTes) { setData(null); break }
+          setData(await InformesAPI.subdiarioCuenta(Number(cuentaTes), { desde, hasta }))
+          break
+        case 'mayor_tes':
+          setData(await InformesAPI.mayorTesoreria({ desde, hasta }))
+          break
+        case 'oper_tes':
+          setData(await InformesAPI.movimientosPorOperacion({ desde, hasta }))
+          break
+        case 'cheques_tes':
+          setData(await InformesAPI.chequesTesoreria({ estado: estadoCheque || undefined, desde, hasta }))
+          break
+        case 'comprob_tes':
+          setData(await InformesAPI.comprobantesTesoreria({ desde, hasta }))
+          break
+        case 'historico_tes':
+          setData(await MovimientosTesoreriaAPI.list({ desde, hasta }))
+          break
       }
     } finally {
       setLoading(false)
@@ -65,7 +119,7 @@ export default function Informes() {
   return (
     <div>
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--gray-200)' }}>
+      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--gray-200)', overflowX: 'auto' }}>
         {TABS.map(t => (
           <button
             key={t.id}
@@ -91,7 +145,17 @@ export default function Informes() {
       </div>
 
       {/* Filtros */}
-      {(tab === 'ventas' || tab === 'clientes') && (
+      {tab === 'precios_compra' && (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div>
+            <label className="lbl">Buscar material</label>
+            <input className="inp" style={{ width: 260 }} placeholder="Código o descripción…" value={qMaterial} onChange={e => setQMaterial(e.target.value)} />
+          </div>
+          <button className="btn btn-primary" onClick={cargar} style={{ marginTop: 2 }}>Consultar</button>
+        </div>
+      )}
+
+      {(tab === 'ventas' || tab === 'clientes' || tab === 'iva_compras' || TES_FECHA_TABS.includes(tab)) && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div>
             <label className="lbl">Desde</label>
@@ -110,6 +174,31 @@ export default function Informes() {
               </select>
             </div>
           )}
+          {tab === 'subdiario_tes' && (
+            <div>
+              <label className="lbl">Cuenta</label>
+              <select className="sel" style={{ width: 220 }} value={cuentaTes} onChange={e => setCuentaTes(e.target.value)}>
+                <option value="">Seleccionar cuenta…</option>
+                {cuentasTes.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
+              </select>
+            </div>
+          )}
+          {tab === 'cheques_tes' && (
+            <div>
+              <label className="lbl">Estado (opcional)</label>
+              <select className="sel" style={{ width: 200 }} value={estadoCheque} onChange={e => setEstadoCheque(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="en_cartera">En cartera (terceros)</option>
+                <option value="depositado">Depositado (terceros)</option>
+                <option value="entregado">Entregado</option>
+                <option value="emitido">Emitido (propios)</option>
+                <option value="pagado">Pagado (propios)</option>
+                <option value="rechazado_banco">Rechazado (terceros)</option>
+                <option value="rechazado">Rechazado (propios)</option>
+                <option value="anulado">Anulado</option>
+              </select>
+            </div>
+          )}
           <button className="btn btn-primary" onClick={cargar} style={{ marginTop: 2 }}>Consultar</button>
           {tab === 'ventas' && data && (
             <button
@@ -120,6 +209,24 @@ export default function Informes() {
                 if (filtroCli) p.set('cliente_id', filtroCli)
                 setPdfModal({ url: `/api/pdf/ventas?${p.toString()}`, titulo: `Resumen de Ventas ${desde} / ${hasta}` })
               }}
+            >
+              📄 Exportar PDF
+            </button>
+          )}
+          {tab === 'subdiario_tes' && data && cuentaTes && (
+            <button
+              className="btn btn-secondary btn-sm"
+              style={{ marginTop: 2, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+              onClick={() => setPdfModal({ url: pdfUrl.subdiarioTesoreria(Number(cuentaTes), desde, hasta), titulo: 'Subdiario por cuenta' })}
+            >
+              📄 Exportar PDF
+            </button>
+          )}
+          {tab === 'mayor_tes' && data && (
+            <button
+              className="btn btn-secondary btn-sm"
+              style={{ marginTop: 2, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+              onClick={() => setPdfModal({ url: pdfUrl.mayorTesoreria(desde, hasta), titulo: `Mayor de Tesorería ${desde} / ${hasta}` })}
             >
               📄 Exportar PDF
             </button>
@@ -401,6 +508,429 @@ export default function Informes() {
                   </div>
                 }
               </div>
+            </div>
+          )}
+          {/* LIBRO IVA COMPRAS */}
+          {tab === 'iva_compras' && data.comprobantes && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
+                {[
+                  { label: 'Comprobantes',   val: data.comprobantes.length, color: 'var(--blue-600)' },
+                  { label: 'Neto gravado',    val: $ar(data.totales.neto_gravado || 0), color: 'var(--gray-600)' },
+                  { label: 'IVA total',       val: $ar(data.totales.iva_monto || 0), color: 'var(--gray-600)' },
+                  { label: 'Total compras',   val: $ar(data.totales.total || 0), color: '#f97316' },
+                ].map(k => (
+                  <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
+                    <div className="kpi-label">{k.label}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="tbl-wrap" style={{ marginBottom: 18 }}>
+                <table>
+                  <thead><tr>
+                    <th>Fecha</th><th>Comprobante</th><th>Proveedor</th><th>CUIT</th>
+                    <th>Alícuotas</th><th className="th-right">Neto</th><th className="th-right">IVA</th><th className="th-right">Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.comprobantes.length === 0
+                      ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin comprobantes en el período</td></tr>
+                      : data.comprobantes.map((c, i) => (
+                        <tr key={i}>
+                          <td>{fFecha(c.fecha)}</td>
+                          <td><span className={`badge badge-${c.tipo}`} style={{ marginRight: 6 }}>{c.tipo}</span><span className="code">{c.punto_venta}-{c.numero}</span></td>
+                          <td className="td-bold">{c.razon_social}</td>
+                          <td className="td-mono">{c.cuit}</td>
+                          <td style={{ fontSize: 11, color: 'var(--gray-500)' }}>
+                            {(c.iva_detalle || []).map((d, j) => (
+                              <span key={j} style={{ display: 'inline-block', marginRight: 6 }}>{d.porcentaje}%: {$ar(d.iva_monto)}</span>
+                            ))}
+                          </td>
+                          <td className="td-right">{$ar(c.neto_gravado)}</td>
+                          <td className="td-right">{$ar(c.iva_monto)}</td>
+                          <td className="td-right td-bold">{$ar(c.total)}</td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+
+              {data.retenciones?.length > 0 && (
+                <div className="card">
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>
+                    Retenciones aplicadas — total {$ar(data.totales.retenciones || 0)}
+                  </div>
+                  <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
+                    <table>
+                      <thead><tr>
+                        <th>Fecha</th><th>Proveedor</th><th>Tipo</th><th>Jurisdicción</th><th>Certificado</th><th className="th-right">Monto</th>
+                      </tr></thead>
+                      <tbody>
+                        {data.retenciones.map((r, i) => (
+                          <tr key={i}>
+                            <td>{fFecha(r.fecha)}</td>
+                            <td className="td-bold">{r.razon_social}</td>
+                            <td>{r.tipo_retencion}</td>
+                            <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{r.jurisdiccion || '—'}</td>
+                            <td className="code">{r.numero_certificado || '—'}</td>
+                            <td className="td-right td-bold">{$ar(r.monto)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* NÓMINA DE PROVEEDORES */}
+          {tab === 'nomina_prov' && Array.isArray(data) && (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <th>Proveedor</th><th>CUIT</th><th>Cond. IVA</th><th>Cond. compra</th><th>Teléfono</th>
+                  <th className="th-right">Facturas</th><th className="th-right">Total comprado</th><th className="th-right">Saldo pendiente</th>
+                </tr></thead>
+                <tbody>
+                  {data.length === 0
+                    ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin proveedores</td></tr>
+                    : data.map(p => (
+                      <tr key={p.id} style={{ opacity: p.activo ? 1 : 0.5 }}>
+                        <td className="td-bold">{p.razon_social}</td>
+                        <td className="td-mono">{p.cuit}</td>
+                        <td style={{ fontSize: 12 }}>{p.condicion_iva}</td>
+                        <td style={{ fontSize: 12 }}>{p.condicion_compra}</td>
+                        <td style={{ fontSize: 12 }}>{p.telefono || '—'}</td>
+                        <td className="td-right">{p.cantidad_facturas}</td>
+                        <td className="td-right td-bold">{$ar(p.total_comprado)}</td>
+                        <td className="td-right" style={{ color: parseFloat(p.saldo_pendiente) > 0 ? 'var(--red-500)' : 'var(--green-600)', fontWeight: 600 }}>
+                          {parseFloat(p.saldo_pendiente) > 0 ? $ar(p.saldo_pendiente) : '✓'}
+                        </td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* PRECIOS DE COMPRA */}
+          {tab === 'precios_compra' && Array.isArray(data) && (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <th>Código</th><th>Descripción</th><th>Unidad</th>
+                  <th className="th-right">Último precio</th><th>Última compra</th><th>Proveedor</th>
+                </tr></thead>
+                <tbody>
+                  {data.length === 0
+                    ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin datos de compras de materiales</td></tr>
+                    : data.map((m, i) => (
+                      <tr key={i}>
+                        <td><span className="code">{m.codigo || '—'}</span></td>
+                        <td className="td-bold">{m.descripcion || '—'}</td>
+                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.unidad_medida || '—'}</td>
+                        <td className="td-right td-bold">{$ar(m.ultimo_precio)}</td>
+                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{fFecha(m.fecha_ultima_compra)}</td>
+                        <td style={{ fontSize: 12 }}>{m.ultimo_proveedor || '—'}</td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+            </div>
+          )}
+          {/* ═══════════════ TESORERÍA ═══════════════ */}
+
+          {/* SALDOS TESORERÍA */}
+          {tab === 'saldos_tes' && data.agrupaciones && (
+            <div>
+              <div style={{ background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: 10, padding: '14px 18px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 700, color: 'var(--blue-600)', fontSize: 15 }}>Saldo total de tesorería</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--blue-600)' }}>{$ar(data.total_general || 0)}</div>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                    onClick={() => setPdfModal({ url: pdfUrl.saldosTesoreria(), titulo: 'Saldos de Tesorería' })}
+                  >
+                    📄 Exportar PDF
+                  </button>
+                </div>
+              </div>
+              {data.agrupaciones.length === 0
+                ? <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin cuentas cargadas</div>
+                : data.agrupaciones.map((g, gi) => (
+                  <div className="card" key={gi} style={{ marginBottom: 16 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{g.descripcion}</span>
+                      <span style={{ color: 'var(--gray-600)' }}>Subtotal: {$ar(g.subtotal || 0)}</span>
+                    </div>
+                    <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
+                      <table>
+                        <thead><tr>
+                          <th>Cuenta</th><th>Clase</th>
+                          <th className="th-right">Saldo inicial</th><th className="th-right">Entradas</th>
+                          <th className="th-right">Salidas</th><th className="th-right">Saldo actual</th>
+                        </tr></thead>
+                        <tbody>
+                          {g.cuentas.map(c => (
+                            <tr key={c.id}>
+                              <td className="td-bold">{c.descripcion}</td>
+                              <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.clase}</td>
+                              <td className="td-right">{$ar(c.saldo_inicial || 0)}</td>
+                              <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(c.entradas || 0)}</td>
+                              <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(c.salidas || 0)}</td>
+                              <td className="td-right td-bold">{$ar(c.saldo_actual || 0)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+
+          {/* SUBDIARIO POR CUENTA (saldo corrido) */}
+          {tab === 'subdiario_tes' && data.movimientos && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 20 }}>
+                {[
+                  { label: 'Cuenta',        val: data.cuenta?.descripcion || '—', color: 'var(--gray-700)' },
+                  { label: 'Saldo inicial', val: $ar(data.saldo_inicial || 0),    color: 'var(--gray-600)' },
+                  { label: 'Saldo final',   val: $ar(data.saldo_final || 0),      color: 'var(--blue-600)' },
+                ].map(k => (
+                  <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
+                    <div className="kpi-label">{k.label}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <th>Fecha</th><th>Tipo</th><th>Concepto</th>
+                    <th className="th-right">Débito</th><th className="th-right">Crédito</th><th className="th-right">Saldo</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.movimientos.length === 0
+                      ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos en el período</td></tr>
+                      : data.movimientos.map(m => (
+                        <tr key={m.id} style={{ opacity: m.anulado ? 0.4 : 1 }}>
+                          <td>{fFecha(m.fecha)}</td>
+                          <td style={{ fontSize: 12 }}><span className="code">{m.tipo_codigo}</span> {m.tipo_descripcion}</td>
+                          <td style={{ fontSize: 12 }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
+                          <td className="td-right" style={{ color: 'var(--red-500)' }}>{m.signo === -1 ? $ar(m.monto) : ''}</td>
+                          <td className="td-right" style={{ color: 'var(--green-600)' }}>{m.signo === 1 ? $ar(m.monto) : ''}</td>
+                          <td className="td-right td-bold">{$ar(m.saldo_corrido || 0)}</td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* MAYOR TESORERÍA */}
+          {tab === 'mayor_tes' && data.cuentas && (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <th>Cuenta</th><th>Clase</th>
+                  <th className="th-right">Saldo inicial</th><th className="th-right">Débitos</th>
+                  <th className="th-right">Créditos</th><th className="th-right">Saldo final</th>
+                </tr></thead>
+                <tbody>
+                  {data.cuentas.length === 0
+                    ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin cuentas</td></tr>
+                    : data.cuentas.map(c => (
+                      <tr key={c.id}>
+                        <td className="td-bold">{c.descripcion}</td>
+                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.clase}</td>
+                        <td className="td-right">{$ar(c.saldo_inicial || 0)}</td>
+                        <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(c.debitos || 0)}</td>
+                        <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(c.creditos || 0)}</td>
+                        <td className="td-right td-bold">{$ar(c.saldo_final || 0)}</td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+                {data.totales && data.cuentas.length > 0 && (
+                  <tfoot>
+                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--gray-200)' }}>
+                      <td colSpan={3} className="td-right">Totales</td>
+                      <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(data.totales.debitos || 0)}</td>
+                      <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(data.totales.creditos || 0)}</td>
+                      <td className="td-right">{$ar(data.totales.saldo_final || 0)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          )}
+
+          {/* MOVIMIENTOS POR OPERACIÓN */}
+          {tab === 'oper_tes' && data.operaciones && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
+                {[
+                  { label: 'Operaciones', val: data.totales.cantidad,          color: 'var(--blue-600)' },
+                  { label: 'Entradas',    val: $ar(data.totales.entradas || 0), color: 'var(--green-600)' },
+                  { label: 'Salidas',     val: $ar(data.totales.salidas || 0),  color: 'var(--red-500)' },
+                  { label: 'Neto',        val: $ar(data.totales.neto || 0),     color: 'var(--gray-700)' },
+                ].map(k => (
+                  <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
+                    <div className="kpi-label">{k.label}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <th>Código</th><th>Operación</th><th className="th-right">Cantidad</th>
+                    <th className="th-right">Entradas</th><th className="th-right">Salidas</th><th className="th-right">Neto</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.operaciones.length === 0
+                      ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos en el período</td></tr>
+                      : data.operaciones.map((o, i) => (
+                        <tr key={i}>
+                          <td><span className="code">{o.codigo}</span></td>
+                          <td className="td-bold">{o.descripcion}</td>
+                          <td className="td-right">{o.cantidad}</td>
+                          <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(o.entradas || 0)}</td>
+                          <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(o.salidas || 0)}</td>
+                          <td className="td-right td-bold">{$ar(o.neto || 0)}</td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* CHEQUES (terceros + propios) */}
+          {tab === 'cheques_tes' && data.cheques && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
+                {[
+                  { label: 'Cheques',     val: data.totales.cantidad,           color: 'var(--blue-600)' },
+                  { label: 'Monto total', val: $ar(data.totales.monto || 0),    color: 'var(--gray-700)' },
+                  { label: 'Terceros',    val: $ar(data.totales.terceros || 0), color: 'var(--green-600)' },
+                  { label: 'Propios',     val: $ar(data.totales.propios || 0),  color: 'var(--red-500)' },
+                ].map(k => (
+                  <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
+                    <div className="kpi-label">{k.label}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <th>Origen</th><th>Número</th><th>Banco</th><th>Tipo</th><th>Entidad</th>
+                    <th>Emisión</th><th>Vencimiento</th><th>Estado</th><th className="th-right">Monto</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.cheques.length === 0
+                      ? <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin cheques</td></tr>
+                      : data.cheques.map(c => (
+                        <tr key={`${c.origen}-${c.id}`}>
+                          <td><span style={{ background: c.origen === 'propio' ? 'var(--amber-100)' : 'var(--blue-100)', color: c.origen === 'propio' ? 'var(--amber-600)' : 'var(--blue-600)', padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{c.origen}</span></td>
+                          <td><span className="code">{c.numero}</span></td>
+                          <td style={{ fontSize: 12 }}>{c.banco || '—'}</td>
+                          <td style={{ fontSize: 12 }}>{c.tipo}</td>
+                          <td style={{ fontSize: 12 }}>{c.entidad || '—'}</td>
+                          <td style={{ fontSize: 12 }}>{fFecha(c.fecha_emision)}</td>
+                          <td style={{ fontSize: 12 }}>{fFecha(c.fecha_venc)}</td>
+                          <td style={{ fontSize: 12 }}>{c.estado}</td>
+                          <td className="td-right td-bold">{$ar(c.monto || 0)}</td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* COMPROBANTES TESORERÍA */}
+          {tab === 'comprob_tes' && data.movimientos && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
+                {[
+                  { label: 'Comprobantes', val: data.totales.cantidad,           color: 'var(--blue-600)' },
+                  { label: 'Entradas',     val: $ar(data.totales.entradas || 0), color: 'var(--green-600)' },
+                  { label: 'Salidas',      val: $ar(data.totales.salidas || 0),  color: 'var(--red-500)' },
+                  { label: 'Neto',         val: $ar(data.totales.neto || 0),     color: 'var(--gray-700)' },
+                ].map(k => (
+                  <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
+                    <div className="kpi-label">{k.label}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <th>Fecha</th><th>N°</th><th>Cuenta</th><th>Tipo</th><th>Concepto</th>
+                    <th>Origen</th><th className="th-right">Importe</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.movimientos.length === 0
+                      ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin comprobantes en el período</td></tr>
+                      : data.movimientos.map(m => (
+                        <tr key={m.id} style={{ opacity: m.anulado ? 0.4 : 1 }}>
+                          <td>{fFecha(m.fecha)}</td>
+                          <td>{m.numero ? <span className="code">{m.numero}</span> : '—'}</td>
+                          <td style={{ fontSize: 12 }}>{m.cuenta}</td>
+                          <td style={{ fontSize: 12 }}><span className="code">{m.tipo_codigo}</span></td>
+                          <td style={{ fontSize: 12 }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
+                          <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.origen}</td>
+                          <td className="td-right td-bold" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--red-500)' }}>{$ar(m.monto_con_signo || 0)}</td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* HISTÓRICO (listado plano de movimientos) */}
+          {tab === 'historico_tes' && Array.isArray(data) && (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <th>Fecha</th><th>N°</th><th>Cuenta</th><th>Tipo</th><th>Concepto</th>
+                  <th>Origen</th><th className="th-right">Importe</th><th>Concil.</th>
+                </tr></thead>
+                <tbody>
+                  {data.length === 0
+                    ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos en el período</td></tr>
+                    : data.map(m => (
+                      <tr key={m.id} style={{ opacity: m.anulado ? 0.4 : 1 }}>
+                        <td>{fFecha(m.fecha)}</td>
+                        <td>{m.numero ? <span className="code">{m.numero}</span> : '—'}</td>
+                        <td style={{ fontSize: 12 }}>{m.cuenta_descripcion}</td>
+                        <td style={{ fontSize: 12 }}><span className="code">{m.tipo_codigo}</span></td>
+                        <td style={{ fontSize: 12 }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
+                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.origen}</td>
+                        <td className="td-right td-bold" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--red-500)' }}>{$ar(m.monto_con_signo || 0)}</td>
+                        <td>{m.conciliado ? '✓' : ''}</td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
             </div>
           )}
         </>

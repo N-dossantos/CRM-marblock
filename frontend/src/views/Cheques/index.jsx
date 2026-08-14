@@ -1,6 +1,6 @@
 // src/views/Cheques/index.jsx
 import { useState, useEffect, useCallback } from 'react'
-import { ChequesAPI, ClientesAPI } from '../../api'
+import { ChequesAPI, ClientesAPI, CuentasBancariasAPI } from '../../api'
 import { $ar, fFecha, hoy, addDias, isVencido } from '../../utils'
 import { Badge, Loading, EmptyState, Modal } from '../../components/UI'
 import toast from 'react-hot-toast'
@@ -26,6 +26,8 @@ export default function Cheques() {
   const [filtroEst, setFiltroEst] = useState('')
   const [nuevo, setNuevo]       = useState(null)
   const [entregar, setEntregar] = useState(null) // { cheque, prov }
+  const [depositar, setDepositar] = useState(null) // { cheque, cuenta_id, fecha }
+  const [cuentas, setCuentas]   = useState([])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -34,10 +36,27 @@ export default function Cheques() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { ClientesAPI.list().then(setClientes) }, [])
+  // Cuentas de depósito (banco / valores; no efectivo). Fase C.
+  useEffect(() => { CuentasBancariasAPI.list({ activo: true }).then(cs => setCuentas(cs.filter(c => c.clase !== 'caja'))) }, [])
 
   const cambiarEstado = async (id, estado, proveedor = undefined) => {
     await ChequesAPI.cambiarEstado(id, estado, proveedor)
     load()
+  }
+
+  // Fase C: depositar acredita en una cuenta (RPC que genera el movimiento +1).
+  const confirmarDeposito = async () => {
+    if (!depositar.cuenta_id) { toast.error('Elegí la cuenta de depósito'); return }
+    try {
+      await ChequesAPI.depositar(depositar.cheque.id, Number(depositar.cuenta_id), depositar.fecha || null)
+      toast.success('Cheque depositado — acreditado en la cuenta')
+      setDepositar(null); load()
+    } catch {}
+  }
+  // Rechazar un cheque ya depositado revierte la acreditación (RPC -1).
+  const rechazarDepositado = async (id) => {
+    if (!confirm('¿Rechazar el cheque? Revierte la acreditación en el banco.')) return
+    try { await ChequesAPI.rechazar(id); toast.success('Cheque rechazado'); load() } catch {}
   }
 
   const guardarNuevo = async () => {

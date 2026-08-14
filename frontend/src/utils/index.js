@@ -48,12 +48,50 @@ export const calcTotales = (items = [], dtoGeneral = 0) => {
 
 const r2 = (n) => Math.round(n * 100) / 100
 
+// Totales multi-alícuota (Compras) — preview cliente. El servidor recalcula (anti-tamper).
+// `alicuotasById`: { [id]: { porcentaje } }. Ítem sin alícuota → se asume 21%.
+export const calcTotalesMulti = (items = [], dtoGeneral = 0, alicuotasById = {}) => {
+  const pct21 = Object.values(alicuotasById).find(a => +a.porcentaje === 21)
+  const subtotal = items.reduce((a, it) => a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
+  const descuentoMonto = subtotal * ((parseFloat(dtoGeneral) || 0) / 100)
+  const factor   = 1 - (parseFloat(dtoGeneral) || 0) / 100
+  const netoGravado = subtotal - descuentoMonto
+
+  const grupos = new Map()  // alicuota_iva_id -> { porcentaje, neto }
+  for (const it of items) {
+    const alic = alicuotasById[it.alicuota_iva_id] || pct21
+    const pct  = alic ? +alic.porcentaje : 21
+    const id   = it.alicuota_iva_id ?? (pct21 ? pct21.id : null)
+    const neto = calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item) * factor
+    const cur  = grupos.get(id) || { alicuota_iva_id: id, porcentaje: pct, neto_gravado: 0, iva_monto: 0 }
+    cur.neto_gravado += neto
+    grupos.set(id, cur)
+  }
+  let ivaMonto = 0
+  const detalle = [...grupos.values()].map(g => {
+    const iva = r2(g.neto_gravado * g.porcentaje / 100)
+    ivaMonto += iva
+    return { ...g, neto_gravado: r2(g.neto_gravado), iva_monto: iva }
+  }).sort((a, b) => a.porcentaje - b.porcentaje)
+
+  return {
+    subtotal:        r2(subtotal),
+    descuento_monto: r2(descuentoMonto),
+    neto_gravado:    r2(netoGravado),
+    iva_monto:       r2(ivaMonto),
+    total:           r2(netoGravado + ivaMonto),
+    detalle,
+  }
+}
+
 // Nombre legible del estado
 export const ESTADOS = {
   pendiente:       'Pendiente',
   cobrada:         'Cobrada',
-  parcial:         'Cobro parcial',
+  pagada:          'Pagada',
+  parcial:         'Parcial',
   anulada:         'Anulada',
+  anulado:         'Anulado',
   borrador:        'Borrador',
   enviado:         'Enviado',
   aceptado:        'Aceptado',
@@ -71,8 +109,10 @@ export const ESTADOS = {
 export const BADGE_COLORS = {
   pendiente:       'badge-pendiente',
   cobrada:         'badge-cobrada',
+  pagada:          'badge-cobrada',
   parcial:         'badge-parcial',
   anulada:         'badge-anulada',
+  anulado:         'badge-anulada',
   borrador:        'badge-borrador',
   enviado:         'badge-enviado',
   aceptado:        'badge-aceptado',

@@ -19,6 +19,35 @@ const NAV = [
     ],
   },
   {
+    section: 'Compras',
+    items: [
+      { to: '/compras/proveedores', icon: '🏭', label: 'Proveedores' },
+      { to: '/compras/materiales',  icon: '🧱', label: 'Materiales' },
+      { to: '/compras/remitos',     icon: '🚚', label: 'Remitos de compra' },
+      { to: '/compras/facturas',    icon: '🧾', label: 'Facturas de compra' },
+      { to: '/compras/notas',       icon: '📝', label: 'Notas C / D compra' },
+      { to: '/compras/pagos',       icon: '💸', label: 'Pagos a proveedor' },
+      { to: '/compras/cta-cte',     icon: '📕', label: 'Cta. Cte. Proveedores' },
+    ],
+  },
+  {
+    section: 'Tesorería',
+    items: [
+      { to: '/tesoreria/cuentas',         icon: '🏛️', label: 'Cuentas y Cajas' },
+      { to: '/tesoreria/movimientos',     icon: '💱', label: 'Movimientos' },
+      { to: '/tesoreria/cheques-propios', icon: '🖊️', label: 'Cheques Propios' },
+      { to: '/tesoreria/conciliacion',    icon: '⚖️', label: 'Conciliación' },
+    ],
+  },
+  {
+    section: 'Consultas',
+    items: [
+      { to: '/consultas/cliente',   icon: '🔎', label: 'Ficha de Cliente' },
+      { to: '/consultas/proveedor', icon: '🔍', label: 'Ficha de Proveedor' },
+      { to: '/consultas/cuenta',    icon: '🏦', label: 'Ficha de Cuenta' },
+    ],
+  },
+  {
     section: 'Financiero',
     items: [
       { to: '/cta-cte', icon: '📒', label: 'Cuenta Corriente' },
@@ -45,6 +74,20 @@ const VIEW_TITLES = {
   '/cta-cte':      'Cuenta Corriente',
   '/cheques':      'Cartera de Cheques',
   '/informes':     'Informes',
+  '/compras/proveedores': 'Proveedores',
+  '/compras/materiales':  'Materiales',
+  '/compras/remitos':     'Remitos de Compra',
+  '/compras/facturas':    'Facturas de Compra',
+  '/compras/notas':       'Notas de Crédito / Débito de Compra',
+  '/compras/pagos':       'Pagos a Proveedor',
+  '/compras/cta-cte':     'Cuenta Corriente de Proveedores',
+  '/consultas/cliente':   'Consulta Integral de Cliente',
+  '/consultas/proveedor': 'Consulta Integral de Proveedor',
+  '/consultas/cuenta':    'Consulta Integral de Cuenta',
+  '/tesoreria/cuentas':         'Cuentas y Cajas',
+  '/tesoreria/movimientos':     'Movimientos de Tesorería',
+  '/tesoreria/cheques-propios': 'Cheques Propios',
+  '/tesoreria/conciliacion':    'Conciliación Bancaria',
 }
 
 export default function Layout({ children }) {

@@ -1,8 +1,8 @@
 // src/components/Forms/ComprobanteForm.jsx
 // Formulario reutilizable para Factura, Presupuesto y Remito
 import { useState } from 'react'
-import { ItemsTable, TotalesBox, Modal } from '../UI'
-import { calcTotales } from '../../utils'
+import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal } from '../UI'
+import { calcTotalesMulti } from '../../utils'
 import toast from 'react-hot-toast'
 
 const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0 }
@@ -14,10 +14,15 @@ export default function ComprobanteForm({
   clientes = [],
   productos = [],
   remitos = [],   // solo para facturas
+  alicuotas = [], // [{ id, porcentaje }] — activa el IVA multi-alícuota (sólo en facturas)
   onSave,
   onClose,
   warnVencido = false,
 }) {
+  // IVA multi-alícuota: sólo en facturas (presupuesto/remito siguen en 21% por defecto).
+  const multiIva = tipo === 'factura' && alicuotas.length > 0
+  const alic21 = alicuotas.find(a => +a.porcentaje === 21)
+  const alicuotasById = Object.fromEntries(alicuotas.map(a => [a.id, a]))
   const [form, setForm]   = useState({
     cliente_id:       initial.cliente_id || '',
     descuento_general: initial.descuento_general || 0,
@@ -56,7 +61,7 @@ export default function ComprobanteForm({
   }
 
   const addItem = () =>
-    setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE }] }))
+    setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE, ...(multiIva && { alicuota_iva_id: alic21?.id }) }] }))
 
   const save = async (forzar = false) => {
     if (!form.cliente_id)   { toast.error('Seleccione un cliente'); return }
@@ -81,7 +86,7 @@ export default function ComprobanteForm({
     }
   }
 
-  const tot = calcTotales(form.items, form.descuento_general)
+  const totMulti = multiIva ? calcTotalesMulti(form.items, form.descuento_general, alicuotasById) : null
 
   return (
     <Modal
@@ -174,10 +179,13 @@ export default function ComprobanteForm({
       <ItemsTable
         items={form.items}
         productos={productos}
+        alicuotas={multiIva ? alicuotas : []}
         onChange={items => setForm(f => ({ ...f, items }))}
       />
 
-      <TotalesBox items={form.items} dtoGeneral={form.descuento_general} />
+      {multiIva
+        ? <TotalesBoxMulti totales={totMulti} />
+        : <TotalesBox items={form.items} dtoGeneral={form.descuento_general} />}
     </Modal>
   )
 }

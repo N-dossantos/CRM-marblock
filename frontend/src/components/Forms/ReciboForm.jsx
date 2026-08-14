@@ -5,7 +5,7 @@ import { $ar } from '../../utils'
 import { FacturasAPI, ConfigAPI } from '../../api'
 import toast from 'react-hot-toast'
 
-const MEDIO_BASE = { tipo: 'efectivo', detalle: '', monto: 0 }
+const MEDIO_BASE = { tipo: 'efectivo', detalle: '', monto: 0, cuenta_bancaria_id: '' }
 
 export default function ReciboForm({ clientes = [], initial = {}, onSave, onClose }) {
   const [form, setForm]            = useState({
@@ -51,9 +51,29 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
   const updateMedio = (i, field, val) =>
     setForm(f => ({
       ...f,
-      medios: f.medios.map((m, idx) =>
-        idx !== i ? m : { ...m, [field]: field === 'monto' ? parseFloat(val) || 0 : val }
-      ),
+      medios: f.medios.map((m, idx) => {
+        if (idx !== i) return m
+        const next = { ...m, [field]: field === 'monto' ? parseFloat(val) || 0 : val }
+        // Al pasar a cheque/echeq, la cuenta no aplica (esos van a cartera).
+        if (field === 'tipo' && (val === 'cheque' || val === 'echeq')) {
+          next.cuenta_bancaria_id = ''
+          next.detalle = ''
+        }
+        return next
+      }),
+    }))
+
+  // Selecciona la cuenta del ledger para un medio efectivo/transferencia.
+  // Guarda cuenta_bancaria_id (lo que crear_recibo lee para emitir la COBRANZA en tesorería)
+  // y refleja la descripción en detalle para el listado/detalle del recibo.
+  const setMedioCuenta = (i, cuentaId) =>
+    setForm(f => ({
+      ...f,
+      medios: f.medios.map((m, idx) => {
+        if (idx !== i) return m
+        const cta = cuentas.find(c => String(c.id) === String(cuentaId))
+        return { ...m, cuenta_bancaria_id: cuentaId || '', detalle: cta ? cta.descripcion : '' }
+      }),
     }))
 
   const totalMedios = form.medios.reduce((a, m) => a + (m.monto || 0), 0)
@@ -131,7 +151,7 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
       </div>
 
       {form.medios.map((m, i) => (
-        <MedioCard key={i} medio={m} index={i} cuentas={cuentas} onChange={updateMedio} onRemove={removeMedio} />
+        <MedioCard key={i} medio={m} index={i} cuentas={cuentas} onChange={updateMedio} onCuenta={setMedioCuenta} onRemove={removeMedio} />
       ))}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: '2px solid var(--gray-200)', marginTop: 4 }}>
@@ -147,7 +167,8 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
   )
 }
 
-function MedioCard({ medio, index, cuentas, onChange, onRemove }) {
+function MedioCard({ medio, index, cuentas, onChange, onCuenta, onRemove }) {
+  const esCuenta = medio.tipo === 'efectivo' || medio.tipo === 'transferencia'
   return (
     <div className="medio-card">
       <div className="form-row3" style={{ marginBottom: 10 }}>
@@ -161,13 +182,16 @@ function MedioCard({ medio, index, cuentas, onChange, onRemove }) {
           </select>
         </div>
 
-        {medio.tipo === 'transferencia' && (
+        {esCuenta && (
           <div className="field">
-            <label className="lbl">Cuenta bancaria</label>
-            <select className="sel" value={medio.detalle || ''} onChange={e => onChange(index, 'detalle', e.target.value)}>
-              <option value="">— Seleccionar —</option>
-              {cuentas.map(c => <option key={c.id} value={c.descripcion}>{c.descripcion}</option>)}
+            <label className="lbl">{medio.tipo === 'efectivo' ? 'Caja (opcional)' : 'Cuenta bancaria'}</label>
+            <select className="sel" value={medio.cuenta_bancaria_id || ''} onChange={e => onCuenta(index, e.target.value)}>
+              <option value="">{medio.tipo === 'efectivo' ? '— Sin impacto en tesorería —' : '— Seleccionar —'}</option>
+              {cuentas.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
             </select>
+            <div style={{ fontSize: 11, color: medio.cuenta_bancaria_id ? '#10b981' : 'var(--gray-500)', marginTop: 3 }}>
+              {medio.cuenta_bancaria_id ? '✓ Registra el cobro en tesorería' : 'Sin cuenta: no impacta el saldo de tesorería'}
+            </div>
           </div>
         )}
 

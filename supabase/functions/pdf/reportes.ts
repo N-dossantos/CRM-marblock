@@ -190,3 +190,206 @@ export async function generarResumenVentas(data: any, empresa: any, desde: any, 
     doc.end()
   })
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUBDIARIO DE CUENTA (saldo corrido)  — Tesorería, Fase D
+// ─────────────────────────────────────────────────────────────────────────────
+export async function generarSubdiario(data: any, empresa: any, filtros: any = {}): Promise<Uint8Array> {
+  return await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
+    const buffers: any[] = []
+    doc.on('data', (b: any) => buffers.push(b))
+    doc.on('end',  () => resolve(Buffer.concat(buffers)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 45
+    const ancho = W - M * 2
+    const { cuenta = {}, saldo_inicial = 0, movimientos = [], saldo_final = 0 } = data
+
+    let y = dibujarHeader(doc, empresa, 'SUBDIARIO', '', new Date().toISOString().split('T')[0])
+
+    // Info cuenta + saldos
+    doc.rect(M, y + 6, ancho, 52).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('CUENTA', M + 10, y + 14)
+    doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(12).text(cuenta.descripcion || '—', M + 10, y + 24, { width: ancho * 0.6 })
+    doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8.5)
+       .text(`${cuenta.banco ? cuenta.banco + '  ·  ' : ''}Saldo inicial período: ${$ar(saldo_inicial)}`, M + 10, y + 40)
+
+    const saldoColor = saldo_final < 0 ? COLORES.rojo : COLORES.verde
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('SALDO FINAL', W - M - 170, y + 14)
+    doc.fillColor(saldoColor).font('Helvetica-Bold').fontSize(16).text($ar(saldo_final), W - M - 170, y + 25, { width: 160, align: 'right' })
+    y += 64
+
+    if (filtros.desde || filtros.hasta) {
+      doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8)
+         .text(`Período: ${filtros.desde ? fFecha(filtros.desde) : 'inicio'} al ${filtros.hasta ? fFecha(filtros.hasta) : 'hoy'}`, M, y + 6)
+      y += 20
+    }
+
+    y += 4
+    const cols = [
+      { label: 'Fecha',       w: 62,  align: 'left'  },
+      { label: 'Comprob.',    w: 80,  align: 'left'  },
+      { label: 'Tipo',        w: 80,  align: 'left'  },
+      { label: 'Concepto',    w: ancho - 62 - 80 - 80 - 75 - 75 - 85, align: 'left' },
+      { label: 'Entrada',     w: 75,  align: 'right' },
+      { label: 'Salida',      w: 75,  align: 'right' },
+      { label: 'Saldo',       w: 85,  align: 'right' },
+    ]
+    y = dibujarCabeceraTabla(doc, y, cols)
+
+    movimientos.forEach((m: any, i: number) => {
+      const entrada = Number(m.signo) === 1 ? $ar(m.monto) : '—'
+      const salida  = Number(m.signo) === -1 ? $ar(m.monto) : '—'
+      y = dibujarFilaItem(doc, y, [
+        fFecha(m.fecha),
+        m.numero || `#${m.id}`,
+        m.tipo_descripcion || m.tipo_codigo || '—',
+        m.concepto || '—',
+        entrada,
+        salida,
+        $ar(m.saldo_corrido),
+      ], cols, i % 2 === 1)
+
+      if (y > doc.page.height - 120) {
+        doc.addPage(); y = 50
+        y = dibujarCabeceraTabla(doc, y, cols)
+      }
+    })
+
+    y += 4
+    doc.rect(M, y, ancho, 26).fill(COLORES.azul_oscuro)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(9).text('SALDO FINAL:', M + 8, y + 9)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12).text($ar(saldo_final), M + 8, y + 7, { width: ancho - 16, align: 'right' })
+
+    dibujarFooter(doc, empresa)
+    doc.end()
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SALDOS DE TESORERÍA (por cuenta, agrupado)  — Fase D
+// ─────────────────────────────────────────────────────────────────────────────
+export async function generarSaldos(data: any, empresa: any): Promise<Uint8Array> {
+  return await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
+    const buffers: any[] = []
+    doc.on('data', (b: any) => buffers.push(b))
+    doc.on('end',  () => resolve(Buffer.concat(buffers)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 45
+    const ancho = W - M * 2
+    const { agrupaciones = [], total_general = 0 } = data
+
+    let y = dibujarHeader(doc, empresa, 'SALDOS TESORERÍA', '', new Date().toISOString().split('T')[0])
+
+    // Total general destacado
+    doc.rect(M, y + 6, ancho, 36).fill(COLORES.azul_oscuro)
+    doc.fillColor(COLORES.blanco).font('Helvetica').fontSize(9).text('Saldo total disponible', M + 12, y + 14)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(16).text($ar(total_general), M + 12, y + 11, { width: ancho - 24, align: 'right' })
+    y += 52
+
+    const cols = [
+      { label: 'Cuenta',       w: ancho - 90 - 95 - 95 - 100, align: 'left'  },
+      { label: 'Clase',        w: 90,  align: 'left'  },
+      { label: 'Entradas',     w: 95,  align: 'right' },
+      { label: 'Salidas',      w: 95,  align: 'right' },
+      { label: 'Saldo actual', w: 100, align: 'right' },
+    ]
+
+    agrupaciones.forEach((g: any) => {
+      // Sub-cabecera de agrupación
+      doc.rect(M, y, ancho, 20).fill('#eef2ff')
+      doc.fillColor('#3730a3').font('Helvetica-Bold').fontSize(9).text(g.descripcion || 'Sin agrupación', M + 8, y + 6)
+      doc.fillColor('#3730a3').font('Helvetica-Bold').fontSize(9).text($ar(g.subtotal), M + 8, y + 6, { width: ancho - 16, align: 'right' })
+      y += 20
+
+      y = dibujarCabeceraTabla(doc, y, cols)
+      ;(g.cuentas || []).forEach((c: any, i: number) => {
+        y = dibujarFilaItem(doc, y, [
+          c.descripcion || '—',
+          c.clase || '—',
+          $ar(c.entradas),
+          $ar(c.salidas),
+          $ar(c.saldo_actual),
+        ], cols, i % 2 === 1)
+        if (y > doc.page.height - 120) { doc.addPage(); y = 50 }
+      })
+      y += 10
+      if (y > doc.page.height - 140) { doc.addPage(); y = 50 }
+    })
+
+    y += 2
+    doc.rect(M, y, ancho, 26).fill(COLORES.azul_oscuro)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(9).text('TOTAL GENERAL:', M + 8, y + 9)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12).text($ar(total_general), M + 8, y + 7, { width: ancho - 16, align: 'right' })
+
+    dibujarFooter(doc, empresa)
+    doc.end()
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAYOR DE TESORERÍA (por cuenta)  — Fase D
+// ─────────────────────────────────────────────────────────────────────────────
+export async function generarMayorTesoreria(data: any, empresa: any, filtros: any = {}): Promise<Uint8Array> {
+  return await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
+    const buffers: any[] = []
+    doc.on('data', (b: any) => buffers.push(b))
+    doc.on('end',  () => resolve(Buffer.concat(buffers)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 45
+    const ancho = W - M * 2
+    const { cuentas = [], totales = {} } = data
+
+    let y = dibujarHeader(doc, empresa, 'MAYOR TESORERÍA', '', new Date().toISOString().split('T')[0])
+
+    if (filtros.desde || filtros.hasta) {
+      doc.rect(M, y + 6, ancho, 22).fill(COLORES.azul_claro).stroke('#93c5fd')
+      doc.fillColor(COLORES.azul_medio).font('Helvetica-Bold').fontSize(9)
+         .text(`Período: ${filtros.desde ? fFecha(filtros.desde) : 'inicio'} al ${filtros.hasta ? fFecha(filtros.hasta) : 'hoy'}`, M + 8, y + 13, { width: ancho - 16, align: 'center' })
+      y += 34
+    } else {
+      y += 6
+    }
+
+    const cols = [
+      { label: 'Cuenta',        w: ancho - 70 - 95 - 95 - 100, align: 'left'  },
+      { label: 'Clase',         w: 70,  align: 'left'  },
+      { label: 'Saldo inicial', w: 95,  align: 'right' },
+      { label: 'Débitos',       w: 95,  align: 'right' },
+      { label: 'Saldo final',   w: 100, align: 'right' },
+    ]
+    // Nota: se muestran saldo inicial, débitos y saldo final; los créditos se derivan
+    // (saldo_final = saldo_inicial + creditos − debitos). Columna créditos omitida por ancho.
+    y = dibujarCabeceraTabla(doc, y, cols)
+
+    cuentas.forEach((c: any, i: number) => {
+      y = dibujarFilaItem(doc, y, [
+        c.descripcion || '—',
+        c.clase || '—',
+        $ar(c.saldo_inicial),
+        $ar(c.debitos),
+        $ar(c.saldo_final),
+      ], cols, i % 2 === 1)
+      if (y > doc.page.height - 120) { doc.addPage(); y = 50; y = dibujarCabeceraTabla(doc, y, cols) }
+    })
+
+    // Totales
+    y += 4
+    doc.rect(M, y, ancho, 26).fill(COLORES.azul_oscuro)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(9)
+       .text(`Débitos: ${$ar(totales.debitos)}   ·   Créditos: ${$ar(totales.creditos)}`, M + 8, y + 9)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12)
+       .text(`Saldo final: ${$ar(totales.saldo_final)}`, M + 8, y + 8, { width: ancho - 16, align: 'right' })
+
+    dibujarFooter(doc, empresa)
+    doc.end()
+  })
+}

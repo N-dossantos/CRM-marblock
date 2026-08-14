@@ -1,6 +1,6 @@
 // src/views/Notas/index.jsx
 import { useState, useEffect, useCallback } from 'react'
-import { NotasAPI, FacturasAPI, ProductosAPI } from '../../api'
+import { NotasAPI, FacturasAPI, ProductosAPI, AlicuotasIvaAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Badge, Loading, EmptyState, Modal, ItemsTable, TotalesBox } from '../../components/UI'
 import NotaForm from './NotaForm'
@@ -11,6 +11,7 @@ export default function Notas() {
   const [rows, setRows]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [productos, setProductos] = useState([])
+  const [alicuotas, setAlicuotas] = useState([])
   const [search, setSearch]     = useState('')
   const [filtroTipo, setFiltroTipo] = useState('')
   const [nueva, setNueva]       = useState(null) // { factura }
@@ -23,7 +24,10 @@ export default function Notas() {
   }, [search, filtroTipo])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { ProductosAPI.list({ activo: true }).then(setProductos) }, [])
+  useEffect(() => {
+    ProductosAPI.list({ activo: true }).then(setProductos)
+    AlicuotasIvaAPI.list().then(setAlicuotas)
+  }, [])
 
   const abrirNueva = async () => {
     // Permite seleccionar la factura desde este panel también
@@ -137,6 +141,7 @@ export default function Notas() {
         <NotaForm
           factura={nueva.facturaObj}
           productos={productos}
+          alicuotas={alicuotas}
           onSave={save}
           onClose={() => setNueva(null)}
         />

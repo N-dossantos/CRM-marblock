@@ -1,16 +1,19 @@
 // src/views/Notas/NotaForm.jsx
 import { useState } from 'react'
-import { Modal, ItemsTable, TotalesBox } from '../../components/UI'
-import { $ar, fFecha } from '../../utils'
+import { Modal, ItemsTable, TotalesBox, TotalesBoxMulti } from '../../components/UI'
+import { $ar, fFecha, calcTotalesMulti } from '../../utils'
 import toast from 'react-hot-toast'
 
 const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0 }
 
-export default function NotaForm({ factura, productos = [], onSave, onClose }) {
+export default function NotaForm({ factura, productos = [], alicuotas = [], onSave, onClose }) {
+  const multiIva = alicuotas.length > 0
+  const alic21 = alicuotas.find(a => +a.porcentaje === 21)
+  const alicuotasById = Object.fromEntries(alicuotas.map(a => [a.id, a]))
   const [form, setForm]   = useState({ tipo: 'NC', motivo: '', items: [], observaciones: '' })
   const [loading, setLoading] = useState(false)
 
-  const addItem = () => setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE }] }))
+  const addItem = () => setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE, ...(multiIva && { alicuota_iva_id: alic21?.id }) }] }))
 
   const save = async () => {
     if (!form.items.length) { toast.error('Agregue al menos un ítem'); return }
@@ -71,10 +74,13 @@ export default function NotaForm({ factura, productos = [], onSave, onClose }) {
       <ItemsTable
         items={form.items}
         productos={productos}
+        alicuotas={multiIva ? alicuotas : []}
         onChange={items => setForm(f => ({ ...f, items }))}
       />
 
-      <TotalesBox items={form.items} dtoGeneral={0} />
+      {multiIva
+        ? <TotalesBoxMulti totales={calcTotalesMulti(form.items, 0, alicuotasById)} />
+        : <TotalesBox items={form.items} dtoGeneral={0} />}
 
       <div className="field" style={{ marginTop: 14 }}>
         <label className="lbl">Observaciones</label>

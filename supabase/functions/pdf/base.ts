@@ -175,7 +175,13 @@ export function dibujarTotales(doc: any, y: number, totales: any) {
   if (totales.subtotal !== undefined) fila('Subtotal s/IVA:', $ar(totales.subtotal))
   if (totales.descuento_monto > 0)    fila(`Descuento ${totales.descuento_porcentaje || ''}%:`, `— ${$ar(totales.descuento_monto)}`, false, COLORES.rojo)
   if (totales.neto_gravado !== undefined) fila('Neto gravado:', $ar(totales.neto_gravado))
-  if (totales.iva_monto !== undefined)    fila('IVA 21%:', $ar(totales.iva_monto))
+  // IVA: desglose por alícuota si hay más de una; si no, la tasa real (21%, 10.5%, …).
+  if (totales.detalle && totales.detalle.length > 1) {
+    for (const d of totales.detalle) fila(`IVA ${d.porcentaje}%:`, $ar(d.iva_monto))
+  } else if (totales.iva_monto !== undefined) {
+    const pct = totales.detalle?.[0]?.porcentaje ?? totales.iva_alicuota ?? 21
+    fila(`IVA ${pct}%:`, $ar(totales.iva_monto))
+  }
 
   // Línea separadora
   doc.moveTo(x, cy).lineTo(W - M, cy).stroke(COLORES.gris_borde)
@@ -215,4 +221,22 @@ export function calcularTotales(items: any[] = [], descuentoGeneral: any = 0) {
   const iva_monto      = neto_gravado * 0.21
   const total          = neto_gravado + iva_monto
   return { subtotal, descuento_monto, neto_gravado, iva_monto, total, descuento_porcentaje: descuentoGeneral }
+}
+
+// Desglose de IVA por alícuota (mismo criterio que calcTotalesMulti del frontend).
+// Usa it.iva_porcentaje de cada ítem (los *_list lo traen por LEFT JOIN alicuotas_iva); sin él → 21%.
+export function calcularDetalleAlicuotas(items: any[] = [], descuentoGeneral: any = 0) {
+  const factor = 1 - (parseFloat(descuentoGeneral) || 0) / 100
+  const grupos = new Map<number, { porcentaje: number; neto_gravado: number; iva_monto: number }>()
+  for (const it of items) {
+    const pct  = it.iva_porcentaje != null ? parseFloat(it.iva_porcentaje) : 21
+    const neto = parseFloat(it.cantidad) * parseFloat(it.precio_unitario) * (1 - (parseFloat(it.descuento_item) || 0) / 100) * factor
+    const cur  = grupos.get(pct) || { porcentaje: pct, neto_gravado: 0, iva_monto: 0 }
+    cur.neto_gravado += neto
+    grupos.set(pct, cur)
+  }
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  return [...grupos.values()]
+    .map(g => ({ porcentaje: g.porcentaje, neto_gravado: r2(g.neto_gravado), iva_monto: r2(g.neto_gravado * g.porcentaje / 100) }))
+    .sort((a, b) => a.porcentaje - b.porcentaje)
 }

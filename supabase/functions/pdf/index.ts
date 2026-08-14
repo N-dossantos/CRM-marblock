@@ -9,8 +9,12 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   generarFactura, generarRemito, generarPresupuesto,
   generarNota, generarRecibo, generarCtaCte,
+  generarComprobanteTesoreria, generarCheque,
 } from './templates.ts'
-import { generarRankingDeudores, generarResumenVentas } from './reportes.ts'
+import {
+  generarRankingDeudores, generarResumenVentas,
+  generarSubdiario, generarSaldos, generarMayorTesoreria,
+} from './reportes.ts'
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin':  '*',
@@ -129,6 +133,56 @@ Deno.serve(async (req) => {
         })
         const buffer = await generarResumenVentas(data, await getEmpresa(), desde, hasta)
         return enviarPDF(buffer, `Ventas-${desde}-a-${hasta}`)
+      }
+
+      // ─── TESORERÍA (Fase D) — comprobantes internos + informes ──────────────
+      // Lecturas directas por PostgREST (como getEmpresa); RLS aplica igual (JWT reenviado).
+      case 'movimiento-tesoreria': {
+        const { data, error } = await supabase.from('movimientos_tesoreria')
+          .select('*, cuenta:cuentas_bancarias(*), tipo:tipos_comprobante_tesoreria(*)')
+          .eq('id', Number(id)).single()
+        if (error || !data) return jsonError('Movimiento no encontrado', 404)
+        const buffer = await generarComprobanteTesoreria(data, await getEmpresa())
+        return enviarPDF(buffer, `Movimiento-${data.numero || id}`)
+      }
+      case 'cheque-propio': {
+        const { data, error } = await supabase.from('cheques_propios')
+          .select('*, cuenta:cuentas_bancarias(descripcion,banco), proveedor:proveedores(razon_social)')
+          .eq('id', Number(id)).single()
+        if (error || !data) return jsonError('Cheque propio no encontrado', 404)
+        const buffer = await generarCheque(data, await getEmpresa(), 'propio')
+        return enviarPDF(buffer, `ChequePropio-${data.numero || id}`)
+      }
+      case 'cheque': {
+        const { data, error } = await supabase.from('cheques')
+          .select('*, cliente:clientes(razon_social)')
+          .eq('id', Number(id)).single()
+        if (error || !data) return jsonError('Cheque no encontrado', 404)
+        const buffer = await generarCheque(data, await getEmpresa(), 'tercero')
+        return enviarPDF(buffer, `Cheque-${data.numero || id}`)
+      }
+      case 'subdiario-tesoreria': {
+        const desde = q.get('desde') || null
+        const hasta = q.get('hasta') || null
+        const data  = await rpcOne('informe_subdiario_cuenta', {
+          p_cuenta_id: Number(id), p_desde: desde, p_hasta: hasta,
+        })
+        if (!data || !data.cuenta) return jsonError('Cuenta no encontrada', 404)
+        const buffer = await generarSubdiario(data, await getEmpresa(), { desde, hasta })
+        const nombre = String(data.cuenta.descripcion || 'Cuenta').replace(/\s+/g, '_')
+        return enviarPDF(buffer, `Subdiario-${nombre}`)
+      }
+      case 'saldos-tesoreria': {
+        const data = await rpcOne('informe_saldos_tesoreria', {})
+        const buffer = await generarSaldos(data ?? { agrupaciones: [], total_general: 0 }, await getEmpresa())
+        return enviarPDF(buffer, `Saldos-Tesoreria-${new Date().toISOString().split('T')[0]}`)
+      }
+      case 'mayor-tesoreria': {
+        const desde = q.get('desde') || null
+        const hasta = q.get('hasta') || null
+        const data  = await rpcOne('informe_mayor_tesoreria', { p_desde: desde, p_hasta: hasta })
+        const buffer = await generarMayorTesoreria(data ?? { cuentas: [], totales: {} }, await getEmpresa(), { desde, hasta })
+        return enviarPDF(buffer, `Mayor-Tesoreria-${new Date().toISOString().split('T')[0]}`)
       }
 
       default:
