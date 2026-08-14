@@ -156,15 +156,17 @@ vez más.
   (COBRANZA +1). **WS3 · IVA multi-alícuota ✅** — migraciones `20260802120000`..`02` aplicadas
   (`alicuota_iva_id` por ítem + RPCs con `crm_calc_totales_multi_alicuota`, backward-compat 21%); frontend
   (`ItemsTable`/`ComprobanteForm`/`NotaForm` con selector por ítem + `TotalesBoxMulti`) y template de PDF
-  con desglose; smoke E2E OK (factura 21%+10.5% → total 2315). **WS2 — enganche escrito (2026-08-14),
-  no aplicado:** migraciones `20260803120000`/`01` con `generar_asiento_desde_nota` (stub),
+  con desglose; smoke E2E OK (factura 21%+10.5% → total 2315). **WS2 — enganche APLICADO y probado
+  (2026-08-14):** migraciones `20260803120000`/`01` con `generar_asiento_desde_nota` (stub),
   `generar_asientos_ventas_pendientes` (backfill idempotente) y el disparo automático como
   **CONSTRAINT TRIGGER diferido** en `facturas`/`notas` guardado por
   `config_empresa('contabilidad_auto_asientos')`, que arranca en `'off'` ⇒ **no-op**. Se implementó
   como trigger diferido en vez de una línea al final de `crear_factura`/`crear_nota` para no duplicar
   el cuerpo de esas RPC y para correr al COMMIT, con los ítems ya insertados (mismo mecanismo que
-  `trg_asiento_balanceado`). La **matriz** sigue bloqueada: prender el flag recién tras Fase E §8
-  pasos 2-4. **WS3 · Pedidos** pendiente de decisión de modelado (backlog §7).
+  `trg_asiento_balanceado`). Verificado con `SET CONSTRAINTS ALL IMMEDIATE`: el trigger **corre y no
+  hace nada** con el flag en `off` (factura A emitida normal, 0 asientos automáticos). La **matriz**
+  sigue bloqueada: prender el flag recién tras Fase E §8 pasos 2-4.
+  **WS3 · Pedidos** pendiente de decisión de modelado (backlog §7).
   Deploy pendiente: la Edge Function `pdf` (para el desglose impreso; mismo deploy que Fase D).
   Companion: `system_plan_fase_f_integracion_ventas.md`.
 

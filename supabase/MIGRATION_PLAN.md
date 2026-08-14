@@ -71,7 +71,7 @@ truth for "what's applied in the DB". They all follow the same conventions (shar
 | **Fase D — Consultas Tesorería + PDF + transferencias** | — (frontend + Edge Function) | Consultas 360° por cuenta + impresión + pantalla de transferencias. **No DB migrations.** ⏳ **Único pendiente: redeploy de la Edge Function `pdf`** con templates de tesorería (la desplegada es `v1`, ~2026-07-27, anterior a Tesorería). | 🔄 code-complete; PDF deploy pending |
 | **Fase E — Núcleo contable** | `20260801120000`–`20260801120004` (5; internal `0300`–`0304`) | `plan_de_cuentas`, `asientos_contables`, `asiento_items` (+ trigger de balanceo diferido), RLS, `crear_asiento`/`anular_asiento` (manual, funciona), informes libro diario/mayor/sumas y saldos. **Aplicado con tablas vacías**; `generar_asiento_desde_*` aplicado pero **stub que lanza excepción** hasta validar la matriz de imputación (bloqueada en datos por Tango, igual que la Fase 7). **Frontend construido el 2026-08-14** (ver abajo). | ✅ applied empty (2026-08-01) |
 | **Fase F/WS3 — IVA multi-alícuota en Ventas** | `20260802120000`–`20260802120002` (3) | `alicuota_iva_id` (nullable) en los 4 `*_items` de Ventas; `crear_/actualizar_` presupuesto/factura + `crear_nota` recalculando con `crm_calc_totales_multi_alicuota` (firmas idénticas ⇒ backward-compat: ítem sin alícuota ⇒ 21%); los `*_list` exponen `alicuota_iva_id` + `iva_porcentaje` por ítem. Smoke E2E: factura 21%+10.5% → total 2315. | ✅ applied + tested (2026-08-01) |
-| **Fase F/WS2 — Ventas → Contabilidad (enganche)** | `20260803120000`–`20260803120001` (2) | `generar_asiento_desde_nota` (stub, como los de `0303`), `generar_asientos_ventas_pendientes` (backfill idempotente por `(referencia_tipo, referencia_id)`), disparo automático como **CONSTRAINT TRIGGER diferido** en `facturas`/`notas` guardado por `config_empresa('contabilidad_auto_asientos')`, + los 2 flags de config (`'off'` / `''`). Con el flag apagado es un **no-op**: no cambia el comportamiento actual. | 📝 escritas, **NO aplicadas** — la base no respondía el 2026-08-14 |
+| **Fase F/WS2 — Ventas → Contabilidad (enganche)** | `20260803120000`–`20260803120001` (2) | `generar_asiento_desde_nota` (stub, como los de `0303`), `generar_asientos_ventas_pendientes` (backfill idempotente por `(referencia_tipo, referencia_id)`), disparo automático como **CONSTRAINT TRIGGER diferido** en `facturas`/`notas` guardado por `config_empresa('contabilidad_auto_asientos')`, + los 2 flags de config (`'off'` / `''`). Con el flag apagado es un **no-op**: no cambia el comportamiento actual. | ✅ applied + tested (2026-08-14) |
 
 > Nota de contexto: estas fases construyen funcionalidad **sobre** el cutover, no lo reemplazan. El
 > **bloqueo raíz sigue siendo el mismo** (credenciales del SQL Server de Tango): frena tanto la carga de
@@ -90,14 +90,36 @@ truth for "what's applied in the DB". They all follow the same conventions (shar
   `components/Forms/AsientoForm.jsx` (líneas debe/haber con preview de balanceo), 2 rutas
   `/contabilidad/*`, sección "Contabilidad" en el menú y 3 pestañas nuevas en `Informes`.
   `npm run build` OK. **Sin verificar contra la base** (ver abajo).
-- ⏳ **La base `kkdbvzixwlyeahgianuc` no respondía** el 2026-08-14: toda consulta SQL vía MCP devuelve
-  `Connection terminated due to connection timeout` y `get_advisors` devuelve lista vacía (cuando
-  históricamente devolvía ~28 WARN by-design). Última actividad registrada: 2026-08-02. El patrón
-  encaja con un **proyecto pausado por inactividad** — confirmar y restaurar en el dashboard.
-  Bloquea: aplicar `20260803*`, el smoke test del frontend contable, y el deploy de la Edge Function.
+- ⚠️ **El proyecto se había pausado por inactividad** (última actividad 2026-08-02; el 2026-08-14 toda
+  consulta SQL vía MCP daba `Connection terminated due to connection timeout`). **Restaurado por el
+  usuario desde el dashboard el 2026-08-14.** Tenerlo presente: en el plan actual, ~12 días sin uso
+  bastan para que se pause — decidir plan pago o un ping programado antes del go-live.
+- ✅ **Migraciones `20260803120000`/`01` aplicadas y probadas (2026-08-14).** Smoke test end-to-end en
+  una transacción auto-abortada (rollback, cero residuo): asiento manual balanceado N°1 (debe=haber=1210),
+  `informe_libro_diario` 1 asiento / debe=haber=1210, `informe_libro_mayor` saldo_final=1210,
+  `informe_sumas_y_saldos` debe=haber=1210 saldo=0; asiento desbalanceado **rechazado**;
+  `generar_asiento_desde_nota` **lanza** la excepción esperada; y una factura A (`00002-00002001`,
+  neto 2000 / IVA 420 / total 2420) se emite normalmente con **0 asientos automáticos** — se forzó el
+  disparo del trigger diferido con `SET CONSTRAINTS ALL IMMEDIATE`, así que el hook **se ejecutó y no
+  hizo nada**, que es exactamente lo esperado con el flag en `off`. Permisos verificados:
+  `anon` no ejecuta ninguna de las 5 funciones nuevas, y los 3 helpers internos tampoco los ejecuta
+  `authenticated`. Advisors: sólo los WARN by-design de siempre.
 - ⏳ **Sigue pendiente el redeploy de la Edge Function `pdf`** (Fase D + Fase F/WS3). Verificado en
   vivo: la desplegada es `version 1` (~2026-07-27, anterior a Tesorería), mientras el código local ya
-  tiene los 6 casos de tesorería y el desglose multi-alícuota.
+  tiene los 6 casos de tesorería y el desglose multi-alícuota. **No se puede hacer vía MCP sin
+  transcribir a mano los 68 KB de los 4 `.ts`** (riesgo de corromper el bundle en silencio); la vía
+  buena es el CLI, que corre con `npx` pero necesita un `supabase login` interactivo una sola vez:
+  `npx -y supabase@latest login` y después
+  `npx -y supabase@latest functions deploy pdf --project-ref kkdbvzixwlyeahgianuc`.
+
+**Ojo para el cutover:** la base **no está del todo vacía**. Quedan `clientes` id=1 ("Marblock SA") y
+`productos` id=1 ("01 — Bloque Liso de 20 Portante"), ambos del 2026-07-30 — parecen carga manual
+real, no basura de smoke tests. Antes del `COPY` de Tango hay que decidir si se conservan o se borran:
+si el dump trae esos mismos ids, hay **conflicto de PK** (el mismo problema que se limpió en la
+verificación pre-cutover del 2026-07-28). Además, `contadores` sólo tiene `asiento` y
+`pago_proveedor`: **los contadores de Ventas no están sembrados**, así que hoy `crear_factura` &
+compañía fallan con "Contador no encontrado" — se cargan en el cutover
+(`TANGO_Migration.md`), no es un bug.
 
 ## Phases
 
