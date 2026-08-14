@@ -1,5 +1,5 @@
 // src/components/UI/index.jsx
-import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcSubtotalItem } from '../../utils'
+import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem } from '../../utils'
 
 // ── BADGE ────────────────────────────────────────────────────────────
 export function Badge({ estado }) {
@@ -53,6 +53,36 @@ export function TotalesBox({ items = [], dtoGeneral = 0 }) {
       <div className="totales-row total">
         <span>TOTAL</span>
         <span className="val">{$ar(t.total)}</span>
+      </div>
+    </div>
+  )
+}
+
+// ── TOTALES BOX CUENTA 2 (sin IVA) ──────────────────────────────────
+// El circuito informal no liquida impuestos: los precios ya son netos, así que no hay
+// neto gravado ni línea de IVA. Preview; la RPC recalcula (anti-tamper).
+export function TotalesBoxC2({ items = [], dtoGeneral = 0 }) {
+  const t = calcTotalesC2(items, dtoGeneral)
+  return (
+    <div className="totales-box">
+      <div className="totales-row">
+        <span>Subtotal</span>
+        <span>{$ar(t.subtotal)}</span>
+      </div>
+      {dtoGeneral > 0 && (
+        <div className="totales-row">
+          <span>Descuento {dtoGeneral}%</span>
+          <span style={{ color: 'var(--red-500)' }}>— {$ar(t.descuento_monto)}</span>
+        </div>
+      )}
+      <hr className="totales-divider" />
+      <div className="totales-row total">
+        <span>TOTAL</span>
+        <span className="val">{$ar(t.total)}</span>
+      </div>
+      <div className="totales-row" style={{ fontSize: 11, color: 'var(--gray-500)' }}>
+        <span>Sin impuestos</span>
+        <span />
       </div>
     </div>
   )

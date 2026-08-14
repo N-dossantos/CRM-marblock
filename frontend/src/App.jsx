@@ -40,6 +40,10 @@ import TesoreriaConciliacion   from './views/TesoreriaConciliacion'
 import ContabilidadPlanCuentas from './views/ContabilidadPlanCuentas'
 import ContabilidadAsientos    from './views/ContabilidadAsientos'
 
+// Cuenta 2 — circuito informal, aislado del oficial (cuenta2.md)
+import Cuenta2        from './views/Cuenta2'
+import Cuenta2Cheques from './views/Cuenta2Cheques'
+
 export default function App() {
   const { session, loading } = useAuth()
 
@@ -93,6 +97,12 @@ export default function App() {
         {/* Contabilidad (Fase E) */}
         <Route path="/contabilidad/plan-cuentas" element={<ContabilidadPlanCuentas />} />
         <Route path="/contabilidad/asientos"     element={<ContabilidadAsientos />} />
+
+        {/* Cuenta 2 — una sola vista para ambos sectores; `key` fuerza el remount al cambiar
+            de ruta, si no React reusa la instancia y arrastra el estado del otro sector. */}
+        <Route path="/cuenta2/ventas"  element={<Cuenta2 key="venta"  tipoSector="venta" />} />
+        <Route path="/cuenta2/compras" element={<Cuenta2 key="compra" tipoSector="compra" />} />
+        <Route path="/cuenta2/cheques" element={<Cuenta2Cheques />} />
 
         <Route path="*"             element={<Navigate to="/" replace />} />
       </Routes>

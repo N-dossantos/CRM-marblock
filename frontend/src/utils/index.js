@@ -48,6 +48,18 @@ export const calcTotales = (items = [], dtoGeneral = 0) => {
 
 const r2 = (n) => Math.round(n * 100) / 100
 
+// Totales de un Remito X de Cuenta 2 — SIN IVA (circuito informal, precios ya netos).
+// Espeja crm_calc_totales_cuenta2() del servidor, que es el cálculo autoritativo.
+export const calcTotalesC2 = (items = [], dtoGeneral = 0) => {
+  const subtotal       = items.reduce((a, it) => a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
+  const descuentoMonto = subtotal * ((parseFloat(dtoGeneral) || 0) / 100)
+  return {
+    subtotal:        r2(subtotal),
+    descuento_monto: r2(descuentoMonto),
+    total:           r2(subtotal - descuentoMonto),
+  }
+}
+
 // Totales multi-alícuota (Compras) — preview cliente. El servidor recalcula (anti-tamper).
 // `alicuotasById`: { [id]: { porcentaje } }. Ítem sin alícuota → se asume 21%.
 export const calcTotalesMulti = (items = [], dtoGeneral = 0, alicuotasById = {}) => {
@@ -103,6 +115,10 @@ export const ESTADOS = {
   entregado:       'Entregado',
   depositado:      'Depositado',
   rechazado_banco: 'Rech. banco',
+  transferido_c1:  'Transf. a Cta. 1',
+  COBRO:           'Cobro',
+  PAGO:            'Pago',
+  AJUSTE:          'Ajuste',
 }
 
 // Badge JSX-string (para uso en tablas)
@@ -124,6 +140,7 @@ export const BADGE_COLORS = {
   entregado:       'badge-entregado',
   depositado:      'badge-depositado',
   rechazado_banco: 'badge-rechazado_banco',
+  transferido_c1:  'badge-transferido_c1',
   NC:              'badge-NC',
   ND:              'badge-ND',
   A:               'badge-A',

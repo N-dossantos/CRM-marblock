@@ -67,6 +67,16 @@ const NAV = [
       { to: '/informes', icon: '📈', label: 'Informes' },
     ],
   },
+  // Circuito informal, aislado del oficial (cuenta2.md). Bloque propio a propósito: que se
+  // vea separado en la navegación refuerza que los saldos no se mezclan con Cuenta 1.
+  {
+    section: 'Cuenta 2',
+    items: [
+      { to: '/cuenta2/ventas',  icon: '🟠', label: 'Ventas C2' },
+      { to: '/cuenta2/compras', icon: '🟠', label: 'Compras C2' },
+      { to: '/cuenta2/cheques', icon: '🟠', label: 'Cheques C2' },
+    ],
+  },
 ]
 
 const VIEW_TITLES = {
@@ -97,6 +107,9 @@ const VIEW_TITLES = {
   '/tesoreria/conciliacion':    'Conciliación Bancaria',
   '/contabilidad/plan-cuentas': 'Plan de Cuentas',
   '/contabilidad/asientos':     'Asientos Contables',
+  '/cuenta2/ventas':  'Cuenta 2 — Ventas',
+  '/cuenta2/compras': 'Cuenta 2 — Compras',
+  '/cuenta2/cheques': 'Cuenta 2 — Cartera de Cheques',
 }
 
 export default function Layout({ children }) {

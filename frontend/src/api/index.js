@@ -5,25 +5,7 @@
 //   * ABMs simples (clientes/productos/cheques/config) -> PostgREST directo.
 // Se mantienen exactamente las MISMAS firmas por recurso, así los src/views/* no cambian.
 import { supabase } from '../lib/supabase'
-import toast from 'react-hot-toast'
-
-// ── Manejo de errores ────────────────────────────────────────────
-// Replica el interceptor global del viejo Axios: togglea un toast por error, salvo
-// PRESUPUESTO_VENCIDO, que ComprobanteForm detecta por err.response.status === 422.
-function fail(error) {
-  const raw = error?.message || 'Error de conexión'
-  if (raw.includes('PRESUPUESTO_VENCIDO')) {
-    const e = new Error('PRESUPUESTO_VENCIDO')
-    e.response = { status: 422, data: { error: 'PRESUPUESTO_VENCIDO' } }
-    return e // sin toast: lo maneja el formulario
-  }
-  toast.error(raw)
-  return new Error(raw)
-}
-
-const unwrap = ({ data, error }) => { if (error) throw fail(error); return data }
-const rpc    = (fn, args) => supabase.rpc(fn, args).then(unwrap)
-const one    = (rows) => (Array.isArray(rows) ? (rows[0] ?? null) : (rows ?? null))
+import { unwrap, rpc, one } from './base'
 
 // Normalizadores (trim / defaults / tipos) equivalentes a los del backend.
 const cli = (d) => ({
