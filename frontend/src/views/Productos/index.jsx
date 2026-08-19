@@ -5,7 +5,7 @@ import { $ar } from '../../utils'
 import { Modal, Loading, EmptyState } from '../../components/UI'
 import toast from 'react-hot-toast'
 
-const BLANK = { codigo: '', descripcion: '', precio_sin_iva: 0, activo: true }
+const BLANK = { codigo: '', descripcion: '', precio_sin_iva: 0, unidades_por_pallet: 1, activo: true }
 
 export default function Productos() {
   const [rows, setRows]       = useState([])
@@ -63,6 +63,7 @@ export default function Productos() {
               <tr>
                 <th>Código</th>
                 <th>Descripción</th>
+                <th className="th-right">Un./Pallet</th>
                 <th className="th-right">Precio s/IVA</th>
                 <th className="th-right">Precio c/IVA 21%</th>
                 <th>Estado</th>
@@ -74,6 +75,7 @@ export default function Productos() {
                 <tr key={p.id}>
                   <td><span className="code">{p.codigo}</span></td>
                   <td className="td-bold">{p.descripcion}</td>
+                  <td className="td-right">{p.unidades_por_pallet}</td>
                   <td className="td-right">{$ar(p.precio_sin_iva)}</td>
                   <td className="td-right" style={{ color: 'var(--blue-600)', fontWeight: 700 }}>{$ar(p.precio_sin_iva * 1.21)}</td>
                   <td>
@@ -94,6 +96,7 @@ export default function Productos() {
           <div className="field"><label className="lbl">Código *</label><input className="inp" value={modal.form.codigo} onChange={e => upd('codigo', e.target.value)} /></div>
           <div className="field"><label className="lbl">Descripción *</label><input className="inp" value={modal.form.descripcion} onChange={e => upd('descripcion', e.target.value)} /></div>
           <div className="field"><label className="lbl">Precio sin IVA ($)</label><input type="number" className="inp inp-right" value={modal.form.precio_sin_iva} min="0" onChange={e => upd('precio_sin_iva', e.target.value)} /></div>
+          <div className="field"><label className="lbl">Unidades por pallet</label><input type="number" className="inp inp-right" value={modal.form.unidades_por_pallet} min="1" step="1" onChange={e => upd('unidades_por_pallet', e.target.value)} /></div>
           <div style={{ background: 'var(--blue-50)', borderRadius: 6, padding: '8px 12px', fontSize: 13, color: 'var(--blue-700)' }}>
             Precio con IVA 21%: <strong>{$ar((+modal.form.precio_sin_iva || 0) * 1.21)}</strong>
           </div>
