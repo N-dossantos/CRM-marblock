@@ -1,4 +1,5 @@
 // src/components/UI/index.jsx
+import { useEffect, useState } from 'react'
 import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem } from '../../utils'
 
 // ── BADGE ────────────────────────────────────────────────────────────
@@ -128,25 +129,92 @@ export function TotalesBoxMulti({ totales }) {
   )
 }
 
+// ── PRODUCTO BUSCADOR (autocompletar por ID corto o texto) ─────────
+// <input list> + <datalist>: usa el desplegable nativo del navegador en vez de uno propio con
+// position:absolute, que quedaría recortado por .items-table-wrap (overflow:hidden) y
+// .modal-body (overflow-y:auto). Cada <option> vale la etiqueta completa "[ID] Descripción — X
+// un/pallet"; al elegirla el navegador ya deja ese texto en el input, así que sólo hace falta
+// resolverla contra el catálogo. Tipear sólo el ID (sin abrir el desplegable) también funciona: se
+// resuelve por código exacto al perder el foco o con Enter — productos.md §3.2.1.
+const productoLabel = (p) =>
+  `[${p.codigo}] ${p.descripcion}${p.unidades_por_pallet > 1 ? ` — ${p.unidades_por_pallet} un/pallet` : ''}`
+
+function ProductoBuscador({ value, productos, onSelect, rowKey }) {
+  const activos = productos.filter(p => p.activo)
+  const selected = activos.find(p => p.id === value)
+  const [text, setText] = useState(selected ? productoLabel(selected) : '')
+
+  useEffect(() => {
+    setText(selected ? productoLabel(selected) : '')
+  }, [selected])
+
+  const byLabel  = new Map(activos.map(p => [productoLabel(p), p]))
+  const byCodigo = new Map(activos.map(p => [p.codigo, p]))
+
+  const commit = (raw) => {
+    const picked = byLabel.get(raw) || byCodigo.get(raw.trim())
+    if (picked) { onSelect(picked); setText(productoLabel(picked)); return }
+    setText(selected ? productoLabel(selected) : '')
+  }
+
+  const listId = `productos-dl-${rowKey}`
+
+  return (
+    <>
+      <input
+        className="inp inp-sm"
+        list={listId}
+        value={text}
+        placeholder="ID o descripción…"
+        onChange={(e) => {
+          const raw = e.target.value
+          setText(raw)
+          const exact = byLabel.get(raw)
+          if (exact) onSelect(exact)
+        }}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(e.target.value) } }}
+      />
+      <datalist id={listId}>
+        {activos.map(p => <option key={p.id} value={productoLabel(p)} />)}
+      </datalist>
+    </>
+  )
+}
+
 // ── ITEMS TABLE (editable o readonly) ───────────────────────────────
 export function ItemsTable({ items, productos = [], alicuotas = [], readonly = false, onChange }) {
   const showIva = alicuotas.length > 0
+
   const update = (i, field, val) => {
     if (!onChange) return
     const next = items.map((it, idx) => {
       if (idx !== i) return it
-      const updated = { ...it, [field]: ['cantidad','precio_unitario','descuento_item'].includes(field) ? parseFloat(val) || 0 : val }
+      if (field === 'pallets') {
+        const pallets = Math.max(0, Math.trunc(parseFloat(val)) || 0)
+        const upp = it.unidades_por_pallet || 1
+        return { ...it, pallets, cantidad: pallets * upp, ...(it.es_pallet_vacio && { pallets_auto: false }) }
+      }
+      const updated = { ...it, [field]: ['precio_unitario','descuento_item'].includes(field) ? parseFloat(val) || 0 : val }
       return updated
     })
     onChange(next)
   }
 
-  const selectProd = (i, prodId) => {
+  const selectProd = (i, p) => {
     if (!onChange) return
-    const p = productos.find(p => p.id === +prodId)
-    const next = items.map((it, idx) =>
-      idx !== i ? it : { ...it, producto_id: +prodId, descripcion: p?.descripcion || '', precio_unitario: p?.precio_sin_iva || 0 }
-    )
+    const upp = Number(p.unidades_por_pallet) || 1
+    const next = items.map((it, idx) => idx !== i ? it : {
+      ...it,
+      producto_id:         p.id,
+      descripcion:         p.descripcion || '',
+      precio_unitario:     p.precio_sin_iva || 0,
+      unidades_por_pallet: upp,
+      es_pallet_vacio:     !!p.es_pallet_vacio,
+      es_transporte:       !!p.es_transporte,
+      pallets:             1,
+      cantidad:            upp,
+    })
     onChange(next)
   }
 
@@ -164,7 +232,8 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
           <tr>
             <th style={{ width: 170 }}>Producto</th>
             <th>Descripción</th>
-            <th className="th-right" style={{ width: 70 }}>Cant.</th>
+            <th className="th-right" style={{ width: 65 }}>Pallets</th>
+            <th className="th-right" style={{ width: 80 }}>Unidades</th>
             <th className="th-right" style={{ width: 120 }}>Precio s/IVA</th>
             <th className="th-right" style={{ width: 65 }}>Dto%</th>
             {showIva && <th style={{ width: 90 }}>IVA</th>}
@@ -174,24 +243,13 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
         </thead>
         <tbody>
           {items.length === 0 ? (
-            <tr><td colSpan={6 + (showIva ? 1 : 0) + (readonly ? 0 : 1)} className="empty-state">Sin ítems</td></tr>
+            <tr><td colSpan={7 + (showIva ? 1 : 0) + (readonly ? 0 : 1)} className="empty-state">Sin ítems</td></tr>
           ) : items.map((it, i) => (
             <tr key={i}>
               <td>
                 {readonly
                   ? <span className="code">{it.codigo || '—'}</span>
-                  : (
-                    <select
-                      className="inp inp-sm sel"
-                      value={it.producto_id || ''}
-                      onChange={(e) => selectProd(i, e.target.value)}
-                    >
-                      <option value="">— Seleccionar —</option>
-                      {productos.filter(p => p.activo).map(p => (
-                        <option key={p.id} value={p.id}>{p.codigo} – {p.descripcion.substring(0,40)}</option>
-                      ))}
-                    </select>
-                  )
+                  : <ProductoBuscador value={it.producto_id} productos={productos} onSelect={(p) => selectProd(i, p)} rowKey={i} />
                 }
               </td>
               <td>
@@ -202,10 +260,11 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
               </td>
               <td className="td-right">
                 {readonly
-                  ? it.cantidad
-                  : <input type="number" className="inp inp-sm inp-right" style={{ width: 65 }} value={it.cantidad} min="0.01" step="0.01" onChange={(e) => update(i, 'cantidad', e.target.value)} />
+                  ? (it.pallets ?? '—')
+                  : <input type="number" className="inp inp-sm inp-right" style={{ width: 60 }} value={it.pallets ?? ''} min="0" step="1" onChange={(e) => update(i, 'pallets', e.target.value)} />
                 }
               </td>
+              <td className="td-right">{Number(it.cantidad || 0).toLocaleString('es-AR')}</td>
               <td className="td-right">
                 {readonly
                   ? $ar(it.precio_unitario)
