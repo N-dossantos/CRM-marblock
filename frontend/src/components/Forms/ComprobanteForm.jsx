@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal } from '../UI'
 import { calcTotalesMulti } from '../../utils'
+import { usePalletsVacios } from '../../hooks/usePalletsVacios'
 import toast from 'react-hot-toast'
 
-const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0 }
+const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
 
 export default function ComprobanteForm({
   title,
@@ -35,6 +36,8 @@ export default function ComprobanteForm({
   })
   const [loading, setLoading] = useState(false)
   const [showWarn, setShowWarn] = useState(warnVencido)
+
+  usePalletsVacios(form.items, (items) => setForm(f => ({ ...f, items })), productos)
 
   // Auto-aplicar descuento del cliente al seleccionarlo
   const onCliChange = (cliId) => {

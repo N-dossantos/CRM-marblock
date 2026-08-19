@@ -4,7 +4,7 @@ import { Modal, ItemsTable, TotalesBox, TotalesBoxMulti } from '../../components
 import { $ar, fFecha, calcTotalesMulti } from '../../utils'
 import toast from 'react-hot-toast'
 
-const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0 }
+const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
 
 export default function NotaForm({ factura, productos = [], alicuotas = [], onSave, onClose }) {
   const multiIva = alicuotas.length > 0

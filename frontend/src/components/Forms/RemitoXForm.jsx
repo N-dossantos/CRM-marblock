@@ -7,9 +7,10 @@
 import { useState } from 'react'
 import { ItemsTable, TotalesBoxC2, Modal } from '../UI'
 import { hoy } from '../../utils'
+import { usePalletsVacios } from '../../hooks/usePalletsVacios'
 import toast from 'react-hot-toast'
 
-const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0 }
+const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
 
 export default function RemitoXForm({
   title,
@@ -30,6 +31,8 @@ export default function RemitoXForm({
     observaciones:     initial.observaciones || '',
   })
   const [loading, setLoading] = useState(false)
+
+  usePalletsVacios(form.items, (items) => setForm(f => ({ ...f, items })), productos)
 
   // Auto-aplicar el descuento de la entidad al seleccionarla (mismo criterio que onCliChange).
   const onEntidadChange = (id) => {
