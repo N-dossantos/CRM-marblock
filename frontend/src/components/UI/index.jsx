@@ -1,5 +1,5 @@
 // src/components/UI/index.jsx
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem } from '../../utils'
 
 // ── BADGE ────────────────────────────────────────────────────────────
@@ -139,9 +139,11 @@ export function TotalesBoxMulti({ totales }) {
 const productoLabel = (p) =>
   `[${p.codigo}] ${p.descripcion}${p.unidades_por_pallet > 1 ? ` — ${p.unidades_por_pallet} un/pallet` : ''}`
 
-function ProductoBuscador({ value, productos, onSelect, rowKey }) {
+function ProductoBuscador({ value, productos, onSelect }) {
   const activos = productos.filter(p => p.activo)
-  const selected = activos.find(p => p.id === value)
+  // El desplegable sólo ofrece activos, pero la etiqueta se resuelve contra el catálogo completo:
+  // un comprobante viejo puede referenciar un producto dado de baja y el combo quedaría en blanco.
+  const selected = productos.find(p => p.id === value)
   const [text, setText] = useState(selected ? productoLabel(selected) : '')
 
   useEffect(() => {
@@ -157,7 +159,9 @@ function ProductoBuscador({ value, productos, onSelect, rowKey }) {
     setText(selected ? productoLabel(selected) : '')
   }
 
-  const listId = `productos-dl-${rowKey}`
+  // useId: el id debe ser único en todo el documento, no sólo dentro de la grilla — dos ItemsTable
+  // montadas a la vez (o dos filas con el mismo índice) colisionarían con un id por número de fila.
+  const listId = `productos-dl-${useId()}`
 
   return (
     <>
@@ -204,7 +208,7 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
   const selectProd = (i, p) => {
     if (!onChange) return
     const upp = Number(p.unidades_por_pallet) || 1
-    const next = items.map((it, idx) => idx !== i ? it : {
+    let next = items.map((it, idx) => idx !== i ? it : {
       ...it,
       producto_id:         p.id,
       descripcion:         p.descripcion || '',
@@ -214,7 +218,17 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
       es_transporte:       !!p.es_transporte,
       pallets:             1,
       cantidad:            upp,
+      // Elegir el pallet vacío a mano = línea del usuario, fuera del auto-sync (productos.md §1.2:
+      // la línea es editable). Sin esto usePalletsVacios la trata como suya y la borra al instante
+      // si no hay otros pallets en la grilla (su total daría 0). Se escribe siempre, también al
+      // cambiar la fila a otro producto, para no arrastrar la marca de una elección anterior.
+      pallets_auto:        p.es_pallet_vacio ? false : undefined,
     })
+    // Una sola línea de pallets vacíos: la elección manual reemplaza a la automática. Si no, quedan
+    // las dos en la grilla y el comprobante factura los pallets por duplicado.
+    if (p.es_pallet_vacio) {
+      next = next.filter((it, idx) => idx === i || !(it.es_pallet_vacio && it.pallets_auto !== false))
+    }
     onChange(next)
   }
 
@@ -249,7 +263,7 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
               <td>
                 {readonly
                   ? <span className="code">{it.codigo || '—'}</span>
-                  : <ProductoBuscador value={it.producto_id} productos={productos} onSelect={(p) => selectProd(i, p)} rowKey={i} />
+                  : <ProductoBuscador value={it.producto_id} productos={productos} onSelect={(p) => selectProd(i, p)} />
                 }
               </td>
               <td>

@@ -31,11 +31,16 @@ const prod = (d) => ({
 })
 
 // Orden numérico cuando el código es un entero simple (catálogo productos.md: '1'..'25');
-// cae a orden alfabético para códigos no numéricos.
+// cae a orden alfabético para códigos no numéricos. Number('') y Number(null) dan 0, así que el
+// código vacío/nulo se compara como texto en vez de colarse delante del '1'.
+const codigoNum = (c) => {
+  const s = String(c ?? '').trim()
+  return /^\d+$/.test(s) ? Number(s) : NaN
+}
 const sortByCodigo = (rows) => [...rows].sort((a, b) => {
-  const na = Number(a.codigo), nb = Number(b.codigo)
+  const na = codigoNum(a.codigo), nb = codigoNum(b.codigo)
   if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb
-  return String(a.codigo).localeCompare(String(b.codigo))
+  return String(a.codigo ?? '').localeCompare(String(b.codigo ?? ''))
 })
 
 // Normalizadores de Compras (equivalentes a cli/prod).

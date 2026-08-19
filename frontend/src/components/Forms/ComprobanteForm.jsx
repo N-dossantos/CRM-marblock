@@ -37,7 +37,15 @@ export default function ComprobanteForm({
   const [loading, setLoading] = useState(false)
   const [showWarn, setShowWarn] = useState(warnVencido)
 
-  usePalletsVacios(form.items, (items) => setForm(f => ({ ...f, items })), productos)
+  // El 4º argumento son los campos que dependen del comprobante: en facturas multi-alícuota la
+  // línea automática debe traer alicuota_iva_id como cualquier ítem de "+ Agregar ítem", si no el
+  // selector de IVA de esa fila aparece vacío (el total igual sale bien: el servidor asume 21%).
+  usePalletsVacios(
+    form.items,
+    (items) => setForm(f => ({ ...f, items })),
+    productos,
+    multiIva ? { alicuota_iva_id: alic21?.id } : null,
+  )
 
   // Auto-aplicar descuento del cliente al seleccionarlo
   const onCliChange = (cliId) => {
