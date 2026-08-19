@@ -23,10 +23,19 @@ const cli = (d) => ({
 })
 
 const prod = (d) => ({
-  codigo:         d.codigo?.trim().toUpperCase(),
-  descripcion:    d.descripcion?.trim(),
-  precio_sin_iva: parseFloat(d.precio_sin_iva) || 0,
+  codigo:               d.codigo?.trim().toUpperCase(),
+  descripcion:          d.descripcion?.trim(),
+  precio_sin_iva:       parseFloat(d.precio_sin_iva) || 0,
+  unidades_por_pallet:  Math.max(1, parseInt(d.unidades_por_pallet, 10) || 1),
   ...(d.activo !== undefined ? { activo: d.activo !== false } : {}),
+})
+
+// Orden numérico cuando el código es un entero simple (catálogo productos.md: '1'..'25');
+// cae a orden alfabético para códigos no numéricos.
+const sortByCodigo = (rows) => [...rows].sort((a, b) => {
+  const na = Number(a.codigo), nb = Number(b.codigo)
+  if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb
+  return String(a.codigo).localeCompare(String(b.codigo))
 })
 
 // Normalizadores de Compras (equivalentes a cli/prod).
@@ -83,13 +92,13 @@ export const ClientesAPI = {
 // ── PRODUCTOS ────────────────────────────────────────────────────────
 export const ProductosAPI = {
   list: ({ q, activo } = {}) => {
-    let query = supabase.from('productos').select('*').order('codigo')
+    let query = supabase.from('productos').select('*')
     if (q) {
       const s = String(q).replace(/[,()]/g, ' ')
       query = query.or(`descripcion.ilike.%${s}%,codigo.ilike.%${s}%`)
     }
     if (activo !== undefined) query = query.eq('activo', activo === true || activo === 'true')
-    return query.then(unwrap)
+    return query.then(unwrap).then(sortByCodigo)
   },
   get:              (id)      => supabase.from('productos').select('*').eq('id', id).maybeSingle().then(unwrap),
   create:           (data)    => supabase.from('productos').insert(prod(data)).select().single().then(unwrap),
