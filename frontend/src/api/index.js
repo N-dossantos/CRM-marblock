@@ -143,14 +143,25 @@ export const RemitosAPI = {
     rpc('remitos_list', { p_q: q || null, p_estado: estado || null, p_cliente_id: cliente_id || null }),
   pendientes: (cliId) => rpc('remitos_list', { p_estado: 'pendiente', p_cliente_id: cliId }),
   get:        (id)    => rpc('remitos_list', { p_id: id }).then(one),
+  // El número de los remitos de venta lo da el talonario preimpreso, no el sistema:
+  // esto sólo SUGIERE el siguiente (peek de sólo lectura, no consume numeración).
+  numeroSugerido: () => rpc('remito_numero_sugerido').then(one),
   create: (data) => rpc('crear_remito', {
-    p_cliente_id:     data.cliente_id,
-    p_items:          data.items,
-    p_observaciones:  data.observaciones ?? null,
-    p_presupuesto_id: data.presupuesto_id ?? null,
+    p_cliente_id:        data.cliente_id,
+    p_numero:            data.numero,
+    p_items:             data.items,
+    p_observaciones:     data.observaciones ?? null,
+    p_presupuesto_id:    data.presupuesto_id ?? null,
+    p_condiciones_venta: data.condiciones_venta ?? null,
+    p_domicilio_obra:    data.domicilio_obra ?? null,
+    p_telefono_entrega:  data.telefono_entrega ?? null,
   }),
   update: (id, data) => rpc('actualizar_remito', {
-    p_id: id, p_cliente_id: data.cliente_id, p_items: data.items, p_observaciones: data.observaciones ?? null,
+    p_id: id, p_cliente_id: data.cliente_id, p_items: data.items,
+    p_observaciones:     data.observaciones ?? null,
+    p_condiciones_venta: data.condiciones_venta ?? null,
+    p_domicilio_obra:    data.domicilio_obra ?? null,
+    p_telefono_entrega:  data.telefono_entrega ?? null,
   }),
   anular: (id) => rpc('remito_anular', { p_id: id }),
 }
@@ -583,6 +594,21 @@ export const AsientosAPI = {
 export const pdfUrl = {
   factura:         (id)                       => `/api/pdf/factura/${id}`,
   remito:          (id)                       => `/api/pdf/remito/${id}`,
+  // Sobreimpresión sobre el talonario preimpreso: 2 páginas sin diseño, sólo los datos.
+  // dx/dy son el corrimiento de la impresora en mm, si hiciera falta corregirlo.
+  remitoTalonario: (id, { dx = 0, dy = 0 } = {}) => {
+    const p = new URLSearchParams({ preimpreso: '1' })
+    if (dx) p.set('dx', String(dx))
+    if (dy) p.set('dy', String(dy))
+    return `/api/pdf/remito/${id}?${p.toString()}`
+  },
+  remitoCalibracion: ({ dx = 0, dy = 0 } = {}) => {
+    const p = new URLSearchParams()
+    if (dx) p.set('dx', String(dx))
+    if (dy) p.set('dy', String(dy))
+    const qs = p.toString() ? `?${p.toString()}` : ''
+    return `/api/pdf/remito/calibracion${qs}`
+  },
   presupuesto:     (id)                       => `/api/pdf/presupuesto/${id}`,
   nota:            (id)                       => `/api/pdf/nota/${id}`,
   recibo:          (id)                       => `/api/pdf/recibo/${id}`,

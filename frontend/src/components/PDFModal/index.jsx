@@ -10,11 +10,13 @@ const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pdf`
 
 /**
  * Props:
- *   url      {string}  – ruta estilo Express, ej. "/api/pdf/factura/12" (o con querystring)
- *   titulo   {string}  – título del modal
- *   onClose  {fn}      – cierra el modal
+ *   url        {string}  – ruta estilo Express, ej. "/api/pdf/factura/12" (o con querystring)
+ *   titulo     {string}  – título del modal
+ *   talonario  {bool}    – el PDF es una sobreimpresión sobre formulario preimpreso: muestra
+ *                          el aviso de escala, porque "Ajustar a la página" desalinea todo
+ *   onClose    {fn}      – cierra el modal
  */
-export default function PDFModal({ url, titulo, onClose }) {
+export default function PDFModal({ url, titulo, talonario = false, onClose }) {
   const [estado, setEstado]     = useState('cargando') // cargando | ok | error
   const [blobUrl, setBlobUrl]   = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
@@ -169,6 +171,27 @@ export default function PDFModal({ url, titulo, onClose }) {
             >×</button>
           </div>
         </div>
+
+        {/* Aviso de escala: en sobreimpresión, "Ajustar a la página" encoge un 3-6% y
+            corre todos los campos varios milímetros — es el error más probable. */}
+        {talonario && estado === 'ok' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '9px 20px',
+            background: '#fef3c7',
+            borderBottom: '1px solid #fde68a',
+            color: '#92400e',
+            fontSize: 12.5,
+            flexShrink: 0,
+          }}>
+            <span>⚠️</span>
+            <span>
+              Al imprimir, poné <strong>Escala 100 % (Tamaño real)</strong> y <strong>Márgenes: ninguno</strong>.
+              Si queda en «Ajustar a la página» los datos salen corridos del formulario.
+              Son <strong>2 hojas</strong>: original y duplicado.
+            </span>
+          </div>
+        )}
 
         {/* Contenido */}
         <div style={{ flex: 1, overflow: 'hidden', background: '#525659', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

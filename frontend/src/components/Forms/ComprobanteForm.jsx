@@ -8,6 +8,12 @@ import toast from 'react-hot-toast'
 
 const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
 
+// Renglones que entran en una hoja del talonario preimpreso de remitos: el área de ítems va de
+// 110,6 a 251,9 mm a 6 mm por renglón (23), pero se corta en 19 para dejar libre la leyenda
+// "la mercadería viaja por cuenta y riesgo del comprador" (y=230 mm). Tiene que coincidir con
+// MAPA.items.renglones en supabase/functions/pdf/preimpreso.ts.
+const RENGLONES_TALONARIO = 19
+
 export default function ComprobanteForm({
   title,
   tipo,           // 'factura' | 'presupuesto' | 'remito'
@@ -16,10 +22,17 @@ export default function ComprobanteForm({
   productos = [],
   remitos = [],   // solo para facturas
   alicuotas = [], // [{ id, porcentaje }] — activa el IVA multi-alícuota (sólo en facturas)
+  numeroSugerido = null, // { punto_venta, numero, numero_formateado } — sólo para remitos nuevos
   onSave,
   onClose,
   warnVencido = false,
 }) {
+  // Los remitos de venta se emiten sobre talonario preimpreso: el número lo trae la
+  // hoja, no el sistema. Se prellena con la sugerencia, pero lo confirma el operador
+  // mirando el papel. En edición no se toca — si la hoja se arruinó el flujo es
+  // anular y reemitir, no renumerar.
+  const esRemito     = tipo === 'remito'
+  const esRemitoNuevo = esRemito && !initial.id
   // IVA multi-alícuota: sólo en facturas (presupuesto/remito siguen en 21% por defecto).
   const multiIva = tipo === 'factura' && alicuotas.length > 0
   const alic21 = alicuotas.find(a => +a.porcentaje === 21)
@@ -32,6 +45,10 @@ export default function ComprobanteForm({
     remito_id:        initial.remito_id || '',
     presupuesto_id:   initial.presupuesto_id || '',
     tipo_fac:         initial.tipo || 'A',
+    numero:           initial.numero || numeroSugerido?.numero_formateado || '',
+    condiciones_venta: initial.condiciones_venta || '',
+    domicilio_obra:    initial.domicilio_obra || '',
+    telefono_entrega:  initial.telefono_entrega || '',
     ...initial,
   })
   const [loading, setLoading] = useState(false)
@@ -54,6 +71,9 @@ export default function ComprobanteForm({
       ...f,
       cliente_id: cliId,
       descuento_general: cl?.descuento_porcentaje ?? f.descuento_general,
+      // El teléfono del remito se prellena con el del cliente pero queda editable: el de la
+      // obra suele ser otro (capataz/obrador) y es el que sirve si hay que llamar en la entrega.
+      ...(esRemito && !f.telefono_entrega && cl?.telefono ? { telefono_entrega: cl.telefono } : {}),
     }))
   }
 
@@ -74,14 +94,42 @@ export default function ComprobanteForm({
   const addItem = () =>
     setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE, ...(multiIva && { alicuota_iva_id: alic21?.id }) }] }))
 
+  // Aviso (no bloqueante) cuando el número tipeado se aleja del sugerido: la base impide
+  // duplicados, pero no puede detectar un error de tipeo que caiga en un número libre.
+  // Sólo compara dentro del mismo punto de venta — un talonario nuevo arranca otra serie
+  // y la distancia entre series no significa nada.
+  const UMBRAL_DESVIO = 10
+  const desvio = (() => {
+    if (!esRemitoNuevo || !numeroSugerido) return null
+    const m = /^(\d{5})-(\d{8})$/.exec((form.numero || '').trim())
+    if (!m || m[1] !== numeroSugerido.punto_venta) return null
+    const dif = parseInt(m[2], 10) - numeroSugerido.numero
+    return Math.abs(dif) > UMBRAL_DESVIO ? dif : null
+  })()
+
   const save = async (forzar = false) => {
     if (!form.cliente_id)   { toast.error('Seleccione un cliente'); return }
     if (!form.items.length) { toast.error('Agregue al menos un ítem'); return }
+    if (esRemitoNuevo && !/^\d{5}-\d{8}$/.test((form.numero || '').trim())) {
+      toast.error('El número del remito debe tener el formato 00001-00012345'); return
+    }
+    // Una hoja del talonario tiene RENGLONES_TALONARIO renglones, y una hoja es un número es
+    // un remito: lo que no entra no se puede continuar en otra hoja sin gastar otro número.
+    if (esRemito && form.items.length > RENGLONES_TALONARIO) {
+      toast.error(`No entran más de ${RENGLONES_TALONARIO} ítems en el formulario. Dividí la entrega en dos remitos.`)
+      return
+    }
     const payload = {
       cliente_id:        +form.cliente_id,
       descuento_general: +form.descuento_general || 0,
       items:             form.items,
       observaciones:     form.observaciones,
+      ...(esRemitoNuevo && { numero: form.numero.trim() }),
+      ...(esRemito && {
+        condiciones_venta: form.condiciones_venta?.trim() || null,
+        domicilio_obra:    form.domicilio_obra?.trim() || null,
+        telefono_entrega:  form.telefono_entrega?.trim() || null,
+      }),
       ...(tipo === 'factura' && { tipo: form.tipo_fac, remito_id: form.remito_id ? +form.remito_id : null }),
       ...(tipo === 'factura' && form.presupuesto_id && { presupuesto_id: +form.presupuesto_id }),
       ...(forzar && { forzar_vencido: true }),
@@ -139,6 +187,21 @@ export default function ComprobanteForm({
           </select>
         </div>
 
+        {/* Número de la hoja del talonario preimpreso (solo remitos) */}
+        {esRemito && (
+          <div className="field">
+            <label className="lbl">N° de remito {esRemitoNuevo && '*'}</label>
+            <input
+              className="inp"
+              value={form.numero || ''}
+              readOnly={!esRemitoNuevo}
+              placeholder="00001-00012345"
+              onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
+              style={{ fontFamily: 'monospace', ...(esRemitoNuevo ? {} : { background: 'var(--gray-50)', color: 'var(--gray-500)' }) }}
+            />
+          </div>
+        )}
+
         {/* Tipo factura */}
         {tipo === 'factura' && (
           <div className="field">
@@ -150,6 +213,58 @@ export default function ComprobanteForm({
           </div>
         )}
       </div>
+
+      {/* Desvío respecto del número sugerido — advierte, no bloquea: puede ser legítimo
+          (talonario salteado) o un error de tipeo que la base no puede detectar. */}
+      {desvio !== null && (
+        <div className="warn-box" style={{ marginBottom: 14 }}>
+          <span>⚠️</span>
+          <div>
+            El número está <strong>{Math.abs(desvio)} hoja(s) {desvio > 0 ? 'adelante' : 'atrás'}</strong> del
+            sugerido (<span style={{ fontFamily: 'monospace' }}>{numeroSugerido.numero_formateado}</span>).
+            Verificá que coincida con la hoja que pusiste en la impresora.
+          </div>
+        </div>
+      )}
+
+      {/* Campos que exige el formulario preimpreso del talonario (solo remitos) */}
+      {esRemito && (
+        <div className="form-row3" style={{ marginBottom: 14 }}>
+          <div className="field">
+            <label className="lbl">Condiciones de venta</label>
+            <input
+              className="inp"
+              list="cond-venta-sugeridas"
+              value={form.condiciones_venta || ''}
+              placeholder="Contado / Cuenta corriente…"
+              onChange={e => setForm(f => ({ ...f, condiciones_venta: e.target.value }))}
+            />
+            <datalist id="cond-venta-sugeridas">
+              <option value="Contado" />
+              <option value="Cuenta corriente" />
+              <option value="Cuenta corriente 30 días" />
+            </datalist>
+          </div>
+          <div className="field">
+            <label className="lbl">Domicilio de obra</label>
+            <input
+              className="inp"
+              value={form.domicilio_obra || ''}
+              placeholder="Dónde se entrega"
+              onChange={e => setForm(f => ({ ...f, domicilio_obra: e.target.value }))}
+            />
+          </div>
+          <div className="field">
+            <label className="lbl">Teléfono de entrega</label>
+            <input
+              className="inp"
+              value={form.telefono_entrega || ''}
+              placeholder="Se prellena con el del cliente"
+              onChange={e => setForm(f => ({ ...f, telefono_entrega: e.target.value }))}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Remito vinculado (solo en facturas) */}
       {tipo === 'factura' && remitos.length > 0 && (
