@@ -199,6 +199,12 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
         const upp = it.unidades_por_pallet || 1
         return { ...it, pallets, cantidad: pallets * upp, ...(it.es_pallet_vacio && { pallets_auto: false }) }
       }
+      // Unidades editable independiente de Pallets: venta parcial de un pallet (ej. 80 de 105).
+      // Pallets sigue representando cuántos pallets físicos se usan (no cambia solo), así que no se
+      // toca acá — sólo vuelve a recalcularse si el usuario edita Pallets de nuevo.
+      if (field === 'cantidad') {
+        return { ...it, cantidad: Math.max(0, Math.trunc(parseFloat(val)) || 0) }
+      }
       const updated = { ...it, [field]: ['precio_unitario','descuento_item'].includes(field) ? parseFloat(val) || 0 : val }
       return updated
     })
@@ -278,7 +284,12 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
                   : <input type="number" className="inp inp-sm inp-right" style={{ width: 60 }} value={it.pallets ?? ''} min="0" step="1" onChange={(e) => update(i, 'pallets', e.target.value)} />
                 }
               </td>
-              <td className="td-right">{Number(it.cantidad || 0).toLocaleString('es-AR')}</td>
+              <td className="td-right">
+                {readonly
+                  ? Number(it.cantidad || 0).toLocaleString('es-AR')
+                  : <input type="number" className="inp inp-sm inp-right" style={{ width: 70 }} value={it.cantidad ?? ''} min="0" step="1" onChange={(e) => update(i, 'cantidad', e.target.value)} />
+                }
+              </td>
               <td className="td-right">
                 {readonly
                   ? $ar(it.precio_unitario)
