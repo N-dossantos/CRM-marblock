@@ -6,7 +6,7 @@
 // Sub-tabs con useState (patrón de views/TesoreriaCuentas), no ruteo anidado.
 import { useState, useEffect, useCallback } from 'react'
 import { ClientesC2API, ProveedoresC2API, RemitosC2API, MovimientosC2API, InformesC2API, pdfUrlC2 } from '../../api/cuenta2'
-import { ProductosAPI } from '../../api'
+import { ProductosAPI, MaterialesAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Modal, Loading, EmptyState, ItemsTable } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
@@ -86,8 +86,19 @@ function RemitosX({ tipoSector }) {
   useEffect(() => { load() }, [load])
   useEffect(() => {
     entidadAPIde(tipoSector).list({ activo: true }).then(setEntidades)
-    ProductosAPI.list({ activo: true }).then(setProductos)
-  }, [tipoSector])
+    // Proveedores (sector 'compra') compran materiales del catálogo de Compras, no productos de
+    // Ventas — se adapta a la forma que espera ItemsTable/ProductoBuscador (id/codigo/descripcion/
+    // precio_sin_iva), sin concepto de pallets (unidades_por_pallet=1 → Pallets ≡ cantidad).
+    if (esVenta) {
+      ProductosAPI.list({ activo: true }).then(setProductos)
+    } else {
+      MaterialesAPI.list({ activo: true }).then(mats => setProductos(mats.map(m => ({
+        id: m.id, codigo: m.codigo, descripcion: m.descripcion,
+        precio_sin_iva: m.precio_referencia, unidades_por_pallet: 1,
+        es_pallet_vacio: false, es_transporte: false, activo: m.activo,
+      }))))
+    }
+  }, [tipoSector, esVenta])
 
   const save = async (payload) => {
     if (form.isNew) await RemitosC2API.create(payload)

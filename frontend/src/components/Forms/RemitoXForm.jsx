@@ -22,12 +22,19 @@ export default function RemitoXForm({
   onClose,
 }) {
   const esVenta = tipoSector === 'venta'
+  // Proveedores (compra) usan el catálogo de materiales, no productos — pero ItemsTable/
+  // ProductoBuscador sólo conocen `producto_id`. Al cargar un remito de compra ya guardado, la fila
+  // trae `material_id` (no `producto_id`, son excluyentes): se mapea a `producto_id` acá para que
+  // el combobox lo resuelva contra la lista de materiales que llega en `productos`. El mapeo inverso
+  // pasa en save() más abajo, justo antes de mandar el payload.
   const [form, setForm] = useState({
     entidad_id:        initial.entidad_id || '',
     numero:            initial.numero || '',
     fecha:             initial.fecha || hoy(),
     descuento_general: initial.descuento_porcentaje ?? 0,
-    items:             initial.items?.map(it => ({ ...it })) || [],
+    items:             initial.items?.map(it => (
+      !esVenta && it.material_id ? { ...it, producto_id: it.material_id } : { ...it }
+    )) || [],
     observaciones:     initial.observaciones || '',
   })
   const [loading, setLoading] = useState(false)
@@ -52,13 +59,19 @@ export default function RemitoXForm({
     if (!form.items.length)      { toast.error('Agregue al menos un ítem'); return }
     setLoading(true)
     try {
+      // Compra: lo que ItemsTable dejó en `producto_id` en realidad es un id de `materiales` — se
+      // traslada a `material_id` para el insert (nunca se manda un id de materiales bajo
+      // `producto_id`, o el RPC lo insertaría contra la tabla equivocada).
+      const items = esVenta
+        ? form.items
+        : form.items.map(({ producto_id, ...it }) => ({ ...it, material_id: producto_id || null }))
       await onSave({
         tipo_sector:       tipoSector,
         entidad_id:        +form.entidad_id,
         numero:            form.numero.trim(),
         fecha:             form.fecha,
         descuento_general: +form.descuento_general || 0,
-        items:             form.items,
+        items,
         observaciones:     form.observaciones || null,
       })
     } catch {
