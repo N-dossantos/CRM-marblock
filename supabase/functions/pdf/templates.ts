@@ -498,6 +498,116 @@ export async function generarCtaCte(data: any, empresa: any, filtros: any = {}):
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CUENTA CORRIENTE — CUENTA 2 (circuito informal)
+// Espejo de generarCtaCte, pero sobre `data.entidad` (nombre/telefono/descuento_porcentaje, sin
+// CUIT ni condición IVA) y con los tipos de movimiento propios del circuito (REMITO X / COBRO /
+// PAGO / AJUSTE). Se rotula explícitamente como informe interno para que no se confunda con un
+// resumen de cuenta oficial si termina en manos de un cliente/proveedor (cuenta2.md: "aislado de
+// Cuenta 1").
+// ─────────────────────────────────────────────────────────────────────────────
+export async function generarCtaCteCuenta2(data: any, empresa: any, filtros: any = {}): Promise<Uint8Array> {
+  return await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
+    const buffers: any[] = []
+    doc.on('data', (b: any) => buffers.push(b))
+    doc.on('end',  () => resolve(Buffer.concat(buffers)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 45
+    const ancho = W - M * 2
+    const { entidad, movimientos = [], saldo_total } = data
+
+    // Header
+    let y = dibujarHeader(doc, empresa, 'CTA CORRIENTE C2', '', new Date().toISOString().split('T')[0])
+
+    // Info entidad
+    doc.rect(M, y + 6, ancho, 52).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('CLIENTE / PROVEEDOR', M + 10, y + 14)
+    doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(12).text(entidad.nombre, M + 10, y + 24, { width: ancho * 0.6 })
+    doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8.5)
+       .text(
+         entidad.telefono
+           ? `Tel: ${entidad.telefono}${+entidad.descuento_porcentaje > 0 ? `  ·  Descuento ${entidad.descuento_porcentaje}%` : ''}`
+           : (+entidad.descuento_porcentaje > 0 ? `Descuento ${entidad.descuento_porcentaje}%` : 'Sin teléfono'),
+         M + 10, y + 40,
+       )
+
+    // Saldo (derecha)
+    const saldoColor = saldo_total > 0 ? COLORES.rojo : saldo_total < 0 ? COLORES.verde : COLORES.gris_texto
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5)
+       .text('SALDO ACTUAL', W - M - 170, y + 14)
+    doc.fillColor(saldoColor).font('Helvetica-Bold').fontSize(16)
+       .text($ar(saldo_total), W - M - 170, y + 25, { width: 160, align: 'right' })
+    doc.fillColor(saldoColor).font('Helvetica').fontSize(8)
+       .text(saldo_total > 0 ? 'Saldo deudor' : saldo_total < 0 ? 'Saldo a favor' : 'Cuenta balanceada', W - M - 170, y + 44, { width: 160, align: 'right' })
+
+    y += 64
+
+    // Leyenda: deja explícito que es un informe interno del circuito informal, sin validez fiscal.
+    doc.fillColor(COLORES.naranja).font('Helvetica-Bold').fontSize(7.5)
+       .text('INFORME INTERNO — CIRCUITO CUENTA 2: sin numeración fiscal, sin validez como comprobante oficial.', M, y + 6, { width: ancho })
+    y += 18
+
+    // Filtro de fechas
+    if (filtros.desde || filtros.hasta) {
+      doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8)
+         .text(`Período: ${filtros.desde ? fFecha(filtros.desde) : 'inicio'} al ${filtros.hasta ? fFecha(filtros.hasta) : 'hoy'}`, M, y + 6)
+      y += 20
+    }
+
+    // Cabecera tabla
+    y += 4
+    const cols = [
+      { label: 'Fecha',       w: 70,  align: 'left'  },
+      { label: 'Comprobante', w: 100, align: 'left'  },
+      { label: 'Tipo',        w: 80,  align: 'left'  },
+      { label: 'Debe',        w: (ancho - 250 - 90) / 2, align: 'right' },
+      { label: 'Haber',       w: (ancho - 250 - 90) / 2, align: 'right' },
+      { label: 'Saldo',       w: 90,  align: 'right' },
+    ]
+    y = dibujarCabeceraTabla(doc, y, cols)
+
+    const TIPO_LABELS_CTA_C2: Record<string, string> = {
+      'REMITO X': 'Remito X', COBRO: 'Cobro', PAGO: 'Pago', AJUSTE: 'Ajuste',
+    }
+
+    movimientos.forEach((m: any, i: number) => {
+      const saldoAcum = parseFloat(m.saldo)
+      const saldoStr  = $ar(Math.abs(saldoAcum))
+      const saldoFmt  = saldoAcum > 0 ? saldoStr : saldoAcum < 0 ? `(${saldoStr})` : '$0,00'
+
+      y = dibujarFilaItem(doc, y, [
+        fFecha(m.fecha),
+        m.comprobante,
+        TIPO_LABELS_CTA_C2[m.tipo] || m.tipo,
+        parseFloat(m.debe) > 0 ? $ar(m.debe) : '—',
+        parseFloat(m.haber) > 0 ? $ar(m.haber) : '—',
+        saldoFmt,
+      ], cols, i % 2 === 1)
+
+      // Nueva página si se llena
+      if (y > doc.page.height - 120) {
+        doc.addPage()
+        y = 50
+        y = dibujarCabeceraTabla(doc, y, cols)
+      }
+    })
+
+    // Fila total final
+    y += 4
+    doc.rect(M, y, ancho, 26).fill(COLORES.azul_oscuro)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(9)
+       .text('SALDO FINAL:', M + 8, y + 9)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12)
+       .text($ar(Math.abs(saldo_total)), M + 8, y + 7, { width: ancho - 16, align: 'right' })
+
+    dibujarFooter(doc, empresa)
+    doc.end()
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // COMPROBANTE INTERNO DE MOVIMIENTO DE TESORERÍA  (Fase D)
 // Orden de pago / recibo interno de una fila del ledger. NO es un comprobante fiscal.
 // ─────────────────────────────────────────────────────────────────────────────

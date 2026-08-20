@@ -8,7 +8,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import {
   generarFactura, generarRemito, generarPresupuesto,
-  generarNota, generarRecibo, generarCtaCte,
+  generarNota, generarRecibo, generarCtaCte, generarCtaCteCuenta2,
   generarComprobanteTesoreria, generarCheque,
 } from './templates.ts'
 import {
@@ -116,6 +116,19 @@ Deno.serve(async (req) => {
         const buffer = await generarCtaCte(data, await getEmpresa(), { desde, hasta })
         const nombre = String(data.cliente.razon_social || 'Cliente').replace(/\s+/g, '_')
         return enviarPDF(buffer, `CtaCte-${nombre}`)
+      }
+      case 'cta-cte-cuenta2': {
+        const desde  = q.get('desde') || null
+        const hasta  = q.get('hasta') || null
+        const sector = q.get('sector')
+        if (sector !== 'venta' && sector !== 'compra') return jsonError('Parámetro sector inválido.')
+        const data = await rpcOne('informe_cta_cte_cuenta2', {
+          p_tipo_sector: sector, p_entidad_id: Number(id), p_desde: desde, p_hasta: hasta,
+        })
+        if (!data || !data.entidad) return jsonError('Cliente/proveedor no encontrado', 404)
+        const buffer = await generarCtaCteCuenta2(data, await getEmpresa(), { desde, hasta })
+        const nombre = String(data.entidad.nombre || 'Entidad').replace(/\s+/g, '_')
+        return enviarPDF(buffer, `CtaCte-C2-${nombre}`)
       }
       case 'ranking-deudores': {
         const { data, error } = await supabase.rpc('informe_ranking_deudores')

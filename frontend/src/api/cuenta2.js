@@ -140,3 +140,14 @@ export const InformesC2API = {
       p_hasta:       hasta || null,
     }),
 }
+
+// ── PDF (se usa con PDFModal) ───────────────────────────────────────
+// Mismo idioma que `pdfUrl` de api/index.js, pero aparte para no romper el aislamiento del módulo.
+export const pdfUrlC2 = {
+  ctaCte: (tipoSector, entidadId, desde, hasta) => {
+    const p = new URLSearchParams({ sector: tipoSector })
+    if (desde) p.set('desde', desde)
+    if (hasta) p.set('hasta', hasta)
+    return `/api/pdf/cta-cte-cuenta2/${entidadId}?${p.toString()}`
+  },
+}

@@ -5,10 +5,11 @@
 // líneas. Misma idea que ComprobanteForm sirviendo presupuesto/remito/factura con `tipo`.
 // Sub-tabs con useState (patrón de views/TesoreriaCuentas), no ruteo anidado.
 import { useState, useEffect, useCallback } from 'react'
-import { ClientesC2API, ProveedoresC2API, RemitosC2API, MovimientosC2API, InformesC2API } from '../../api/cuenta2'
+import { ClientesC2API, ProveedoresC2API, RemitosC2API, MovimientosC2API, InformesC2API, pdfUrlC2 } from '../../api/cuenta2'
 import { ProductosAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Modal, Loading, EmptyState, ItemsTable } from '../../components/UI'
+import PDFModal from '../../components/PDFModal'
 import RemitoXForm from '../../components/Forms/RemitoXForm'
 import MovimientoC2Form from '../../components/Forms/MovimientoC2Form'
 import EntidadC2Form from '../../components/Forms/EntidadC2Form'
@@ -305,6 +306,7 @@ function CtaCteC2({ tipoSector }) {
   const [desde, setDesde]         = useState('')
   const [hasta, setHasta]         = useState('')
   const [movForm, setMovForm]     = useState(null)
+  const [pdfModal, setPdfModal]   = useState(null)
 
   const loadEntidades = useCallback(() => {
     entidadAPIde(tipoSector).list().then(setEntidades)
@@ -411,13 +413,23 @@ function CtaCteC2({ tipoSector }) {
                   <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
                     {saldo > 0 ? (esVenta ? '⬆ Saldo deudor' : '⬆ Le debemos') : saldo < 0 ? '⬇ Saldo a favor' : '✓ Cuenta balanceada'}
                   </div>
-                  <button
-                    className="btn btn-primary btn-sm"
-                    style={{ marginTop: 10 }}
-                    onClick={() => setMovForm({ entidad: data.entidad, saldo })}
-                  >
-                    + Registrar {esVenta ? 'cobro' : 'pago'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setPdfModal({
+                        url: pdfUrlC2.ctaCte(tipoSector, selId, desde, hasta),
+                        titulo: `Cuenta Corriente C2 — ${data.entidad.nombre}`,
+                      })}
+                    >
+                      📄 Generar PDF
+                    </button>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => setMovForm({ entidad: data.entidad, saldo })}
+                    >
+                      + Registrar {esVenta ? 'cobro' : 'pago'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -492,6 +504,8 @@ function CtaCteC2({ tipoSector }) {
           onClose={() => setMovForm(null)}
         />
       )}
+
+      {pdfModal && <PDFModal url={pdfModal.url} titulo={pdfModal.titulo} onClose={() => setPdfModal(null)} />}
     </div>
   )
 }
