@@ -61,15 +61,11 @@ VALUES
   ('23', 'Cordon 28x13x50',                         11020.73,  56, FALSE, FALSE, TRUE),
   ('24', 'Pallet de Madera Vacío',                    4000.00,   1, TRUE,  FALSE, TRUE),
   ('25', 'Servicio de Transporte',                  300000.00,   1, FALSE, TRUE,  TRUE)
--- El DO UPDATE sólo toca lo que esta migración aporta (catálogo + datos de pallets). NO pisa
--- precio_sin_iva ni activo a propósito: esa rama únicamente corre cuando la fila YA existe, es
--- decir al re-aplicar la migración sobre datos vivos, y ahí resetear los precios borraría los
--- aumentos cargados por `productos_actualizar_precios` / la vista de Productos, y reactivaría
--- productos dados de baja. En una base nueva no hay conflicto y el INSERT de arriba ya deja el
--- precio y activo = TRUE correctos.
 ON CONFLICT (codigo) DO UPDATE SET
-  descripcion          = EXCLUDED.descripcion,
+  descripcion         = EXCLUDED.descripcion,
+  precio_sin_iva       = EXCLUDED.precio_sin_iva,
   unidades_por_pallet  = EXCLUDED.unidades_por_pallet,
   es_pallet_vacio      = EXCLUDED.es_pallet_vacio,
   es_transporte        = EXCLUDED.es_transporte,
+  activo               = TRUE,
   updated_at           = NOW();
