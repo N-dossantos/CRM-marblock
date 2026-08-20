@@ -30,10 +30,17 @@ export const isVencido = (dateStr) =>
 export const calcSubtotalItem = (cant, precio, dtoItem = 0) =>
   (parseFloat(cant) || 0) * (parseFloat(precio) || 0) * (1 - (parseFloat(dtoItem) || 0) / 100)
 
+// Pallet de Madera Vacío y Servicio de Transporte nunca reciben el descuento general del
+// cliente — son costos de paso, no productos negociables. El Dto% manual por ítem sigue
+// disponible en esas filas; sólo el % automático del cliente las excluye.
+const esExcluidoDeDescuentoGeneral = (it) => !!(it.es_pallet_vacio || it.es_transporte)
+
 // Calcular totales de un comprobante
 export const calcTotales = (items = [], dtoGeneral = 0) => {
-  const subtotal       = items.reduce((a, it) => a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
-  const descuentoMonto = subtotal * ((parseFloat(dtoGeneral) || 0) / 100)
+  const subtotal = items.reduce((a, it) => a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
+  const subtotalDescontable = items.reduce((a, it) =>
+    esExcluidoDeDescuentoGeneral(it) ? a : a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
+  const descuentoMonto = subtotalDescontable * ((parseFloat(dtoGeneral) || 0) / 100)
   const netoGravado    = subtotal - descuentoMonto
   const ivaMonto       = netoGravado * IVA
   const total          = netoGravado + ivaMonto
@@ -51,8 +58,10 @@ const r2 = (n) => Math.round(n * 100) / 100
 // Totales de un Remito X de Cuenta 2 — SIN IVA (circuito informal, precios ya netos).
 // Espeja crm_calc_totales_cuenta2() del servidor, que es el cálculo autoritativo.
 export const calcTotalesC2 = (items = [], dtoGeneral = 0) => {
-  const subtotal       = items.reduce((a, it) => a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
-  const descuentoMonto = subtotal * ((parseFloat(dtoGeneral) || 0) / 100)
+  const subtotal = items.reduce((a, it) => a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
+  const subtotalDescontable = items.reduce((a, it) =>
+    esExcluidoDeDescuentoGeneral(it) ? a : a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
+  const descuentoMonto = subtotalDescontable * ((parseFloat(dtoGeneral) || 0) / 100)
   return {
     subtotal:        r2(subtotal),
     descuento_monto: r2(descuentoMonto),
@@ -65,7 +74,9 @@ export const calcTotalesC2 = (items = [], dtoGeneral = 0) => {
 export const calcTotalesMulti = (items = [], dtoGeneral = 0, alicuotasById = {}) => {
   const pct21 = Object.values(alicuotasById).find(a => +a.porcentaje === 21)
   const subtotal = items.reduce((a, it) => a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
-  const descuentoMonto = subtotal * ((parseFloat(dtoGeneral) || 0) / 100)
+  const subtotalDescontable = items.reduce((a, it) =>
+    esExcluidoDeDescuentoGeneral(it) ? a : a + calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item), 0)
+  const descuentoMonto = subtotalDescontable * ((parseFloat(dtoGeneral) || 0) / 100)
   const factor   = 1 - (parseFloat(dtoGeneral) || 0) / 100
   const netoGravado = subtotal - descuentoMonto
 
@@ -74,7 +85,8 @@ export const calcTotalesMulti = (items = [], dtoGeneral = 0, alicuotasById = {})
     const alic = alicuotasById[it.alicuota_iva_id] || pct21
     const pct  = alic ? +alic.porcentaje : 21
     const id   = it.alicuota_iva_id ?? (pct21 ? pct21.id : null)
-    const neto = calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item) * factor
+    const netoItem = calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item)
+    const neto = esExcluidoDeDescuentoGeneral(it) ? netoItem : netoItem * factor
     const cur  = grupos.get(id) || { alicuota_iva_id: id, porcentaje: pct, neto_gravado: 0, iva_monto: 0 }
     cur.neto_gravado += neto
     grupos.set(id, cur)
