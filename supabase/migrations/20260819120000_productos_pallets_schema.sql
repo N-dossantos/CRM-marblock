@@ -59,7 +59,7 @@ VALUES
   ('21', 'Adoquin Holanda de 10x20x6',                353.05, 720, FALSE, FALSE, TRUE),
   ('22', 'Cubremuros 26x19x4,5',                     1154.50, 256, FALSE, FALSE, TRUE),
   ('23', 'Cordon 28x13x50',                         11020.73,  56, FALSE, FALSE, TRUE),
-  ('24', 'Pallet de Madera Vacío',                    4000.00,   1, TRUE,  FALSE, TRUE),
+  ('24', 'Pallet',                    4000.00,   1, TRUE,  FALSE, TRUE),
   ('25', 'Servicio de Transporte',                  300000.00,   1, FALSE, TRUE,  TRUE)
 ON CONFLICT (codigo) DO UPDATE SET
   descripcion         = EXCLUDED.descripcion,
