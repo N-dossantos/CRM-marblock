@@ -1,4 +1,4 @@
-# CRM Pro — Módulo de Ventas
+# CRM Marblock — Módulo de Ventas
 
 Sistema moderno de gestión comercial y control de ventas para pequeñas y medianas empresas.
 

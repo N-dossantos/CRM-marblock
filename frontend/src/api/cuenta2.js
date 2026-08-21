@@ -47,7 +47,11 @@ export const RemitosC2API = {
       p_hasta:       hasta || null,
     }),
   get: (id) => rpc('remitos_cuenta2_list', { p_id: id }).then(one),
-  create: (data) => rpc('crear_remito_cuenta2', {
+  // Va siempre por la variante *_con_pago: con data.pago = null se comporta igual que
+  // crear_remito_cuenta2 (de hecho la llama), y con pago mete el remito y el movimiento de cta.
+  // cte. en la misma transacción — dos .rpc() seguidas podrían dejar el remito sin su pago.
+  // data.pago: { monto, fecha, medio, concepto, cheque, cheque_id } | null
+  create: (data) => rpc('crear_remito_cuenta2_con_pago', {
     p_tipo_sector:       data.tipo_sector,
     p_entidad_id:        data.entidad_id,
     p_numero:            data.numero,
@@ -55,6 +59,7 @@ export const RemitosC2API = {
     p_fecha:             data.fecha || null,
     p_descuento_general: data.descuento_general || 0,
     p_observaciones:     data.observaciones ?? null,
+    p_pago:              data.pago ?? null,
   }),
   update: (id, data) => rpc('actualizar_remito_cuenta2', {
     p_id:                id,

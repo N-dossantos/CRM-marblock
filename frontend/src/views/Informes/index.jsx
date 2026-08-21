@@ -8,25 +8,51 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts'
 
-const TABS = [
-  { id: 'ventas',         label: '📊 Ventas por período' },
-  { id: 'clientes',       label: '🏆 Ranking de clientes' },
-  { id: 'deudores',       label: '🚨 Ranking de deudores' },
-  { id: 'pendientes',     label: '⏳ Pendientes' },
-  { id: 'iva_compras',    label: '📚 Libro IVA Compras' },
-  { id: 'nomina_prov',    label: '🏭 Nómina proveedores' },
-  { id: 'precios_compra', label: '🏷️ Precios de compra' },
-  { id: 'saldos_tes',     label: '🏦 Saldos tesorería' },
-  { id: 'subdiario_tes',  label: '📖 Subdiario por cuenta' },
-  { id: 'mayor_tes',      label: '📊 Mayor tesorería' },
-  { id: 'oper_tes',       label: '🔀 Movimientos por operación' },
-  { id: 'cheques_tes',    label: '💳 Cheques' },
-  { id: 'comprob_tes',    label: '🧾 Comprobantes tesorería' },
-  { id: 'historico_tes',  label: '🕓 Histórico' },
-  { id: 'libro_diario',   label: '📘 Libro Diario' },
-  { id: 'libro_mayor',    label: '📗 Libro Mayor' },
-  { id: 'sumas_saldos',   label: '⚖️ Sumas y Saldos' },
+// Los 17 informes en una sola columna, agrupados por módulo. Antes era una fila horizontal con
+// overflow-x: con tantas opciones la mitad quedaba fuera de pantalla y había que scrollear a ciegas
+// para encontrar un informe. En columna entran todos a la vista y el agrupado dice de dónde sale
+// cada uno. GRUPOS es la fuente de verdad del orden; TABS queda derivado para el resto del código.
+const GRUPOS = [
+  {
+    titulo: 'Ventas',
+    items: [
+      { id: 'ventas',         label: '📊 Ventas por período' },
+      { id: 'clientes',       label: '🏆 Ranking de clientes' },
+      { id: 'deudores',       label: '🚨 Ranking de deudores' },
+      { id: 'pendientes',     label: '⏳ Pendientes' },
+    ],
+  },
+  {
+    titulo: 'Compras',
+    items: [
+      { id: 'iva_compras',    label: '📚 Libro IVA Compras' },
+      { id: 'nomina_prov',    label: '🏭 Nómina proveedores' },
+      { id: 'precios_compra', label: '🏷️ Precios de compra' },
+    ],
+  },
+  {
+    titulo: 'Tesorería',
+    items: [
+      { id: 'saldos_tes',     label: '🏦 Saldos tesorería' },
+      { id: 'subdiario_tes',  label: '📖 Subdiario por cuenta' },
+      { id: 'mayor_tes',      label: '📊 Mayor tesorería' },
+      { id: 'oper_tes',       label: '🔀 Movimientos por operación' },
+      { id: 'cheques_tes',    label: '💳 Cheques' },
+      { id: 'comprob_tes',    label: '🧾 Comprobantes tesorería' },
+      { id: 'historico_tes',  label: '🕓 Histórico' },
+    ],
+  },
+  {
+    titulo: 'Contabilidad',
+    items: [
+      { id: 'libro_diario',   label: '📘 Libro Diario' },
+      { id: 'libro_mayor',    label: '📗 Libro Mayor' },
+      { id: 'sumas_saldos',   label: '⚖️ Sumas y Saldos' },
+    ],
+  },
 ]
+
+const TABS = GRUPOS.flatMap(g => g.items)
 
 // tabs de tesorería que usan el rango desde/hasta (saldos es snapshot, no lleva fecha)
 const TES_FECHA_TABS = ['subdiario_tes', 'mayor_tes', 'oper_tes', 'cheques_tes', 'comprob_tes', 'historico_tes']
@@ -141,33 +167,46 @@ export default function Informes() {
   const COLORS = ['#1d4ed8','#10b981','#f97316','#7c3aed','#ef4444','#0891b2','#d97706','#059669']
 
   return (
-    <div>
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--gray-200)', overflowX: 'auto' }}>
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            style={{
-              padding: '10px 18px',
-              background: 'transparent',
-              border: 'none',
-              borderBottom: tab === t.id ? '2px solid var(--blue-600)' : '2px solid transparent',
-              marginBottom: -2,
-              color: tab === t.id ? 'var(--blue-600)' : 'var(--gray-500)',
-              fontWeight: tab === t.id ? 700 : 400,
-              fontSize: 13,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              whiteSpace: 'nowrap',
-              transition: 'color .15s',
-            }}
-          >
-            {t.label}
-          </button>
+    <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 20, alignItems: 'start' }}>
+      {/* Columna de informes — todas las opciones a la vista, agrupadas por módulo */}
+      <nav className="card" style={{ padding: '10px 0', position: 'sticky', top: 0 }}>
+        {GRUPOS.map(g => (
+          <div key={g.titulo} style={{ marginBottom: 6 }}>
+            <div style={{
+              padding: '6px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '.5px',
+              textTransform: 'uppercase', color: 'var(--gray-400)',
+            }}>
+              {g.titulo}
+            </div>
+            {g.items.map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '8px 14px',
+                  background: tab === t.id ? 'var(--blue-50)' : 'transparent',
+                  border: 'none',
+                  borderLeft: tab === t.id ? '3px solid var(--blue-600)' : '3px solid transparent',
+                  color: tab === t.id ? 'var(--blue-600)' : 'var(--gray-600)',
+                  fontWeight: tab === t.id ? 700 : 400,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  transition: 'background .12s, color .12s',
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         ))}
-      </div>
+      </nav>
 
+      {/* Panel del informe seleccionado */}
+      <div style={{ minWidth: 0 }}>
       {/* Filtros */}
       {tab === 'precios_compra' && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -1116,6 +1155,7 @@ export default function Informes() {
           onClose={() => setPdfModal(null)}
         />
       )}
+      </div>
     </div>
   )
 }

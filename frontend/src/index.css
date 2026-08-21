@@ -314,6 +314,83 @@ tbody tr:hover td { background: #fafbff; }
 .inp-sm { padding: 5px 8px; font-size: 12px; }
 .inp-right { text-align: right; }
 
+/* ── BUSCADOR DE CLIENTES (combobox) ─────────────────────────────── */
+.cli-search { position: relative; }
+.cli-search .inp { padding-right: 30px; }
+.cli-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+  padding: 0 3px;
+  color: var(--gray-400);
+}
+.cli-search-clear:hover { color: var(--gray-700); }
+.cli-search-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(15,23,42,.12);
+}
+.cli-search-opt {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 11px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 1px solid var(--gray-50);
+}
+.cli-search-opt:last-child { border-bottom: none; }
+.cli-search-opt.is-hi  { background: var(--gray-100); }
+.cli-search-opt.is-sel { font-weight: 700; }
+.cli-search-nom  { color: var(--gray-800); }
+.cli-search-cuit { color: var(--gray-400); font-size: 11px; white-space: nowrap; }
+.cli-search-empty { padding: 9px 11px; font-size: 12px; color: var(--gray-400); }
+
+/* ── REMITOS PENDIENTES A FACTURAR (multi-selección) ─────────────── */
+.rem-pend {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  max-height: 190px;
+  overflow-y: auto;
+}
+.rem-pend-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 11px;
+  cursor: pointer;
+  font-size: 13px;
+  border-bottom: 1px solid var(--gray-50);
+}
+.rem-pend-row:last-child { border-bottom: none; }
+.rem-pend-row:hover { background: var(--gray-50); }
+.rem-pend-row input { cursor: pointer; }
+.rem-pend-fecha { color: var(--gray-500); font-size: 12px; }
+.rem-pend-items { color: var(--gray-400); font-size: 11px; white-space: nowrap; }
+.rem-pend-vacio {
+  padding: 9px 11px;
+  font-size: 12px;
+  color: var(--gray-400);
+  border: 1px dashed var(--gray-200);
+  border-radius: var(--radius);
+}
+
 /* ── GRIDS DE FORMULARIO ─────────────────────────────────────────── */
 .form-row2 { display: grid; grid-template-columns: 1fr 1fr;     gap: 14px; }
 .form-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }

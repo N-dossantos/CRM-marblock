@@ -15,6 +15,7 @@ import {
   generarRankingDeudores, generarResumenVentas,
   generarSubdiario, generarSaldos, generarMayorTesoreria,
 } from './reportes.ts'
+import { generarRemitoPreimpreso, generarCalibracion } from './preimpreso.ts'
 
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin':  '*',
@@ -31,6 +32,17 @@ function enviarPDF(buffer: Uint8Array, nombre: string) {
       'Cache-Control':       'no-cache',
     },
   })
+}
+
+// Corrimiento global de la impresora, en mm (?dx=1.5&dy=-2). Toda impresora desplaza uno o
+// dos milímetros; esto lo compensa sin redeploy. Se acota a ±20 mm para que un parámetro
+// mal escrito no mande el texto fuera de la hoja.
+function leerOffset(q: URLSearchParams) {
+  const num = (v: string | null) => {
+    const n = parseFloat(v ?? '')
+    return Number.isFinite(n) ? Math.max(-20, Math.min(20, n)) : 0
+  }
+  return { dx: num(q.get('dx')), dy: num(q.get('dy')) }
 }
 
 function jsonError(mensaje: string, status = 400) {
@@ -80,8 +92,20 @@ Deno.serve(async (req) => {
         return enviarPDF(buffer, `Factura-${factura.numero}`)
       }
       case 'remito': {
+        // `id` = 'calibracion' imprime la grilla milimetrada en vez de un remito: se pasa
+        // una vez sobre un formulario en blanco para leer las coordenadas reales.
+        if (id === 'calibracion') {
+          const buffer = await generarCalibracion(leerOffset(q))
+          return enviarPDF(buffer, 'Calibracion-Remito')
+        }
         const remito = await rpcOne('remitos_list', { p_id: Number(id) })
         if (!remito) return jsonError('Remito no encontrado', 404)
+        // ?preimpreso=1 -> sobreimpresión sobre el talonario (2 páginas, sin diseño).
+        // Sin el flag sigue saliendo el PDF completo de siempre, que es el que se manda por mail.
+        if (q.get('preimpreso') === '1') {
+          const buffer = await generarRemitoPreimpreso(remito, leerOffset(q))
+          return enviarPDF(buffer, `Remito-${remito.numero}-talonario`)
+        }
         const buffer = await generarRemito(remito, await getEmpresa())
         return enviarPDF(buffer, `Remito-${remito.numero}`)
       }

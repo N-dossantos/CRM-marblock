@@ -115,7 +115,7 @@ const VIEW_TITLES = {
 export default function Layout({ children }) {
   const { pathname } = useLocation()
   const { user, signOut } = useAuth()
-  const title = VIEW_TITLES[pathname] || 'CRM Pro'
+  const title = VIEW_TITLES[pathname] || 'CRM Marblock'
 
   async function handleLogout() {
     await signOut()
@@ -126,7 +126,7 @@ export default function Layout({ children }) {
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <h1>⚡ CRM Pro</h1>
+          <h1>⚡ CRM Marblock</h1>
           <p>Sistema de Gestión</p>
         </div>
 

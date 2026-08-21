@@ -29,7 +29,7 @@ export default function Login() {
     <div className="login-screen">
       <form className="login-card" onSubmit={handleSubmit}>
         <div className="login-brand">
-          <h1>⚡ CRM Pro</h1>
+          <h1>⚡ CRM Marblock</h1>
           <p>Módulo de Ventas — Marblock</p>
         </div>
 

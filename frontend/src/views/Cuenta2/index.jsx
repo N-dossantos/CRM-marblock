@@ -24,12 +24,14 @@ const TIPO_STYLE = {
 
 export default function Cuenta2({ tipoSector }) {
   const esVenta = tipoSector === 'venta'
-  const [sub, setSub] = useState('remitos')
+  const [sub, setSub] = useState('ctacte')
 
+  // Orden pedido: la cuenta corriente primero (es la pantalla de consulta diaria), después la
+  // carga de remitos y al final el ABM de la entidad, que casi no se toca.
   const SUBTABS = [
+    { id: 'ctacte',    label: '📒 Cuenta corriente' },
     { id: 'remitos',   label: '📄 Remitos X' },
     { id: 'entidades', label: esVenta ? '👥 Clientes' : '🏭 Proveedores' },
-    { id: 'ctacte',    label: '📒 Cuenta corriente' },
   ]
 
   return (

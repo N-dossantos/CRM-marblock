@@ -57,8 +57,11 @@ RLS-enabled + `staff_all` policy, 19 functions, `anon` can execute **0** of them
 ## Applied status — expansion phases (post-cutover feature build)
 
 The table above tracks the original **Express → Supabase migration** (Ventas, `0001`–`0013`). After
-that, the CRM was extended sector by sector following `../system_plan.md` (see its **§3.1** for the
-authoritative, prose implementation status of each phase). Those feature migrations are **also applied
+that, the CRM was extended sector by sector following the `system_plan*.md` docs. Those were
+consolidated on 2026-08-20 into `../PLAN_MAESTRO.md` and then deleted; **the originals live in git at
+commit `97ad046`** (`git show 97ad046:system_plan.md`), which is where the migration header comments
+below still point. ⚠️ `PLAN_MAESTRO.md` itself is **gitignored / local-only**, so it is not available
+in a fresh clone — for phase-by-phase status in-repo, use this file plus that commit. Those feature migrations are **also applied
 to the same live project** and are summarized here per-block so this file stays the single source of
 truth for "what's applied in the DB". They all follow the same conventions (shared-staff RLS **without**
 `FORCE`, atomic `SECURITY DEFINER` write RPCs, `search_path` pinned, `anon` revoked, jsonb read/informe RPCs).
@@ -72,6 +75,7 @@ truth for "what's applied in the DB". They all follow the same conventions (shar
 | **Fase E — Núcleo contable** | `20260801120000`–`20260801120004` (5; internal `0300`–`0304`) | `plan_de_cuentas`, `asientos_contables`, `asiento_items` (+ trigger de balanceo diferido), RLS, `crear_asiento`/`anular_asiento` (manual, funciona), informes libro diario/mayor/sumas y saldos. **Aplicado con tablas vacías**; `generar_asiento_desde_*` aplicado pero **stub que lanza excepción** hasta validar la matriz de imputación (bloqueada en datos por Tango, igual que la Fase 7). **Frontend construido el 2026-08-14** (ver abajo). | ✅ applied empty (2026-08-01) |
 | **Fase F/WS3 — IVA multi-alícuota en Ventas** | `20260802120000`–`20260802120002` (3) | `alicuota_iva_id` (nullable) en los 4 `*_items` de Ventas; `crear_/actualizar_` presupuesto/factura + `crear_nota` recalculando con `crm_calc_totales_multi_alicuota` (firmas idénticas ⇒ backward-compat: ítem sin alícuota ⇒ 21%); los `*_list` exponen `alicuota_iva_id` + `iva_porcentaje` por ítem. Smoke E2E: factura 21%+10.5% → total 2315. | ✅ applied + tested (2026-08-01) |
 | **Fase F/WS2 — Ventas → Contabilidad (enganche)** | `20260803120000`–`20260803120001` (2) | `generar_asiento_desde_nota` (stub, como los de `0303`), `generar_asientos_ventas_pendientes` (backfill idempotente por `(referencia_tipo, referencia_id)`), disparo automático como **CONSTRAINT TRIGGER diferido** en `facturas`/`notas` guardado por `config_empresa('contabilidad_auto_asientos')`, + los 2 flags de config (`'off'` / `''`). Con el flag apagado es un **no-op**: no cambia el comportamiento actual. | ✅ applied + tested (2026-08-14) |
+| **Facturación multi-remito** | `20260821130000` (1) | Una factura puede cubrir **varios remitos**. No toca tablas: `remitos.factura_id` (FK **sin** UNIQUE) ya soportaba N→1 — el que modelaba mal era `facturas.remito_id`. `crear_factura` pasa de `p_remito_id integer` a `p_remito_ids integer[]` (DROP+CREATE, no sobrecarga) validando que todos los remitos sean del mismo cliente y estén `pendiente`; `facturas_list` expone `remitos[]` (subconsulta correlacionada, no JOIN, para no romper el `json_agg` de ítems) y corrige `p_solo_sin_remito`; `informe_facturas_pendientes_remitir` pasa a `NOT EXISTS`. `facturas.remito_id` queda como denormalización de compat (lo leen el PDF y `VentaDetalle`). `factura_anular` sin cambios: ya liberaba en plural. Smoke E2E: 2 remitos → 1 factura (2500 + 21% = 3025), ambos `facturado`, anular libera los dos, guardas de otro-cliente y ya-facturado rechazan. | ✅ applied + tested (2026-08-21) |
 
 > Nota de contexto: estas fases construyen funcionalidad **sobre** el cutover, no lo reemplazan. El
 > **bloqueo raíz sigue siendo el mismo** (credenciales del SQL Server de Tango): frena tanto la carga de
@@ -116,10 +120,72 @@ truth for "what's applied in the DB". They all follow the same conventions (shar
 `productos` id=1 ("01 — Bloque Liso de 20 Portante"), ambos del 2026-07-30 — parecen carga manual
 real, no basura de smoke tests. Antes del `COPY` de Tango hay que decidir si se conservan o se borran:
 si el dump trae esos mismos ids, hay **conflicto de PK** (el mismo problema que se limpió en la
-verificación pre-cutover del 2026-07-28). Además, `contadores` sólo tiene `asiento` y
-`pago_proveedor`: **los contadores de Ventas no están sembrados**, así que hoy `crear_factura` &
-compañía fallan con "Contador no encontrado" — se cargan en el cutover
+verificación pre-cutover del 2026-07-28). Además, `contadores` sólo tiene `asiento`,
+`pago_proveedor` y `remito` (este último lo creó la migración `20260820120001` en cero, a la espera
+del talonario real): **el resto de los contadores de Ventas no está sembrado**, así que hoy
+`crear_factura` & compañía fallan con "Contador no encontrado" — se cargan en el cutover
 (`TANGO_Migration.md`), no es un bug.
+
+### Estado al 2026-08-20
+
+- ✅ **Migración `20260820120001_remito_numero_talonario` aplicada y probada (2026-08-20).** Los
+  remitos de **venta** se emiten sobre formularios preimpresos que ya vienen numerados de imprenta,
+  así que su número pasa a salir del talonario y no de `siguiente_numero('remito')`: `contadores`
+  cambia de rol, de asignar el número a **sugerirlo**. Nuevas/cambiadas: `remito_numero_sugerido()`
+  (peek de sólo lectura — `siguiente_numero()` no sirve para sugerir porque **consume** el número, y
+  abrir y cerrar el formulario quemaría una hoja) y `crear_remito`, que ahora recibe `p_numero` y
+  parsea de ahí `punto_venta`/`numero_comp`. La firma vieja se **dropeó** en vez de reemplazarse:
+  agregar un parámetro habría creado una sobrecarga y PostgREST no habría podido resolver la llamada
+  (verificado post-apply: existe una sola firma). **Probado contra la base**: el peek no consume
+  (dos llamadas, mismo número), formato inválido y número vacío rechazados con mensaje legible,
+  duplicado rechazado por el `UNIQUE` y traducido a "El remito X ya fue emitido", parseo correcto
+  (`00001-00012345` → pv `00001` / comp `12345`), el contador **adopta el talonario nuevo** al cambiar
+  el punto de venta y **no retrocede** al emitir una hoja atrasada. Datos de prueba borrados: las 3
+  tablas quedaron en 0 y el contador reseteado.
+- ✅ **Frontend acompañando** (`api/index.js` → `RemitosAPI.numeroSugerido()` + `p_numero` en
+  `create`; `ComprobanteForm` → campo N° para remitos, readonly en edición, con aviso **no
+  bloqueante** cuando el número se aleja más de 10 hojas del sugerido dentro del mismo punto de
+  venta; `views/Remitos` pide la sugerencia al abrir el formulario, no al montar la vista).
+  `npm run build` OK. **Sin ejercitar en el navegador** (requiere login).
+- ⚠️ **Hojas arruinadas: el flujo es anular y reemitir**, no renumerar — por eso el campo N° es
+  readonly en edición. El `UNIQUE` deja el número anulado ocupado para siempre, que es justamente el
+  hueco documentado del talonario.
+- ⚠️ **Riesgo residual asumido:** el número lo tipea un humano. La base impide duplicados pero **no**
+  puede detectar un error de tipeo que caiga en un número libre; el prellenado + el aviso de desvío
+  son la mitigación, no una garantía.
+- ✅ **Migración `20260820120002_remito_campos_formulario` aplicada y probada (2026-08-20).** El
+  talonario tiene tres recuadros que el modelo no podía llenar: se agregaron `condiciones_venta`,
+  `domicilio_obra` y `telefono_entrega` a `remitos`, y `crear_remito`/`actualizar_remito` los reciben
+  (otra vez DROP + CREATE por el cambio de firma). **El teléfono se llama `telefono_entrega` y no
+  `telefono` a propósito**: `remitos_list` hace `SELECT r.*, …, c.telefono`, así que una columna
+  `remitos.telefono` habría producido dos claves `telefono` en el mismo jsonb y la del cliente habría
+  pisado a la del remito **sin ningún error visible**. Verificado en vivo: los dos teléfonos conviven
+  y el jsonb tiene 23 claves únicas de 23 totales. Datos de prueba borrados.
+- ✅ **Contador de remitos cargado con el talonario real (AGEE):** `punto_venta = '00001'`,
+  `ultimo_numero = 10324`, o sea próxima hoja **00001-00010325** (verificado). El talonario abarca
+  `00010101–00010400` y su **CAI vence el 25/11/2026** — hay que reponer antes de esa fecha.
+- ✅ **Template de sobreimpresión escrito** (`supabase/functions/pdf/preimpreso.ts` + rutas
+  `?preimpreso=1` y `/pdf/remito/calibracion` en `index.ts`). Coordenadas en **mm**, medidas sobre un
+  escaneo A4 del formulario detectando los bordes de los recuadros por densidad de píxeles
+  (5,386 px/mm): área de ítems 110,6→251,9 mm = 23 renglones de 6 mm, **recortados a 19** (último en
+  y=221) para dejar libre la leyenda fija **"LA MERCADERÍA VIAJA POR CUENTA Y RIESGO DEL COMPRADOR"**
+  en y=230 — un remito real nunca usa 23 renglones. El tope de 19 está duplicado en
+  `RENGLONES_TALONARIO` (`frontend/src/components/Forms/ComprobanteForm.jsx`), que lo valida antes de
+  grabar: si se cambia uno hay que cambiar el otro. Dos páginas idénticas
+  (original blanco + duplicado color). **Verificado sin gastar hojas**: se corrió el template en Node
+  (pdfkit 0.15) y se superpuso el PDF resultante sobre el escaneo — todos los campos caen dentro de
+  su recuadro, y el caso de desborde imprime los que entran menos uno + "… y N ítem(s) más", sin
+  truncar en silencio. Se corrigió el formato de fecha a `dd/mm/aaaa` con ceros (`fFecha` daba
+  "20/8/2026").
+- 🔧 **Ajustes de calibración del 2026-08-20** (smoke test sobre la hoja 00001-00010325, que después
+  se anula): descripción de ítems corrida 10 mm a la derecha (`desc_x` 42→52, `desc_ancho` 163→153),
+  cuerpo de los datos de cabecera subido (11→13 y 10→12 pt; los ítems siguen en 11 para entrar en el
+  renglón de 6 mm) y leyenda de riesgo agregada en y=230.
+- ⛔ **Sigue sin desplegarse.** Confirmado el 2026-08-20 que no hay sesión del CLI (`~/.supabase`
+  sólo tiene telemetría) ni `SUPABASE_ACCESS_TOKEN`, y `deploy_edge_function` del MCP exige el
+  contenido de los 5 `.ts` inline (~75 KB) — el mismo riesgo de corromper el bundle que ya estaba
+  anotado. **Nada del circuito de impresión funciona en producción hasta que se corra**
+  `npx -y supabase@latest login` + `functions deploy pdf`.
 
 ## Phases
 

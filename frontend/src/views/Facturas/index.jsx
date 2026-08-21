@@ -1,6 +1,6 @@
 // src/views/Facturas/index.jsx
 import { useState, useEffect, useCallback } from 'react'
-import { FacturasAPI, ClientesAPI, ProductosAPI, AlicuotasIvaAPI } from '../../api'
+import { FacturasAPI, ClientesAPI, ProductosAPI, AlicuotasIvaAPI, RemitosAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Badge, Loading, EmptyState } from '../../components/UI'
 import ComprobanteForm from '../../components/Forms/ComprobanteForm'
@@ -21,6 +21,8 @@ export default function Facturas() {
   const [reciboFor, setReciboFor] = useState(null)
   const [notaFor, setNotaFor]   = useState(null)
   const [pdfModal, setPdfModal] = useState(null) // { url, titulo }
+  const [remPend, setRemPend]   = useState([])   // remitos pendientes del cliente elegido
+  const [remLoading, setRemLoading] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -34,6 +36,16 @@ export default function Facturas() {
     AlicuotasIvaAPI.list().then(setAlicuotas)
   }, [])
 
+  // Los remitos pendientes se piden por cliente (no se precarga la tabla entera): el operador
+  // elige el cliente y recién ahí aparecen sus entregas sin facturar.
+  const cargarRemitos = useCallback(async (cliId) => {
+    if (!cliId) { setRemPend([]); return }
+    setRemLoading(true)
+    try { setRemPend(await RemitosAPI.pendientes(+cliId)) }
+    catch { setRemPend([]) }
+    finally { setRemLoading(false) }
+  }, [])
+
   // Detectar si viene desde presupuesto o remito
   useEffect(() => {
     const fromPres = sessionStorage.getItem('crm_desde_presupuesto')
@@ -42,23 +54,28 @@ export default function Facturas() {
       const d = JSON.parse(fromPres)
       sessionStorage.removeItem('crm_desde_presupuesto')
       setFacForm({ data: d, isNew: true })
+      cargarRemitos(d.cliente_id)
     } else if (fromRem) {
       const d = JSON.parse(fromRem)
       sessionStorage.removeItem('crm_desde_remito')
       setFacForm({ data: d, isNew: true })
+      cargarRemitos(d.cliente_id)
     }
-  }, [])
+  }, [cargarRemitos])
 
   const openNew = async () => {
+    setRemPend([])
     setFacForm({ data: {}, isNew: true })
   }
+
+  const cerrarForm = () => { setFacForm(null); setRemPend([]) }
 
   const save = async (payload) => {
     try {
       if (facForm.isNew) await FacturasAPI.create(payload)
       else               await FacturasAPI.update(facForm.data.id, payload)
       toast.success('Factura guardada')
-      setFacForm(null); load()
+      cerrarForm(); load()
     } catch (err) { throw err }
   }
 
@@ -145,8 +162,11 @@ export default function Facturas() {
           clientes={clientes}
           productos={productos}
           alicuotas={alicuotas}
+          remitos={remPend}
+          remitosLoading={remLoading}
+          onClienteChange={cargarRemitos}
           onSave={save}
-          onClose={() => setFacForm(null)}
+          onClose={cerrarForm}
         />
       )}
 
