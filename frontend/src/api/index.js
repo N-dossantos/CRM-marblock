@@ -179,7 +179,7 @@ export const FacturasAPI = {
     p_items:             data.items,
     p_tipo:              data.tipo || 'A',
     p_descuento_general: data.descuento_general || 0,
-    p_remito_id:         data.remito_id ?? null,
+    p_remito_ids:        data.remito_ids ?? null,
     p_presupuesto_id:    data.presupuesto_id ?? null,
     p_observaciones:     data.observaciones ?? null,
   }),

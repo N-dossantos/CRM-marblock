@@ -2,6 +2,10 @@
 import { useEffect, useId, useState } from 'react'
 import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem } from '../../utils'
 
+// Vive en su propio archivo (combobox con teclado + filtrado); se reexporta para que los
+// formularios lo importen desde '../UI' como al resto.
+export { default as ClienteSearch } from './ClienteSearch'
+
 // ── BADGE ────────────────────────────────────────────────────────────
 export function Badge({ estado }) {
   return (
@@ -187,8 +191,18 @@ function ProductoBuscador({ value, productos, onSelect }) {
 }
 
 // ── ITEMS TABLE (editable o readonly) ───────────────────────────────
-export function ItemsTable({ items, productos = [], alicuotas = [], readonly = false, onChange }) {
+// `cantidadDecimal`: los materiales de Compras se miden en unidades fraccionables (m³ de arena,
+// toneladas de cemento), así que la cantidad no se puede truncar a entero como los productos de
+// Ventas, que se venden por pieza. La DB ya guarda numeric(10,3) en todas las tablas de ítems —
+// el redondeo era sólo del browser. Se mantiene 3 decimales para no pasarle a la RPC un número
+// que el INSERT vaya a truncar igual.
+export function ItemsTable({ items, productos = [], alicuotas = [], readonly = false, cantidadDecimal = false, onChange }) {
   const showIva = alicuotas.length > 0
+  const round3 = (n) => Math.round(n * 1000) / 1000
+  const normCantidad = (val) => {
+    const n = parseFloat(val) || 0
+    return Math.max(0, cantidadDecimal ? round3(n) : Math.trunc(n))
+  }
 
   const update = (i, field, val) => {
     if (!onChange) return
@@ -203,7 +217,7 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
       // Pallets sigue representando cuántos pallets físicos se usan (no cambia solo), así que no se
       // toca acá — sólo vuelve a recalcularse si el usuario edita Pallets de nuevo.
       if (field === 'cantidad') {
-        return { ...it, cantidad: Math.max(0, Math.trunc(parseFloat(val)) || 0) }
+        return { ...it, cantidad: normCantidad(val) }
       }
       const updated = { ...it, [field]: ['precio_unitario','descuento_item'].includes(field) ? parseFloat(val) || 0 : val }
       return updated
@@ -286,8 +300,8 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
               </td>
               <td className="td-right">
                 {readonly
-                  ? Number(it.cantidad || 0).toLocaleString('es-AR')
-                  : <input type="number" className="inp inp-sm inp-right" style={{ width: 70 }} value={it.cantidad ?? ''} min="0" step="1" onChange={(e) => update(i, 'cantidad', e.target.value)} />
+                  ? Number(it.cantidad || 0).toLocaleString('es-AR', { maximumFractionDigits: 3 })
+                  : <input type="number" className="inp inp-sm inp-right" style={{ width: 70 }} value={it.cantidad ?? ''} min="0" step={cantidadDecimal ? '0.001' : '1'} onChange={(e) => update(i, 'cantidad', e.target.value)} />
                 }
               </td>
               <td className="td-right">

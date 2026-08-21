@@ -1,7 +1,7 @@
 {
   "name": "crm-ventas-frontend",
   "version": "1.0.0",
-  "description": "CRM Pro - Frontend - Módulo Ventas",
+  "description": "CRM Marblock - Frontend - Módulo Ventas",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -4,13 +4,21 @@
 // presupuesto/remito/factura vía `tipo`. Dos diferencias con el circuito oficial:
 //   * el número lo tipea el usuario (talonario de papel, sin punto de venta fiscal);
 //   * no hay IVA — TotalesBoxC2 en lugar de TotalesBox, e ItemsTable sin `alicuotas`.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ItemsTable, TotalesBoxC2, Modal } from '../UI'
-import { hoy } from '../../utils'
+import { ChequesC2API } from '../../api/cuenta2'
+import { $ar, hoy, calcTotalesC2 } from '../../utils'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
+import ChequeC2Fields, { CHEQUE_C2_BASE, validarChequeC2 } from './ChequeC2Fields'
 import toast from 'react-hot-toast'
 
 const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
+
+const MEDIOS = [
+  { v: 'efectivo',      l: '💵 Efectivo' },
+  { v: 'transferencia', l: '🏦 Transferencia' },
+  { v: 'cheque',        l: '🧾 Cheque' },
+]
 
 export default function RemitoXForm({
   title,
@@ -41,6 +49,44 @@ export default function RemitoXForm({
 
   usePalletsVacios(form.items, (items) => setForm(f => ({ ...f, items })), productos)
 
+  // ── Pago al proveedor en el mismo acto ──────────────────────────────
+  // Sólo en compra y sólo al crear: el pago es un movimiento aparte en la cta. cte., así que
+  // ofrecerlo al editar un remito ya cargado invitaría a registrarlo dos veces. Al editar, el
+  // pago se sigue haciendo desde la tab de Cuenta corriente.
+  const esNuevo   = !initial.id
+  const ofrecePago = !esVenta && esNuevo
+  const total = calcTotalesC2(form.items, form.descuento_general).total
+
+  const [conPago, setConPago] = useState(false)
+  const [pago, setPago]       = useState({ monto: '', fecha: form.fecha, medio: 'efectivo', concepto: '' })
+  const [origen, setOrigen]   = useState('nuevo')     // 'cartera' (endoso) | 'nuevo'
+  const [chequeId, setChequeId] = useState('')
+  const [cheque, setCheque]   = useState({ ...CHEQUE_C2_BASE })
+  const [cartera, setCartera] = useState([])
+
+  const setP = (patch) => setPago(p => ({ ...p, ...patch }))
+  const setC = (patch) => setCheque(c => ({ ...c, ...patch }))
+
+  // La cartera C2 sólo hace falta si se va a endosar un cheque; se pide al abrir la sección.
+  useEffect(() => {
+    if (!conPago) return
+    ChequesC2API.list({ estado: 'en_cartera' }).then(setCartera).catch(() => {})
+  }, [conPago])
+
+  // Al elegir un cheque de cartera el monto lo fija el cheque (no se endosa por partes).
+  const onSelCheque = (id) => {
+    setChequeId(id)
+    const ch = cartera.find(c => c.id === +id)
+    if (ch) setP({ monto: String(ch.monto) })
+  }
+
+  // Al abrir la sección se propone pagar el total del remito, que es el caso habitual;
+  // queda editable para las entregas parciales.
+  const togglePago = (on) => {
+    setConPago(on)
+    if (on) setP({ monto: total ? String(total) : '', fecha: form.fecha })
+  }
+
   // Auto-aplicar el descuento de la entidad al seleccionarla (mismo criterio que onCliChange).
   const onEntidadChange = (id) => {
     const e = entidades.find(x => x.id === +id)
@@ -53,10 +99,37 @@ export default function RemitoXForm({
 
   const addItem = () => setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE }] }))
 
+  // Arma el p_pago que espera crear_remito_cuenta2_con_pago, o null si no se pidió pago.
+  // Devuelve { error } si algo no valida, para cortar antes de mandar el request.
+  const construirPago = () => {
+    if (!ofrecePago || !conPago) return { pago: null }
+    const monto = parseFloat(pago.monto)
+    if (!monto || monto <= 0) return { error: 'Ingrese el monto del pago' }
+    if (pago.medio === 'cheque') {
+      const err = validarChequeC2({ origen, chequeId, cheque })
+      if (err) return { error: err }
+    }
+    const esChequeNuevo = pago.medio === 'cheque' && origen === 'nuevo'
+    return {
+      pago: {
+        monto,
+        fecha:     pago.fecha || form.fecha,
+        medio:     pago.medio,
+        concepto:  pago.concepto || null,
+        cheque:    esChequeNuevo ? { ...cheque, monto: parseFloat(cheque.monto) } : null,
+        cheque_id: (pago.medio === 'cheque' && origen === 'cartera') ? +chequeId : null,
+      },
+    }
+  }
+
   const save = async () => {
     if (!form.entidad_id)        { toast.error(esVenta ? 'Seleccione un cliente' : 'Seleccione un proveedor'); return }
     if (!form.numero.trim())     { toast.error('Ingrese el número de remito'); return }
     if (!form.items.length)      { toast.error('Agregue al menos un ítem'); return }
+
+    const { pago: pagoPayload, error } = construirPago()
+    if (error) { toast.error(error); return }
+
     setLoading(true)
     try {
       // Compra: lo que ItemsTable dejó en `producto_id` en realidad es un id de `materiales` — se
@@ -73,6 +146,8 @@ export default function RemitoXForm({
         descuento_general: +form.descuento_general || 0,
         items,
         observaciones:     form.observaciones || null,
+        // El RPC lo ignora si viene null; con pago, remito y movimiento van en una transacción.
+        pago:              pagoPayload,
       })
     } catch {
       // El toast ya lo emitió la capa API; el modal queda abierto para corregir.
@@ -154,14 +229,84 @@ export default function RemitoXForm({
         <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
       </div>
 
-      {/* Sin `alicuotas`: ItemsTable oculta la columna de IVA cuando el array viene vacío. */}
+      {/* Sin `alicuotas`: ItemsTable oculta la columna de IVA cuando el array viene vacío.
+          `cantidadDecimal` sólo en compra: los materiales van por m³/tn y admiten fracciones,
+          mientras que los productos de venta se despachan por unidad entera. */}
       <ItemsTable
         items={form.items}
         productos={productos}
+        cantidadDecimal={!esVenta}
         onChange={items => setForm(f => ({ ...f, items }))}
       />
 
       <TotalesBoxC2 items={form.items} dtoGeneral={form.descuento_general} />
+
+      {ofrecePago && (
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: '2px solid var(--gray-200)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+            <input type="checkbox" checked={conPago} onChange={e => togglePago(e.target.checked)} />
+            Registrar el pago al proveedor junto con este remito
+          </label>
+
+          {conPago && (
+            <div style={{ marginTop: 12 }}>
+              <div className="info-box" style={{ marginBottom: 12 }}>
+                <span>
+                  Total del remito: <strong>{$ar(total)}</strong>. El pago se guarda en la misma
+                  operación: si algo falla, no queda ni el remito ni el movimiento.
+                </span>
+              </div>
+
+              <div className="form-row3" style={{ marginBottom: 12 }}>
+                <div className="field">
+                  <label className="lbl">Monto del pago *</label>
+                  <input
+                    type="number" step="0.01" min="0"
+                    className="inp inp-right"
+                    value={pago.monto}
+                    disabled={pago.medio === 'cheque' && origen === 'cartera'}
+                    onChange={e => setP({ monto: e.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label className="lbl">Fecha del pago</label>
+                  <input type="date" className="inp" value={pago.fecha}
+                         onChange={e => setP({ fecha: e.target.value })} />
+                </div>
+                <div className="field">
+                  <label className="lbl">Medio de pago</label>
+                  <select className="sel" value={pago.medio} onChange={e => setP({ medio: e.target.value })}>
+                    {MEDIOS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {pago.medio === 'cheque' && (
+                <ChequeC2Fields
+                  puedeEndosar
+                  origen={origen}
+                  onOrigen={setOrigen}
+                  cartera={cartera}
+                  chequeId={chequeId}
+                  onSelCheque={onSelCheque}
+                  cheque={cheque}
+                  onCheque={setC}
+                />
+              )}
+
+              <div className="field" style={{ marginTop: 12 }}>
+                <label className="lbl">Concepto del pago</label>
+                <input
+                  className="inp"
+                  value={pago.concepto}
+                  placeholder={`Opcional — por defecto "Remito X ${form.numero.trim() || '…'}"`}
+                  onChange={e => setP({ concepto: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </Modal>
   )
 }

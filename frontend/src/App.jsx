@@ -1,7 +1,9 @@
 // src/App.jsx
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import Login  from './views/Login'
+import ErrorBoundary from './components/ErrorBoundary'
 import { useAuth } from './lib/auth'
 
 import Dashboard    from './views/Dashboard'
@@ -46,6 +48,24 @@ import Cuenta2Cheques from './views/Cuenta2Cheques'
 
 export default function App() {
   const { session, loading } = useAuth()
+  const location = useLocation()
+
+  // Scrollear la página con el cursor encima de una cantidad o un precio cambiaba el valor sin que
+  // el operador se diera cuenta: un input[type=number] enfocado se lleva la rueda del mouse. Un
+  // listener global lo cubre en todo el sistema (los ~38 inputs numéricos y los modales incluidos).
+  // Se hace blur en vez de preventDefault a propósito: preventDefault frenaría también el scroll de
+  // la página, que en un modal largo es peor que el problema que arregla. Al perder el foco el input
+  // deja de capturar la rueda y la página sigue scrolleando normal.
+  useEffect(() => {
+    const onWheel = (e) => {
+      const el = e.target
+      if (el instanceof HTMLInputElement && el.type === 'number' && el === document.activeElement) {
+        el.blur()
+      }
+    }
+    document.addEventListener('wheel', onWheel, { passive: true })
+    return () => document.removeEventListener('wheel', onWheel)
+  }, [])
 
   // Mientras se resuelve la sesión inicial (posible restore desde localStorage).
   if (loading) {
@@ -59,8 +79,11 @@ export default function App() {
   // Sin sesión → sólo la pantalla de acceso. anon no puede leer/escribir nada (RLS).
   if (!session) return <Login />
 
+  // El boundary va DENTRO del Layout para que el menú sobreviva al error y se pueda salir de la
+  // pantalla rota; `key` por ruta lo resetea al navegar, sin necesidad de recargar.
   return (
     <Layout>
+      <ErrorBoundary key={location.pathname}>
       <Routes>
         <Route path="/"             element={<Dashboard />} />
         <Route path="/clientes"     element={<Clientes />} />
@@ -106,6 +129,7 @@ export default function App() {
 
         <Route path="*"             element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
     </Layout>
   )
 }

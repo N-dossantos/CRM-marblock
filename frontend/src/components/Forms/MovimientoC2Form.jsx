@@ -7,7 +7,8 @@
 import { useEffect, useState } from 'react'
 import { Modal } from '../UI'
 import { ChequesC2API } from '../../api/cuenta2'
-import { $ar, hoy, addDias } from '../../utils'
+import { $ar, hoy } from '../../utils'
+import ChequeC2Fields, { CHEQUE_C2_BASE, validarChequeC2 } from './ChequeC2Fields'
 import toast from 'react-hot-toast'
 
 const MEDIOS = [
@@ -15,11 +16,6 @@ const MEDIOS = [
   { v: 'transferencia', l: '🏦 Transferencia' },
   { v: 'cheque',        l: '🧾 Cheque' },
 ]
-
-const CHEQUE_BASE = {
-  numero: '', tipo: 'fisico', banco: '', titular: '', cuit_titular: '',
-  fecha_emision: hoy(), fecha_vcto: addDias(hoy(), 30), monto: '',
-}
 
 export default function MovimientoC2Form({
   tipoSector,        // 'venta' | 'compra'
@@ -41,7 +37,7 @@ export default function MovimientoC2Form({
   // origen del cheque: 'cartera' (endoso) | 'nuevo'
   const [origen, setOrigen]   = useState('nuevo')
   const [chequeId, setChequeId] = useState('')
-  const [cheque, setCheque]   = useState({ ...CHEQUE_BASE })
+  const [cheque, setCheque]   = useState({ ...CHEQUE_C2_BASE })
   const [cartera, setCartera] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -69,12 +65,8 @@ export default function MovimientoC2Form({
     if (!monto)                    { toast.error('Ingrese un monto'); return }
     if (!esAjuste && monto <= 0)   { toast.error('El monto debe ser mayor a cero'); return }
     if (form.medio === 'cheque' && !esAjuste) {
-      if (origen === 'cartera' && !chequeId) { toast.error('Elegí un cheque de la cartera'); return }
-      if (origen === 'nuevo') {
-        if (!cheque.banco.trim() || !cheque.numero.trim()) { toast.error('El cheque necesita banco y número'); return }
-        if (!cheque.fecha_vcto)                            { toast.error('El cheque necesita fecha de vencimiento'); return }
-        if (!parseFloat(cheque.monto))                     { toast.error('Ingrese el monto del cheque'); return }
-      }
+      const err = validarChequeC2({ origen, chequeId, cheque })
+      if (err) { toast.error(err); return }
     }
 
     setLoading(true)
@@ -158,84 +150,16 @@ export default function MovimientoC2Form({
       )}
 
       {!esAjuste && form.medio === 'cheque' && (
-        <div className="medio-card">
-          {puedeEndosar && (
-            <div style={{ display: 'flex', gap: 18, marginBottom: 12 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-                <input type="radio" checked={origen === 'cartera'} onChange={() => setOrigen('cartera')} />
-                Endosar de cartera C2
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-                <input type="radio" checked={origen === 'nuevo'} onChange={() => setOrigen('nuevo')} />
-                Cargar cheque nuevo
-              </label>
-            </div>
-          )}
-
-          {origen === 'cartera' ? (
-            <div className="field">
-              <label className="lbl">Cheque en cartera Cuenta 2</label>
-              <select className="sel" value={chequeId} onChange={e => onSelCheque(e.target.value)}>
-                <option value="">— Seleccionar cheque —</option>
-                {cartera.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.banco} {c.numero} — {$ar(c.monto)} — vto. {c.fecha_vcto}
-                  </option>
-                ))}
-              </select>
-              {cartera.length === 0 && (
-                <span style={{ fontSize: 11, color: 'var(--gray-500)' }}>No hay cheques en la cartera Cuenta 2.</span>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="form-row3" style={{ marginBottom: 10 }}>
-                <div className="field">
-                  <label className="lbl">Banco *</label>
-                  <input className="inp inp-sm" value={cheque.banco} onChange={e => setC({ banco: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="lbl">Número *</label>
-                  <input className="inp inp-sm" value={cheque.numero} onChange={e => setC({ numero: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="lbl">Tipo</label>
-                  <select className="sel inp-sm" value={cheque.tipo} onChange={e => setC({ tipo: e.target.value })}>
-                    <option value="fisico">Físico</option>
-                    <option value="echeq">E-Cheq</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-row3" style={{ marginBottom: 10 }}>
-                <div className="field">
-                  <label className="lbl">Monto *</label>
-                  <input type="number" step="0.01" className="inp inp-sm inp-right" value={cheque.monto}
-                         onChange={e => setC({ monto: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="lbl">Emisión</label>
-                  <input type="date" className="inp inp-sm" value={cheque.fecha_emision}
-                         onChange={e => setC({ fecha_emision: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="lbl">Vencimiento *</label>
-                  <input type="date" className="inp inp-sm" value={cheque.fecha_vcto}
-                         onChange={e => setC({ fecha_vcto: e.target.value })} />
-                </div>
-              </div>
-              <div className="form-row2">
-                <div className="field">
-                  <label className="lbl">Titular</label>
-                  <input className="inp inp-sm" value={cheque.titular} onChange={e => setC({ titular: e.target.value })} />
-                </div>
-                <div className="field">
-                  <label className="lbl">CUIT titular</label>
-                  <input className="inp inp-sm" value={cheque.cuit_titular} onChange={e => setC({ cuit_titular: e.target.value })} />
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <ChequeC2Fields
+          puedeEndosar={puedeEndosar}
+          origen={origen}
+          onOrigen={setOrigen}
+          cartera={cartera}
+          chequeId={chequeId}
+          onSelCheque={onSelCheque}
+          cheque={cheque}
+          onCheque={setC}
+        />
       )}
 
       <div className="field" style={{ marginTop: 14 }}>

@@ -63,7 +63,12 @@ export default function Remitos() {
 
   const irAFacturar = (r) => {
     sessionStorage.setItem('crm_desde_remito', JSON.stringify({
-      cliente_id: r.cliente_id, items: r.items, remito_id: r.id
+      cliente_id: r.cliente_id,
+      remito_ids: [r.id],
+      // Mismo formato que produce el checkbox de remitos en ComprobanteForm: sin la línea de
+      // pallets vacíos (la regenera usePalletsVacios) y con `_remito_id` para que destildar el
+      // remito en la factura se lleve estos renglones.
+      items: (r.items || []).filter(it => !it.es_pallet_vacio).map(it => ({ ...it, _remito_id: r.id })),
     }))
     window.location.href = '/facturas'
   }

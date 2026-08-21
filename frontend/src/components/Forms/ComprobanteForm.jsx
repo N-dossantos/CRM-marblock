@@ -1,7 +1,7 @@
 // src/components/Forms/ComprobanteForm.jsx
 // Formulario reutilizable para Factura, Presupuesto y Remito
 import { useState } from 'react'
-import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal } from '../UI'
+import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal, ClienteSearch } from '../UI'
 import { calcTotalesMulti } from '../../utils'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
 import toast from 'react-hot-toast'
@@ -20,7 +20,9 @@ export default function ComprobanteForm({
   initial = {},
   clientes = [],
   productos = [],
-  remitos = [],   // solo para facturas
+  remitos = [],   // solo para facturas — los pendientes DEL cliente elegido (los trae el padre)
+  remitosLoading = false,
+  onClienteChange,  // avisa al padre para que traiga los remitos pendientes de ese cliente
   alicuotas = [], // [{ id, porcentaje }] — activa el IVA multi-alícuota (sólo en facturas)
   numeroSugerido = null, // { punto_venta, numero, numero_formateado } — sólo para remitos nuevos
   onSave,
@@ -33,6 +35,9 @@ export default function ComprobanteForm({
   // anular y reemitir, no renumerar.
   const esRemito     = tipo === 'remito'
   const esRemitoNuevo = esRemito && !initial.id
+  // En una factura ya emitida los remitos quedan 'facturado' y no salen en los pendientes:
+  // se muestran como dato, no como selector.
+  const esFacturaNueva = tipo === 'factura' && !initial.id
   // IVA multi-alícuota: sólo en facturas (presupuesto/remito siguen en 21% por defecto).
   const multiIva = tipo === 'factura' && alicuotas.length > 0
   const alic21 = alicuotas.find(a => +a.porcentaje === 21)
@@ -42,7 +47,10 @@ export default function ComprobanteForm({
     descuento_general: initial.descuento_general || 0,
     items:            initial.items?.map(it => ({ ...it })) || [],
     observaciones:    initial.observaciones || '',
-    remito_id:        initial.remito_id || '',
+    // Una factura puede cubrir varios remitos: la fuente de verdad es remitos.factura_id
+    // (FK sin UNIQUE), no facturas.remito_id. Al reabrir una factura los ids vienen en
+    // `initial.remitos`; el enlace viejo de un solo remito se sigue aceptando.
+    remito_ids:       initial.remito_ids || initial.remitos?.map(r => r.id) || (initial.remito_id ? [+initial.remito_id] : []),
     presupuesto_id:   initial.presupuesto_id || '',
     tipo_fac:         initial.tipo || 'A',
     numero:           initial.numero || numeroSugerido?.numero_formateado || '',
@@ -70,25 +78,40 @@ export default function ComprobanteForm({
     setForm(f => ({
       ...f,
       cliente_id: cliId,
+      // Los remitos marcados eran del cliente anterior: se sueltan junto con sus renglones.
+      // Los ítems cargados a mano (sin _remito_id) se respetan.
+      remito_ids: [],
+      items: f.items.filter(it => !it._remito_id),
       descuento_general: cl?.descuento_porcentaje ?? f.descuento_general,
       // El teléfono del remito se prellena con el del cliente pero queda editable: el de la
       // obra suele ser otro (capataz/obrador) y es el que sirve si hay que llamar en la entrega.
       ...(esRemito && !f.telefono_entrega && cl?.telefono ? { telefono_entrega: cl.telefono } : {}),
     }))
+    onClienteChange?.(cliId)
   }
 
-  // Al seleccionar un remito pendiente, traer sus items
-  const onRemitoChange = (remId) => {
-    const rem = remitos.find(r => r.id === +remId)
-    if (rem) {
-      setForm(f => ({
+  // Marcar/desmarcar un remito agrega o quita SUS renglones, sin tocar el resto: cada ítem que
+  // entra queda etiquetado con `_remito_id` (marca de UI, se saca antes de mandar al servidor), así
+  // desmarcar no se lleva puesto lo que el operador cargó o trajo de otro remito.
+  const onRemitoToggle = (remId) => {
+    const id  = +remId
+    const rem = remitos.find(r => r.id === id)
+    setForm(f => {
+      const marcado = f.remito_ids.includes(id)
+      return {
         ...f,
-        remito_id: remId,
-        items: rem.items?.map(it => ({ ...it })) || f.items,
-      }))
-    } else {
-      setForm(f => ({ ...f, remito_id: '' }))
-    }
+        remito_ids: marcado ? f.remito_ids.filter(x => x !== id) : [...f.remito_ids, id],
+        items: marcado
+          ? f.items.filter(it => it._remito_id !== id)
+          : [...f.items, ...(rem?.items || [])
+              // La línea de pallets vacíos de cada remito se descarta a propósito:
+              // usePalletsVacios mantiene UNA sola sincronizada con el total y su findIndex sólo
+              // ve la primera, así que una segunda quedaría huérfana sumando de más. Sin ninguna,
+              // el hook la regenera consolidada sobre el total de los remitos juntos.
+              .filter(it => !it.es_pallet_vacio)
+              .map(it => ({ ...it, _remito_id: id }))],
+      }
+    })
   }
 
   const addItem = () =>
@@ -122,7 +145,8 @@ export default function ComprobanteForm({
     const payload = {
       cliente_id:        +form.cliente_id,
       descuento_general: +form.descuento_general || 0,
-      items:             form.items,
+      // `_remito_id` es sólo para saber qué renglón vino de qué remito dentro del formulario.
+      items:             form.items.map(({ _remito_id, ...it }) => it),
       observaciones:     form.observaciones,
       ...(esRemitoNuevo && { numero: form.numero.trim() }),
       ...(esRemito && {
@@ -130,7 +154,7 @@ export default function ComprobanteForm({
         domicilio_obra:    form.domicilio_obra?.trim() || null,
         telefono_entrega:  form.telefono_entrega?.trim() || null,
       }),
-      ...(tipo === 'factura' && { tipo: form.tipo_fac, remito_id: form.remito_id ? +form.remito_id : null }),
+      ...(tipo === 'factura' && { tipo: form.tipo_fac, remito_ids: form.remito_ids }),
       ...(tipo === 'factura' && form.presupuesto_id && { presupuesto_id: +form.presupuesto_id }),
       ...(forzar && { forzar_vencido: true }),
     }
@@ -179,12 +203,7 @@ export default function ComprobanteForm({
         {/* Cliente */}
         <div className="field" style={{ gridColumn: tipo === 'factura' ? '1 / 3' : '1 / 3' }}>
           <label className="lbl">Cliente *</label>
-          <select className="sel" value={form.cliente_id} onChange={e => onCliChange(e.target.value)}>
-            <option value="">— Seleccionar cliente —</option>
-            {clientes.filter(c => c.activo !== false).map(c => (
-              <option key={c.id} value={c.id}>{c.razon_social} — {c.cuit}</option>
-            ))}
-          </select>
+          <ClienteSearch clientes={clientes} value={form.cliente_id} onChange={onCliChange} />
         </div>
 
         {/* Número de la hoja del talonario preimpreso (solo remitos) */}
@@ -266,16 +285,40 @@ export default function ComprobanteForm({
         </div>
       )}
 
-      {/* Remito vinculado (solo en facturas) */}
-      {tipo === 'factura' && remitos.length > 0 && (
+      {/* Remitos pendientes del cliente (solo en facturas). Se pueden marcar varios: una factura
+          puede cubrir todas las entregas del período. */}
+      {esFacturaNueva && form.cliente_id && (
         <div className="field" style={{ marginBottom: 14 }}>
-          <label className="lbl">Remito pendiente a facturar</label>
-          <select className="sel" value={form.remito_id || ''} onChange={e => onRemitoChange(e.target.value)}>
-            <option value="">— Sin remito vinculado —</option>
-            {remitos.map(r => (
-              <option key={r.id} value={r.id}>{r.numero} — {r.items?.length || 0} ítem(s)</option>
-            ))}
-          </select>
+          <label className="lbl">Remitos pendientes a facturar</label>
+          {remitosLoading ? (
+            <div className="rem-pend-vacio">Buscando remitos…</div>
+          ) : remitos.length === 0 ? (
+            <div className="rem-pend-vacio">Este cliente no tiene remitos pendientes de facturar.</div>
+          ) : (
+            <div className="rem-pend">
+              {remitos.map(r => (
+                <label key={r.id} className="rem-pend-row">
+                  <input
+                    type="checkbox"
+                    checked={form.remito_ids.includes(r.id)}
+                    onChange={() => onRemitoToggle(r.id)}
+                  />
+                  <span className="code">{r.numero}</span>
+                  <span className="rem-pend-fecha">{r.fecha}</span>
+                  <span className="rem-pend-items">{r.items?.length || 0} ítem(s)</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tipo === 'factura' && !esFacturaNueva && initial.remitos?.length > 0 && (
+        <div className="field" style={{ marginBottom: 14 }}>
+          <label className="lbl">Remitos facturados</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {initial.remitos.map(r => <span key={r.id} className="code">{r.numero}</span>)}
+          </div>
         </div>
       )}
 

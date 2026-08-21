@@ -1,6 +1,6 @@
 // src/components/Forms/ReciboForm.jsx
 import { useState, useEffect } from 'react'
-import { Modal } from '../UI'
+import { Modal, ClienteSearch } from '../UI'
 import { $ar } from '../../utils'
 import { FacturasAPI, ConfigAPI } from '../../api'
 import toast from 'react-hot-toast'
@@ -22,17 +22,19 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
     ConfigAPI.cuentasBancarias().then(setCuentas)
   }, [])
 
-  // Cuando cambia el cliente, traer sus facturas pendientes
+  // Cuando cambia el cliente, traer sus facturas pendientes + parciales.
+  // Las dos listas se resuelven juntas y se mergean en un solo setForm: dos .then() sueltos
+  // se pisan entre sí (gana el último en llegar) y no hay forma de mergear sin un updater,
+  // que acá no aplica porque `facturas` es una clave del objeto, no el estado entero.
   useEffect(() => {
     if (!form.cliente_id) { setForm(f => ({ ...f, facturas: [] })); return }
-    FacturasAPI.list({ cliente_id: form.cliente_id, estado: 'pendiente' })
-      .then(rows => setForm(f => ({ ...f, facturas: rows })))
-    FacturasAPI.list({ cliente_id: form.cliente_id, estado: 'parcial' })
-      .then(rows => setForm(f => ({ ...f, facturas: prev => {
-        // merge
-        const ids = prev.map(r => r.id)
-        return [...prev, ...rows.filter(r => !ids.includes(r.id))]
-      }})))
+    Promise.all([
+      FacturasAPI.list({ cliente_id: form.cliente_id, estado: 'pendiente' }),
+      FacturasAPI.list({ cliente_id: form.cliente_id, estado: 'parcial' }),
+    ]).then(([pend, parc]) => {
+      const ids = new Set(pend.map(r => r.id))
+      setForm(f => ({ ...f, facturas: [...pend, ...parc.filter(r => !ids.has(r.id))] }))
+    })
   }, [form.cliente_id])
 
   const toggleFac = (id) => {
@@ -113,10 +115,11 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
       {/* Cliente */}
       <div className="field">
         <label className="lbl">Cliente *</label>
-        <select className="sel" value={form.cliente_id} onChange={e => setForm(f => ({ ...f, cliente_id: e.target.value, selFacs: [], facturas: [] }))}>
-          <option value="">— Seleccionar —</option>
-          {clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social}</option>)}
-        </select>
+        <ClienteSearch
+          clientes={clientes}
+          value={form.cliente_id}
+          onChange={cliId => setForm(f => ({ ...f, cliente_id: cliId, selFacs: [], facturas: [] }))}
+        />
       </div>
 
       {/* Facturas a imputar */}
