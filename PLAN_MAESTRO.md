@@ -47,8 +47,9 @@
 > 📌 Nota de versionado: hasta el 2026-08-20 este archivo estaba **gitignoreado**; ese día se
 > comentó la línea en `.gitignore` (`#PLAN_MAESTRO.md`), así que **ahora sí entra en git**.
 >
-> Última actualización: **2026-10-06** (borrado de los planes viejos de `supabase/` y alta de la
-> facturación multi-remito, que sólo figuraba en `MIGRATION_PLAN.md`).
+> Última actualización: **2026-10-06** (borrado de los planes viejos de `supabase/`; alta de la
+> facturación multi-remito, que sólo figuraba en `MIGRATION_PLAN.md`; y percepciones de compra, D9
+> → §3.9).
 
 ---
 
@@ -72,6 +73,7 @@
 | — | Productos por pallets (catálogo 25 productos) | 🔄 completo — **falta smoke E2E** |
 | — | Remito sobre talonario preimpreso | 🔄 DB + frontend listos — **falta deploy PDF + smoke** |
 | — | Facturación multi-remito (una factura cubre N remitos) | ✅ completo |
+| — | **Percepciones de compra** (D9: tabla propia + `percepciones_monto`) | ⏳ **decidido, sin empezar** — §3.9 |
 
 **Un solo bloqueo técnico** (deploy de la Edge Function `pdf`) y **un solo bloqueo de datos**
 (credenciales de Tango) explican casi todo lo que falta.
@@ -131,7 +133,7 @@ valores calculados y hace rollback, así las tablas quedaban vacías para el cut
 - **Fase A — Compras + Procesos Generales.** Backend aplicado y verificado (2026-07-30, migraciones
   `20260730120000`–`…0011`) y frontend completo: 7 vistas `/compras/*`, formularios de comprobante de
   compra / pago a proveedor / nota de compra, IVA multi-alícuota, `audit_log` + `tablas_generales`,
-  Libro IVA Compras.
+  Libro IVA Compras. *(Sin percepciones sufridas: hueco detectado el 2026-10-06 → §3.9.)*
 - **Fase B — Consultas 360°.** `ConsultaCliente` + `ConsultaProveedor`, shell `Consulta360` y modales
   de drill-down (2026-07-31, sin migraciones).
 - **Fase C — Tesorería.** Aplicada y verificada (2026-07-31, migraciones `20260731120000`–`…0007`):
@@ -242,6 +244,11 @@ de env/secrets, ni advisors que revisar. Rollback = redesplegar la carpeta anter
 
 ### 3.2 Cutover de datos desde Tango (Fase 7) — **el bloqueo de datos raíz**
 
+> **Estado 2026-10-06:** la extracción quedó resuelta leyendo `MARBLOCK_SA.bak` directo (sin SQL Server,
+> sin credencial, sin red): ver `PLAN_MIGRACION_TANGO.md` (Tareas 1 y 2 hechas, D1–D4 y D7 decididas;
+> D5, D6 y D8 pendientes). Donde esta sección habla de la credencial de SQL Server (§3.2.3 pasos 1–4 y
+> §3.2.7), ya no hace falta.
+
 Todo lo demás está construido sobre una base **vacía**. El bloqueo es el mismo que frena la
 contabilidad automática (§3.3): **no hay credencial funcional de SSMS / SQL Server para la instancia
 de Tango**.
@@ -271,9 +278,11 @@ data**.
   alcanza y sobra; no hay que preocuparse por batching ni sharding.
 - **El CRM emite los comprobantes de acá en adelante** ⇒ `contadores` tiene que retomar **después**
   del último número emitido por Tango, por tipo y punto de venta.
-- **La emisión fiscal AFIP/CAE es un build futuro** (proyecto aparte), pero las facturas históricas de
-  Tango **ya vienen con CAE** ⇒ se preservan los campos fiscales en el import (migración `0013`, ya
-  aplicada) en vez de tener que re-migrar después.
+- **La emisión fiscal AFIP/CAE es un build futuro** (proyecto aparte). *Corrección (2026-10-06, H1 de
+  `PLAN_MIGRACION_TANGO.md`):* las facturas históricas de Tango **no traen CAE**: `GVA12.CAICAE` está
+  vacío de 2017 a 2026 y la facturación electrónica se hace por fuera de Tango. Se carga `cae = NULL`
+  (D4 = a); los campos fiscales de la migración `0013` quedan disponibles por si más adelante se
+  cruzan con *Mis Comprobantes* de ARCA.
 
 #### 3.2.2 Alcance — qué puede recibir el destino
 
@@ -517,10 +526,11 @@ Hoy `generar_asiento_desde_factura` / `…_pago_proveedor` / `…_movimiento_tes
    | Nota de Débito | Deudores por ventas (`total`) | Ventas · IVA DF |
    | Cobranza | Caja / Banco (cuenta del movimiento) | Deudores por ventas |
 
-   **A confirmar con el contador:** ¿cuenta de Deudores única o por cliente/condición? ¿tratamiento de
-   percepciones / IIBB en ventas? ¿la Factura B discrimina IVA contablemente? Y las operaciones de
-   Compras y Tesorería (compra multi-alícuota, pago con retención, depósito, cheque rechazado…), que
-   ni siquiera tienen borrador todavía.
+   **A confirmar con el contador:** ¿cuenta de Deudores única o por cliente/condición? ¿la Factura B
+   discrimina IVA contablemente? Y las operaciones de Compras y Tesorería (compra multi-alícuota,
+   **percepciones sufridas de IVA / IIBB** → §3.9, depósito, cheque rechazado…), que ni siquiera
+   tienen borrador todavía. *(Ventas no lleva percepciones ni retenciones: Tango no registró ninguna;
+   ver `PLAN_MIGRACION_TANGO.md` H11 y H15.)*
 3. **Reemplazar el cuerpo de los `generar_asiento_desde_*`** por la construcción de `p_lineas`
    delegando en `crear_asiento` (que ya valida `SUM(debe)=SUM(haber)` y que cada cuenta sea imputable).
 4. **Smoke de generación automática** — con el flag en `on`, emitir una factura/pago/movimiento de
@@ -709,17 +719,79 @@ Migraciones ya bosquejadas para el caso (B): `…_pedidos_schema.sql` + `…_rpc
 
 ---
 
+### 3.9 Percepciones de compra (D9) — **hueco funcional de Compras, decidido 2026-10-06**
+
+**Qué falta.** Los proveedores le cobran percepciones a Marblock, y el módulo de Compras (Fase A) no
+tiene dónde registrarlas: `facturas_compra.total` es neto + IVA, `factura_compra_iva_detalle` sólo
+admite 0 / 10,5 / 21 / 27 % y `retenciones` exige un `pago_proveedor_id`. **Hoy no se puede cargar en
+el CRM una factura de Loma Negra con su total correcto**, así que el saldo con el proveedor queda corto
+y la percepción de IVA (que se computa contra el IVA a pagar) no queda registrada.
+
+**Lo que muestra Tango** (`MARBLOCK_SA.bak` del 25/09; detalle en `PLAN_MIGRACION_TANGO.md` H13):
+
+| Percepción | Dónde la guarda Tango | Volumen | Vigencia |
+|---|---|---|---|
+| IVA 3 % | slot `COD_IVA` = 3 de `CPA04` (mezclada con el IVA) | 1.263 comprobantes; $4,3 M en 2024, $5,3 M en 2025, $5,0 M en 2026 | **activa** (última 19/09/2026): Loma Negra, Telecom, Edesur, Sancor, autopistas |
+| IVA 10 % | slot `COD_IVA` = 4 | 9 | esporádica (7 en 2011, 1 en 2025, 1 en 2026) |
+| IIBB Bs. As. / CABA (1,5 %) | `CPA18`, códigos 51 / 54 | 644 | 2011 → 2022 |
+| Impuestos internos / ganancias | `CPA18`, códigos 40 / 52 / 53 | 59 | histórica (+1 del 31/12/2025) |
+
+**Decisión — opción (a)** (las descartadas y su porqué, en `PLAN_MIGRACION_TANGO.md` §3 D9):
+
+1. **Migración de schema** — tabla `percepciones_compra` (`factura_compra_id` XOR `nota_compra_id`,
+   FK `ON DELETE CASCADE` con índice parcial cada una; `tipo` CHECK `iva` / `iibb` / `ganancias` /
+   `imp_internos`; `jurisdiccion`; `base_imponible`; `alicuota`; `monto`) y
+   `percepciones_monto DECIMAL(14,2) NOT NULL DEFAULT 0` en `facturas_compra` y `notas_compra`. RLS
+   `staff_all` **sin FORCE** y REVOKE explícito a `anon` en tabla, secuencia y funciones (§5.3).
+2. **RPC** — `crear_factura_compra`, `actualizar_factura_compra` y `crear_nota_compra` reciben
+   `p_percepciones jsonb DEFAULT NULL` como último parámetro (DROP + CREATE, nunca una sobrecarga que
+   PostgREST no pueda resolver), y `total = neto + IVA + percepciones_monto`.
+   **El monto es el impreso en la factura del proveedor:** se guarda tal cual y no se recalcula
+   (base y alícuota quedan como dato informativo). Es al revés que en Ventas, donde el total lo calcula
+   el servidor, porque acá el que liquida la percepción es el proveedor.
+   `recalcular_estado_factura_compra`, `informe_cta_cte_proveedor` y los pagos ya trabajan sobre
+   `total`, así que no cambian; igual hay que verificarlos.
+3. **Lecturas** — `facturas_compra_list` / `notas_compra_list` exponen el detalle, e
+   `informe_iva_compras` (Libro IVA Compras) suma columnas de **percepción IVA**, **percepción IIBB**
+   (por jurisdicción) y **otros**, **separadas del crédito fiscal**.
+4. **Frontend** — grilla de percepciones (tipo, jurisdicción, alícuota, monto) en
+   `components/Forms/CompraComprobanteForm.jsx` y `NotaCompraForm.jsx`, más su paso por
+   `api/index.js`.
+5. **Contabilidad** — la matriz (§3.3) necesita las cuentas de activo para "Percepción IVA sufrida" y
+   "Percepción IIBB sufrida".
+
+**No se reutiliza la tabla `percepciones` de Ventas** (migración `20260821140000`): modela
+percepciones *practicadas*, tiene FK a `facturas` / `notas` y queda inerte, porque Tango no registra
+percepciones de venta (`PLAN_MIGRACION_TANGO.md` H11).
+
+**Bloquea:** la Tarea 7 del cutover (Compras), que carga 1.272 percepciones desde los slots de
+`CPA04` y 703 desde `CPA18`. **No bloquea** el resto del cutover ni el deploy del PDF.
+
+**Verificación:**
+- Cargar una factura real de Loma Negra con percepción de IVA del 3 % → el `total` coincide con el
+  papel.
+- La percepción aparece en su columna del Libro IVA Compras y **no** suma al crédito fiscal.
+- Un pago por el total la deja `pagada`.
+- `anon` no lee ni ejecuta nada nuevo, y los advisors no muestran hallazgos nuevos.
+
+**Próximo paso:** escribir el sub-plan con código (migraciones + RPC + frontend), siguiendo el patrón
+de `20260821140000_ventas_percepciones.sql`, que ya resolvió la misma forma en Ventas.
+
+---
+
 ## 4. Orden recomendado
 
 1. **Deploy de la Edge Function `pdf`** (§3.1) — un comando, riesgo bajo, cierra Fase D + WS3a +
    impresión de remitos de una sola vez. **Empezar por acá.**
 2. **Smokes pendientes** (§3.6) — contabilidad en el navegador, remito en la UI, prueba sobre papel.
 3. **Config de Auth en el dashboard** (§3.4) — barato y crítico antes del go-live.
-4. **Credenciales de Tango** (§3.2) — es el bloqueo raíz; todo lo de abajo espera acá.
-5. **Cutover de datos** (§3.2) — con las minas de PK y `contadores` resueltas de antemano.
-6. **Go-live smoke-test completo** (§3.6) — todos los módulos, informes y PDFs contra la data real.
-7. **Matriz de imputación + prender el flag contable** (§3.3).
-8. **Decidir Pedidos (A o B)** (§3.5) — se puede hacer en paralelo, no depende de datos.
+4. **Percepciones de compra** (§3.9) — hueco que existe hoy, con o sin cutover; tiene que estar antes
+   de la Tarea 7 (Compras) del cutover.
+5. **Credenciales de Tango** (§3.2) — es el bloqueo raíz; todo lo de abajo espera acá.
+6. **Cutover de datos** (§3.2) — con las minas de PK y `contadores` resueltas de antemano.
+7. **Go-live smoke-test completo** (§3.6) — todos los módulos, informes y PDFs contra la data real.
+8. **Matriz de imputación + prender el flag contable** (§3.3).
+9. **Decidir Pedidos (A o B)** (§3.5) — se puede hacer en paralelo, no depende de datos.
 
 ---
 

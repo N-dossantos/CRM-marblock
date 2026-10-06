@@ -110,21 +110,35 @@ BEGIN
 END $$;
 
 \echo ''
-\echo '=== 5) TOTALES — ninguna factura/nota con IVA fuera del 21% (anti-corrupción de importación) ==='
-SELECT 'facturas_iva_21' AS check,
+\echo '=== 5) TOTALES — invariantes exactas de importación (multi-alícuota + percepciones) ==='
+-- Ya no se valida "IVA = 21%" (multi-alícuota 20260802120000 admite 0/10,5/21/27%) ni se re-deriva
+-- el IVA desde los ítems (habría que replicar crm_calc_totales_multi_alicuota y desincronizarse).
+-- Mismos checks que POST_LOAD_VERIFY_MCP.sql §5 — mantener las dos ediciones en sync.
+SELECT 'facturas_total_neto_iva_percep' AS check,
        CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END AS status, COUNT(*) AS filas_mal
-  FROM facturas WHERE round(neto_gravado*0.21,2) <> iva_monto
+  FROM facturas WHERE round(neto_gravado+iva_monto+COALESCE(percepciones_monto,0),2) <> total
 UNION ALL
-SELECT 'facturas_total_coherente',
+SELECT 'notas_total_neto_iva_percep',
        CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
-  FROM facturas WHERE round(neto_gravado+iva_monto,2) <> total;
+  FROM notas WHERE round(neto_gravado+iva_monto+COALESCE(percepciones_monto,0),2) <> total
+UNION ALL
+SELECT 'facturas_percep_vs_detalle',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM facturas f WHERE COALESCE(f.percepciones_monto,0)
+       <> COALESCE((SELECT round(SUM(p.monto),2) FROM percepciones p WHERE p.factura_id=f.id),0)
+UNION ALL
+SELECT 'facturas_iva_en_banda_0_27',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM facturas WHERE iva_monto < 0 OR iva_monto > round(neto_gravado*0.27,2)+0.01;
 
 \echo ''
 \echo '=== 6) SEGURIDAD — RLS/anon/auth listos para go-live ==='
-SELECT 'tablas_rls_habilitada' AS check,
-       CASE WHEN COUNT(*)=17 THEN 'OK (17/17)' ELSE '⚠ REVISAR' END AS status, COUNT(*) AS n
+-- Contra un número fijo se desactualiza con cada tabla nueva (eran 17 en julio, hoy ~49);
+-- lo que importa es que no quede ninguna SIN RLS.
+SELECT 'tablas_sin_rls' AS check,
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END AS status, COUNT(*) AS n
   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-  WHERE n.nspname='public' AND c.relkind='r' AND c.relrowsecurity
+  WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity
 UNION ALL
 SELECT 'anon_puede_ejecutar_funciones',
        CASE WHEN COUNT(*)=0 THEN 'OK (0)' ELSE '⚠ REVISAR' END, COUNT(*)

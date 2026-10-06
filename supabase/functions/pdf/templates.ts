@@ -80,6 +80,7 @@ export async function generarFactura(factura: any, empresa: any): Promise<Uint8A
       iva_monto:        parseFloat(factura.iva_monto),
       iva_alicuota:     parseFloat(factura.iva_alicuota),
       detalle:          calcularDetalleAlicuotas(items, factura.descuento_general),
+      percepciones:     factura.percepciones || [],
       total:            parseFloat(factura.total),
     }
     y = dibujarTotales(doc, y, totales)
@@ -293,6 +294,7 @@ export async function generarNota(nota: any, empresa: any): Promise<Uint8Array> 
       neto_gravado: parseFloat(nota.neto_gravado),
       iva_monto:    parseFloat(nota.iva_monto),
       detalle:      calcularDetalleAlicuotas(nota.items || [], 0),
+      percepciones: nota.percepciones || [],
       total:        parseFloat(nota.total),
     }
     y = dibujarTotales(doc, y, totales)

@@ -95,19 +95,42 @@ FROM (
   UNION ALL SELECT 40, '4·SECUENCIAS', tbl||'.id', CASE WHEN sq < mx THEN '⚠ REVISAR' ELSE 'OK' END,
                    'seq='||sq::text||'  MAX(id)='||mx::text FROM seqs
 
-  -- 5) TOTALES — IVA 21% coherente (anti-corrupción de importación)
-  UNION ALL SELECT 50, '5·TOTALES', 'facturas IVA 21%', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
+  -- 5) TOTALES — coherencia de importación
+  --    Ya NO se valida "IVA = 21%": desde la migración multi-alícuota (20260802120000) un
+  --    comprobante puede mezclar 0 / 10,5 / 21 / 27%, así que el 21% fijo daba falsos positivos.
+  --    Tampoco se re-deriva el IVA desde los ítems: el prorrateo del descuento general y la
+  --    exclusión de pallet vacío / transporte (20260820120000) harían que esta query tuviera que
+  --    replicar crm_calc_totales_multi_alicuota — y una copia que se desincroniza miente.
+  --    Se validan invariantes EXACTAS, que es lo que detecta corrupción de importación:
+  UNION ALL SELECT 50, '5·TOTALES', 'facturas total = neto+iva+percep', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
+            FROM facturas WHERE round(neto_gravado+iva_monto+COALESCE(percepciones_monto,0),2) <> total
+  UNION ALL SELECT 50, '5·TOTALES', 'notas total = neto+iva+percep', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
+            FROM notas WHERE round(neto_gravado+iva_monto+COALESCE(percepciones_monto,0),2) <> total
+  -- La cabecera denormaliza la suma del detalle: si no coinciden, la carga quedó a medias.
+  UNION ALL SELECT 50, '5·TOTALES', 'facturas percep = suma detalle', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
+            FROM facturas f WHERE COALESCE(f.percepciones_monto,0)
+                 <> COALESCE((SELECT round(SUM(p.monto),2) FROM percepciones p WHERE p.factura_id=f.id),0)
+  UNION ALL SELECT 50, '5·TOTALES', 'notas percep = suma detalle', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
+            FROM notas n WHERE COALESCE(n.percepciones_monto,0)
+                 <> COALESCE((SELECT round(SUM(p.monto),2) FROM percepciones p WHERE p.nota_id=n.id),0)
+  -- Banda de plausibilidad: ninguna alícuota vigente supera el 27%.
+  UNION ALL SELECT 50, '5·TOTALES', 'facturas IVA en banda 0-27%', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
+            FROM facturas WHERE iva_monto < 0 OR iva_monto > round(neto_gravado*0.27,2)+0.01
+  UNION ALL SELECT 50, '5·TOTALES', 'notas IVA en banda 0-27%', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
+            FROM notas WHERE iva_monto < 0 OR iva_monto > round(neto_gravado*0.27,2)+0.01
+  -- Informativo: cuántas se apartan del 21% puro. No es un error — es para que el número no sorprenda.
+  UNION ALL SELECT 50, '5·TOTALES', 'facturas fuera de 21% puro (info)', 'INFO', COUNT(*)::text||' filas'
             FROM facturas WHERE round(neto_gravado*0.21,2) <> iva_monto
-  UNION ALL SELECT 50, '5·TOTALES', 'facturas total coherente', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
-            FROM facturas WHERE round(neto_gravado+iva_monto,2) <> total
-  UNION ALL SELECT 50, '5·TOTALES', 'notas IVA 21%', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
-            FROM notas WHERE round(neto_gravado*0.21,2) <> iva_monto
-  UNION ALL SELECT 50, '5·TOTALES', 'notas total coherente', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)::text||' filas mal'
-            FROM notas WHERE round(neto_gravado+iva_monto,2) <> total
+  UNION ALL SELECT 50, '5·TOTALES', 'facturas con percepción (info)', 'INFO', COUNT(*)::text||' filas'
+            FROM facturas WHERE COALESCE(percepciones_monto,0) <> 0
 
   -- 6) SEGURIDAD — RLS/anon/auth listos para go-live
-  UNION ALL SELECT 60, '6·SEGURIDAD', 'tablas RLS habilitada', CASE WHEN COUNT(*)=17 THEN 'OK (17/17)' ELSE '⚠ REVISAR' END, COUNT(*)::text||'/17'
-            FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relrowsecurity
+  -- Contar tablas CON RLS contra un número fijo se desactualiza cada vez que se agrega una
+  -- (eran 17 en julio, hoy son ~49). Lo que importa es que no quede ninguna SIN RLS.
+  UNION ALL SELECT 60, '6·SEGURIDAD', 'tablas sin RLS', CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END,
+                   COALESCE(string_agg(c.relname, ', '), '0')
+            FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+            WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity
   UNION ALL SELECT 60, '6·SEGURIDAD', 'anon ejecuta funciones', CASE WHEN COUNT(*)=0 THEN 'OK (0)' ELSE '⚠ REVISAR' END, COUNT(*)::text
             FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND has_function_privilege('anon', p.oid, 'EXECUTE')
   UNION ALL SELECT 60, '6·SEGURIDAD', 'anon lee tablas', CASE WHEN COUNT(*)=0 THEN 'OK (0)' ELSE '⚠ REVISAR' END, COUNT(*)::text

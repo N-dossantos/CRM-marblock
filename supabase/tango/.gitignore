@@ -1,0 +1,6 @@
+# Los CSV exportados son la base operativa completa de la empresa (CUIT, facturas,
+# cheques, asientos). No entran a git bajo ningun concepto.
+csv/
+*.csv
+*.log
+sql/

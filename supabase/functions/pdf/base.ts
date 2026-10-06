@@ -183,6 +183,17 @@ export function dibujarTotales(doc: any, y: number, totales: any) {
     fila(`IVA ${pct}%:`, $ar(totales.iva_monto))
   }
 
+  // Percepciones: una línea por impuesto + jurisdicción, como las liquida AFIP/ARBA.
+  // Suman al total (total = neto + IVA + percepciones), no son un descuento.
+  if (Array.isArray(totales.percepciones)) {
+    const NOMBRE: Record<string, string> = { iibb: 'IIBB', iva: 'IVA', ganancias: 'Ganancias' }
+    for (const p of totales.percepciones) {
+      const nombre = NOMBRE[p.tipo_percepcion] ?? p.tipo_percepcion
+      const donde  = p.jurisdiccion ? ` ${p.jurisdiccion}` : ''
+      fila(`Perc. ${nombre}${donde} ${parseFloat(p.alicuota)}%:`, $ar(p.monto))
+    }
+  }
+
   // Línea separadora
   doc.moveTo(x, cy).lineTo(W - M, cy).stroke(COLORES.gris_borde)
   cy += 6
