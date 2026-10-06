@@ -1,6 +1,6 @@
 -- =============================================================
 -- CRM Ventas — POST-LOAD VERIFICATION (single-query / MCP + SQL-Editor edition)
--- Run this AFTER DATA_MIGRATION.md steps 1–3 (pg_dump load + sequence reset).
+-- Run this AFTER the load + sequence reset (PLAN_MAESTRO.md §3.2.5).
 --
 -- WHY a second file: POST_LOAD_VERIFY.sql is the psql edition (\echo + a RAISE
 -- NOTICE DO block) and only prints under `psql -f`. This edition is ONE SELECT
@@ -32,7 +32,7 @@ WITH rc(t, n) AS (
   UNION ALL SELECT 'cuentas_bancarias', COUNT(*) FROM cuentas_bancarias
 ),
 -- seq last_value vs MAX(id): if seq < MAX the next INSERT collides -> re-run
--- DATA_MIGRATION.md step 3. 15 serial-owned sequences (config_empresa +
+-- PLAN_MAESTRO.md §3.2.5 paso 2. 15 serial-owned sequences (config_empresa +
 -- contadores have no serial id).
 seqs(tbl, mx, sq) AS (
   SELECT 'clientes',          (SELECT COALESCE(MAX(id),0) FROM clientes),          (SELECT COALESCE(last_value,0) FROM pg_sequences WHERE schemaname='public' AND sequencename='clientes_id_seq')
@@ -112,11 +112,11 @@ FROM (
             FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND has_function_privilege('anon', p.oid, 'EXECUTE')
   UNION ALL SELECT 60, '6·SEGURIDAD', 'anon lee tablas', CASE WHEN COUNT(*)=0 THEN 'OK (0)' ELSE '⚠ REVISAR' END, COUNT(*)::text
             FROM pg_tables t WHERE schemaname='public' AND has_table_privilege('anon', quote_ident(schemaname)||'.'||quote_ident(tablename),'SELECT')
-  UNION ALL SELECT 60, '6·SEGURIDAD', 'usuarios auth (>=1 para loguear)', CASE WHEN COUNT(*)>=1 THEN 'OK' ELSE '⚠ FALTA staff (AUTH_SETUP.md §2)' END, COUNT(*)::text
+  UNION ALL SELECT 60, '6·SEGURIDAD', 'usuarios auth (>=1 para loguear)', CASE WHEN COUNT(*)>=1 THEN 'OK' ELSE '⚠ FALTA staff (PLAN_MAESTRO.md §3.4 paso 2)' END, COUNT(*)::text
             FROM auth.users
 
   -- 9) RECORDATORIO manual (no verificable por SQL)
   UNION ALL SELECT 90, '9·MANUAL', 'deshabilitar signup público', 'ⓘ manual',
-                   'Dashboard → Auth → deshabilitar "Allow new users to sign up" (AUTH_SETUP.md §1)'
+                   'Dashboard → Auth → deshabilitar "Allow new users to sign up" (PLAN_MAESTRO.md §3.4 paso 1)'
 ) x
 ORDER BY ord, item;

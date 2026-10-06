@@ -5,7 +5,7 @@
 > `supabase/MIGRATION_PLAN.md`, con todas las fases en un solo lugar. Lo **ya hecho** figura sólo
 > como título; lo **pendiente** va detallado, que es lo único accionable.
 >
-> **Dónde quedaron los planes originales.** Se eliminaron al consolidarse acá, en dos tandas. Su
+> **Dónde quedaron los planes originales.** Se eliminaron al consolidarse acá, en tres tandas. Su
 > contenido (DDL columna por columna, decisiones de diseño, racional de cada fase) sigue **íntegro
 > en git**:
 >
@@ -13,6 +13,7 @@
 > |---|---|
 > | `system_plan.md` + fases `_c_` / `_d_` / `_e_` / `_f_` | `git show 97ad046:system_plan.md` |
 > | `cuenta2.md` · `productos.md` · `docs/superpowers/plans/2026-08-19-productos-pallets.md` | `git show fbeab89:cuenta2.md` |
+> | `supabase/MIGRATION_PLAN.md` · `TANGO_Migration.md` · `DATA_MIGRATION.md` · `AUTH_SETUP.md` · `tango_discovery.sql` | `git show a59e60f:supabase/MIGRATION_PLAN.md` |
 >
 > ```bash
 > git log --oneline --all -- productos.md      # historial completo de cualquiera de ellos
@@ -20,8 +21,9 @@
 >
 > ⚠️ **El código los cita.** 14 migraciones y ~12 archivos de `frontend/src/` los nombran en
 > comentarios de cabecera (`-- Companion de cuenta2.md`, `productos.md §3.2.1`,
-> *"Companion de system_plan_fase_c_tesoreria.md §3"*), igual que `supabase/MIGRATION_PLAN.md` y
-> `App.jsx`. Esas referencias **se resuelven con los comandos de arriba**, no abriendo el archivo.
+> *"Companion de system_plan_fase_c_tesoreria.md §3"*), igual que `App.jsx`; y otras 3 migraciones
+> citan los planes de `supabase/` (`MIGRATION_PLAN.md`, `DATA_MIGRATION.md`, `TANGO_Migration.md`).
+> Esas referencias **se resuelven con los comandos de arriba**, no abriendo el archivo.
 > Las migraciones no se tocaron a propósito: son artefactos ya aplicados, y reescribir su cabecera es
 > peor que la referencia colgada. Lo que esos comentarios necesitan saber está resumido en §5.
 >
@@ -32,18 +34,21 @@
 > Tango + las mecánicas de carga reutilizables), §3.4 (los dos pasos de dashboard de Auth) y §5.3
 > (decisiones bloqueadas y reglas transversales).
 >
-> ⚠️ **Estos 4 archivos NO se borraron**, a diferencia de los `system_plan*.md`. Siguen en
-> `supabase/` porque llevan **SQL y comandos ejecutables que se copian y pegan tal cual**
-> (`POST_LOAD_VERIFY*.sql`, el `DO $$` de reseteo de secuencias, el INSERT de `auth.users`, las
-> queries de descubrimiento de Tango) y porque `MIGRATION_PLAN.md` lo citan `CLAUDE.md` y las
-> cabeceras de varias migraciones. **Ante divergencia: para el *estado* manda este archivo; para el
-> *cómo* (comandos exactos), el de `supabase/`.**
+> **Borrados el 2026-10-06**, junto con `supabase/tango_discovery.sql` (en git, ver la tabla de
+> arriba). Al principio se habían conservado por el SQL para copiar y pegar, pero eso ya está
+> transcripto tal cual acá: el `DO $$` de reseteo de secuencias en §3.2.5 y el INSERT de
+> `auth.users` en §3.4. Las queries de descubrimiento de Tango quedaron obsoletas: el esquema ya
+> está relevado en `supabase/tango/esquema_tango.tsv`. Lo único ejecutable que sigue en
+> `supabase/` son `POST_LOAD_VERIFY*.sql`.
+>
+> **Los planes vigentes son tres:** este (estado del sistema), `PLAN_MIGRACION_TANGO.md` (cutover de
+> datos desde el `.bak` de Tango) y `PLAN_ARCA.md` (facturación electrónica).
 >
 > 📌 Nota de versionado: hasta el 2026-08-20 este archivo estaba **gitignoreado**; ese día se
-> comentó la línea en `.gitignore` (`#PLAN_MAESTRO.md`), así que **ahora sí entra en git**. La
-> advertencia contraria que quedó escrita en `supabase/MIGRATION_PLAN.md` está desactualizada.
+> comentó la línea en `.gitignore` (`#PLAN_MAESTRO.md`), así que **ahora sí entra en git**.
 >
-> Última actualización: **2026-08-20**.
+> Última actualización: **2026-10-06** (borrado de los planes viejos de `supabase/` y alta de la
+> facturación multi-remito, que sólo figuraba en `MIGRATION_PLAN.md`).
 
 ---
 
@@ -66,6 +71,7 @@
 | — | Cuenta 2 (circuito paralelo Ventas/Compras) | 🔄 completo — **falta deploy PDF + smoke** |
 | — | Productos por pallets (catálogo 25 productos) | 🔄 completo — **falta smoke E2E** |
 | — | Remito sobre talonario preimpreso | 🔄 DB + frontend listos — **falta deploy PDF + smoke** |
+| — | Facturación multi-remito (una factura cubre N remitos) | ✅ completo |
 
 **Un solo bloqueo técnico** (deploy de la Edge Function `pdf`) y **un solo bloqueo de datos**
 (credenciales de Tango) explican casi todo lo que falta.
@@ -86,8 +92,8 @@
   fiscales AFIP (CAE) para el import histórico.
 - **Express retirado** (2026-07-28).
 
-**Las 13 migraciones de Ventas, una línea cada una** (de `supabase/MIGRATION_PLAN.md`; el detalle
-largo sigue ahí). Todas **aplicadas y verificadas en vivo** contra `kkdbvzixwlyeahgianuc`: cada
+**Las 13 migraciones de Ventas, una línea cada una** (de `supabase/MIGRATION_PLAN.md`, borrado; el
+detalle largo se lee con `git show a59e60f:supabase/MIGRATION_PLAN.md`). Todas **aplicadas y verificadas en vivo** contra `kkdbvzixwlyeahgianuc`: cada
 familia de RPC se probó dentro de una transacción auto-abortada — un `RAISE` final devuelve los
 valores calculados y hace rollback, así las tablas quedaban vacías para el cutover real.
 
@@ -117,9 +123,9 @@ valores calculados y hace rollback, así las tablas quedaban vacías para el cut
   dashboard → §3.4.*
 - **`DATA_MIGRATION.md` — superseded como fuente de datos (2026-07-28).** Apuntaba a un `pg_dump` del
   Postgres LAN, que era la base de **desarrollo** de este mismo sistema, no la data real de la
-  empresa. Sobrevive sólo por sus **mecánicas de carga** (`session_replication_role = replica`,
-  reseteo de secuencias, verificación), que el runbook de Tango reutiliza tal cual → transcriptas en
-  §3.2.5 y §3.2.6.
+  empresa. Lo único que se reutiliza son sus **mecánicas de carga** (`session_replication_role =
+  replica`, reseteo de secuencias, verificación), transcriptas tal cual en §3.2.5 y §3.2.6. El
+  archivo se borró el 2026-10-06.
 
 ### 2.2 Fases de expansión
 - **Fase A — Compras + Procesos Generales.** Backend aplicado y verificado (2026-07-30, migraciones
@@ -178,6 +184,11 @@ valores calculados y hace rollback, así las tablas quedaban vacías para el cut
   contador cargado con el talonario real AGEE (próxima hoja **00001-00010325**), y template de
   sobreimpresión `preimpreso.ts` calibrado en mm sobre escaneo A4 (migraciones `20260820120001`/`02`).
   *Pendientes asociados: §3.1 (deploy) y §3.6 (smoke).*
+- **Facturación multi-remito** (migración `20260821130000`, aplicada y probada el 2026-08-21) — una
+  factura cubre **varios remitos** del mismo cliente: `crear_factura` recibe `p_remito_ids integer[]`
+  (DROP + CREATE, sin sobrecarga) y `facturas_list` expone `remitos[]`. `facturas.remito_id` queda
+  como denormalización de compatibilidad (lo leen el PDF y `VentaDetalle`). Detalle y smoke en
+  `git show a59e60f:supabase/MIGRATION_PLAN.md`.
 
 ---
 
@@ -236,8 +247,8 @@ contabilidad automática (§3.3): **no hay credencial funcional de SSMS / SQL Se
 de Tango**.
 
 Esta sección absorbe `supabase/TANGO_Migration.md` (**qué** se carga) y las mecánicas reutilizables de
-`supabase/DATA_MIGRATION.md` (**cómo** se carga). Los dos archivos siguen en `supabase/` porque tienen
-el SQL para copiar y pegar.
+`supabase/DATA_MIGRATION.md` (**cómo** se carga). Los dos archivos se borraron el 2026-10-06: el SQL
+para copiar y pegar está transcripto acá.
 
 **Lo que sí está listo: el lado Supabase.** Verificación pre-cutover del 2026-07-28 vía MCP —
 migraciones `0001`–`0013` aplicadas, **17/17 tablas con RLS + policy `staff_all`**, 33 funciones
@@ -289,7 +300,7 @@ reparto de tareas es explícito:
 2. **Descubrimiento de esquema — lo corre el usuario.** El schema de Tango es propietario y con
    códigos crípticos (`GVA*` para ventas, `STA*` para stock/artículos…), así que las tablas reales
    **se confirman contra la instancia, no se adivinan**. Correr en SSMS las dos queries de solo
-   lectura de §3.2.7 (o `supabase/tango_discovery.sql`, ya listo) y pasar el resultado.
+   lectura de §3.2.7 y pasar el resultado.
 3. **Mapeo source→target + spec de export** — sale de ese output, completando la columna Tango de la
    tabla §3.2.4.
 4. **Export** — a CSV (`bcp` o "Export Data" de SSMS), o restore del `.bak` donde se puedan producir
@@ -716,7 +727,7 @@ Migraciones ya bosquejadas para el caso (B): `…_pedidos_schema.sql` + `…_rpc
 
 Lo que no se deduce del código de un vistazo. §5.1 y §5.2 vienen de `cuenta2.md` y `productos.md`
 (**borrados**; el detalle completo está en git, ver header); §5.3 es lo mismo para
-`MIGRATION_PLAN.md`, que **sigue en `supabase/`**.
+`MIGRATION_PLAN.md`, borrado el 2026-10-06 (también en git, ver header).
 
 ### 5.1 Catálogo de productos — la fuente de verdad es la migración
 

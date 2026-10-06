@@ -1,7 +1,7 @@
 -- =============================================================
 -- CRM Ventas — seed de configuración (SOLO instalación limpia / desarrollo)
 -- En producción NO se corre esto: la config real (empresa, contadores, cuentas)
--- llega desde la importación de datos en vivo (ver supabase/DATA_MIGRATION.md).
+-- llega desde la importación de datos en vivo (ver PLAN_MIGRACION_TANGO.md).
 -- Todos los INSERT usan ON CONFLICT DO NOTHING → seguro de re-ejecutar.
 -- =============================================================
 

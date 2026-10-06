@@ -1,5 +1,5 @@
 -- =============================================================
--- CRM Ventas — POST-LOAD VERIFICATION (run AFTER DATA_MIGRATION.md steps 1–3)
+-- CRM Ventas — POST-LOAD VERIFICATION (run AFTER the load + sequence reset — PLAN_MAESTRO.md §3.2.5)
 -- Where: Supabase SQL Editor, or  psql "$SUPABASE_DB_URL" -f supabase/POST_LOAD_VERIFY.sql
 -- Read-only. Every check prints a `check` label + a `status` (OK / ⚠ REVISAR) where it can
 -- self-judge; the row-count block you compare by eye against the LAN DB.
@@ -78,7 +78,7 @@ UNION ALL SELECT 'comprobantes->clientes',
 ORDER BY check;
 
 \echo ''
-\echo '=== 4) SECUENCIAS — cada SERIAL debe estar >= MAX(id) o la próxima alta colisiona (paso 3 de DATA_MIGRATION) ==='
+\echo '=== 4) SECUENCIAS — cada SERIAL debe estar >= MAX(id) o la próxima alta colisiona (paso 2 de PLAN_MAESTRO.md §3.2.5) ==='
 -- Se resuelve el MAX(id) por tabla dinámicamente (igual que el reseteo del paso 3).
 DO $$
 DECLARE r record; v_max bigint; v_seq bigint; v_behind int := 0;
@@ -105,7 +105,7 @@ BEGIN
   IF v_behind = 0 THEN
     RAISE NOTICE 'SECUENCIAS OK: ninguna por detrás del MAX(id).';
   ELSE
-    RAISE NOTICE 'SECUENCIAS ⚠: % secuencia(s) por detrás — re-corré el paso 3 de DATA_MIGRATION.md', v_behind;
+    RAISE NOTICE 'SECUENCIAS ⚠: % secuencia(s) por detrás — re-corré el paso 2 de PLAN_MAESTRO.md §3.2.5', v_behind;
   END IF;
 END $$;
 
@@ -137,9 +137,9 @@ SELECT 'anon_puede_leer_tablas',
    AND has_table_privilege('anon', quote_ident(schemaname)||'.'||quote_ident(tablename),'SELECT')
 UNION ALL
 SELECT 'usuarios_auth_creados (>=1 para poder loguear)',
-       CASE WHEN COUNT(*)>=1 THEN 'OK' ELSE '⚠ FALTA crear staff (AUTH_SETUP.md §2)' END, COUNT(*)
+       CASE WHEN COUNT(*)>=1 THEN 'OK' ELSE '⚠ FALTA crear staff (PLAN_MAESTRO.md §3.4 paso 2)' END, COUNT(*)
   FROM auth.users
 ORDER BY check;
 
 \echo ''
-\echo '=== RECORDATORIO manual (no verificable por SQL): Dashboard → Auth → deshabilitar "Allow new users to sign up" (AUTH_SETUP.md §1). ==='
+\echo '=== RECORDATORIO manual (no verificable por SQL): Dashboard → Auth → deshabilitar "Allow new users to sign up" (PLAN_MAESTRO.md §3.4 paso 1). ==='
