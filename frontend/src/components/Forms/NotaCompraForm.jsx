@@ -4,9 +4,11 @@
 //   * numeración DEL PROVEEDOR → punto_venta / número editables, no autogenerados;
 //   * los ítems referencian `material_id` (no producto_id) y llevan alícuota IVA;
 //   * IVA multi-alícuota: crear_nota_compra usa crm_calc_totales_multi_alicuota (sin alícuota
-//     asume 21%). Preview con calcTotalesMulti + TotalesBoxMulti; el server recalcula.
+//     asume 21%). Preview con calcTotalesMulti + TotalesBoxMulti; el server recalcula;
+//   * puede traer percepciones sufridas (§3.9): el proveedor las devuelve con signo contrario en
+//     una NC, así que el monto se carga tal cual figura en el papel y no se recalcula.
 import { useState } from 'react'
-import { Modal, TotalesBoxMulti } from '../UI'
+import { Modal, TotalesBoxMulti, PercepcionesTable } from '../UI'
 import { calcTotalesMulti, calcSubtotalItem, $ar, fFecha, hoy } from '../../utils'
 import toast from 'react-hot-toast'
 
@@ -25,6 +27,7 @@ export default function NotaCompraForm({ factura, materiales = [], alicuotas = [
     motivo:        '',
     observaciones: '',
     items:         [],
+    percepciones:  [],
   })
   const [loading, setLoading] = useState(false)
 
@@ -89,6 +92,7 @@ export default function NotaCompraForm({ factura, materiales = [], alicuotas = [
         motivo:            form.motivo,
         items,
         observaciones:     form.observaciones || null,
+        percepciones:      form.percepciones.length ? form.percepciones : null,
       })
     } finally { setLoading(false) }
   }
@@ -203,7 +207,13 @@ export default function NotaCompraForm({ factura, materiales = [], alicuotas = [
         </table>
       </div>
 
-      <TotalesBoxMulti totales={tot} />
+      <PercepcionesTable
+        percepciones={form.percepciones}
+        neto={tot.neto_gravado}
+        onChange={(percepciones) => setF({ percepciones })}
+      />
+
+      <TotalesBoxMulti totales={tot} percepciones={form.percepciones} />
 
       <div className="field" style={{ marginTop: 12 }}>
         <label className="lbl">Observaciones</label>

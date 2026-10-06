@@ -1,0 +1,12 @@
+-- Cierra el último agujero de §6 de POST_LOAD_VERIFY: `anon` ejecuta 0 funciones.
+--
+-- `asiento_balanceado_check()` quedó desde 20260801120000_contabilidad_schema con el GRANT EXECUTE
+-- por defecto a PUBLIC, del que `anon` hereda. Los *_advisor_fixes de Compras y Tesorería hicieron
+-- este REVOKE para sus funciones; a Contabilidad se le pasó esta.
+--
+-- El riesgo real es bajo —devuelve `trigger`, así que PostgREST no la expone como RPC y llamarla
+-- directo falla con "trigger functions can only be called as triggers"— pero el chequeo
+-- "anon_puede_ejecutar_funciones" espera 0 y se iba a encender en ⚠ el día del cutover, tapando un
+-- hallazgo de verdad. Es el mismo criterio de 20260727120004_harden_function_privileges: ninguna
+-- función de `public` ejecutable por `anon`.
+REVOKE ALL ON FUNCTION public.asiento_balanceado_check() FROM PUBLIC, anon;

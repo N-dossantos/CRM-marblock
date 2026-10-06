@@ -144,6 +144,19 @@ directa del `.bak` (Tarea 2). La extracción por LAN tampoco sigue: `01_export_r
 | H14 | **`GVA63` y `CPA63` son la clasificación SIAP/CITI de cada comprobante** (`CLASIF_SIA` / `CLAS_SIAP` = V1, V2, C1, C3, SIN), no la alícuota de los ítems ni la configuración de retenciones del proveedor. La alícuota de cada renglón de venta sale de `GVA53.PORC_IVA`. | Los mapeos `alicuota_iva_id ← GVA63` y `proveedor_alicuotas ← CPA63` | Tareas 6 y 7: no se cargan |
 | H15 | **Marblock no practica retenciones:** `CPA29` (retenciones hechas al pagar) tiene 4 filas de 2011, todas por $0, y no está entre las 57. | Que `retenciones` tenga historia que cargar | Tarea 7: queda vacía |
 
+**Hallazgos del ETL (Tareas 5–9, 2026-10-06).** Los H1–H15 salieron de leer el `.bak`; estos
+aparecieron recién al armar los `.sql` y chocar contra el schema del destino:
+
+| # | Hallazgo | Qué corrige | Dónde se resuelve |
+|---|---|---|---|
+| H16 | **NC A y NC B comparten numerador.** `contadores.tipo` es PK y `crear_nota` elegía `nota_credito` / `nota_debito` sin mirar la letra, así que una NC B tomaba el número que seguía de la serie A. Son series fiscales independientes: en Tango la N/C A 0002 va por 165 y la N/C B 0002 por 1. | Que un contador por tipo de nota alcance | `20261006140002`: cuatro contadores (`nota_credito`, `nota_credito_b`, `nota_debito`, `nota_debito_b`) y `crear_nota` elige por letra |
+| H17 | **La numeración se repite entre letras.** En el punto de venta 00002 Tango numera Factura A y Factura B por separado: hay **62 pares** con el mismo `00002-NNNNNNNN`, y una NC A y una NC B comparten `00002-00000001`. `facturas.numero` era UNIQUE global y `notas` era UNIQUE `(tipo, numero)`. | Que `numero` identifique un comprobante por sí solo | `20261006130000`: UNIQUE `(tipo, numero)` en `facturas` y `(tipo, tipo_letra, numero)` en `notas` — mismo criterio que el fix `0008` |
+| H18 | **3 ND de proveedor "a cuenta"** (`ESTADO` = CTA) no cuelgan de ninguna factura, igual que las 30 NC/ND de Ventas de H6. `notas_compra.factura_compra_id` era `NOT NULL`, y el `JOIN` de `notas_compra_list` era INNER, así que esas notas desaparecían de la lista. | Que toda nota de compra tenga factura (D2 sólo se había aplicado a Ventas) | `20261006130000` (nullable) + `20261006140001` (`LEFT JOIN` en `notas_compra_list`) |
+| H19 | **Los renglones de las notas de compra están repartidos en dos tablas.** `CPA47` (conceptos de `CPA45`) y `CPA46` (artículos de stock) cuelgan del comprobante por `(TCOMP_IN_C, NCOMP_IN_C)`, y el **tipo** es lo que desempata: el mismo `NCOMP_IN_C` puede estar en una `FP` y en una `CP`. Son **531 renglones** de nota: 368 CP + 20 DP de `CPA47` y 143 DP de `CPA46`. Los ids de las dos tablas colisionan entre sí, así que se renumeran. | Que `nota_compra_items` salga de una sola tabla de origen | `etl/compras.py` (`items()`), con test de reparto y de renumeración |
+| H20 | **Las órdenes de pago no tienen punto de venta fiscal:** los 3.358 pagos de la historia de Tango van en el punto de venta **00000**, no en el 00002 que traía `seed.sql`. | El punto de venta sembrado para `pago_proveedor` | `supabase/tango/05_cargar.sh`: el UPSERT de `contadores` lo deja en `00000` |
+| H21 | **La serie FAC A 00003 se queda sin contador.** Es el talonario *"Factura de Crédito Electrónica MiPyME"* (4 comprobantes, el último del 2023-05-24) y `contadores` tiene **un solo punto de venta por tipo**. Está inactiva desde 2023, así que no se modela; si se vuelve a usar hay que agregarle una fila propia. | Que `contadores` cubra todas las series de Tango | Decisión registrada: no se carga (ver `05_cargar.sh`) |
+| H22 | **Las notas sin factura quedaban sin cliente.** `notas` nunca tuvo `cliente_id`: se deducía con `JOIN` a `facturas`. Al volver `factura_id` nullable (D2), las **23 notas reales "a cuenta"** (18 clientes, $5,59 M netos) quedaban invisibles en `notas_list` y fuera del saldo de cuenta corriente — con lo cual la base **no podía reproducir `GVA14.SALDO_CC`**, que es el control de aceptación de la Tarea 10. | Que el cliente de una nota se pueda deducir siempre de su factura | `20261006140002`: `notas.cliente_id` con backfill, `crear_nota` la setea, y `notas_list` / `informe_cta_cte` leen con `COALESCE`; el ETL la carga de `GVA12.COD_CLIENT` |
+
 ---
 
 ## 3. Decisiones abiertas — bloquean el ETL (Fase 3), no la extracción (Fase 1)
@@ -167,17 +180,26 @@ Stock no tiene destino y por eso de `STA14` sólo entran los 6.835 `REM`.
 
 **Último número emitido por serie (dato del `.bak` del 25/09; se recalcula con el `.bak` del cutover):**
 
-| Serie Tango | Último por fecha | Fecha | Comentario |
-|---|---|---|---|
-| FAC A 0002 | 00002321 | 2026-09-23 | Serie activa, numeración continua (2.321 comprobantes del 1 al 2321) |
-| FAC B 0002 | 00000063 | 2026-05-19 | 62 comprobantes, falta un número |
-| N/C A 0002 | 00000165 | 2026-05-04 | Continua |
-| N/C B 0002 | 00000001 | 2025-12-16 | |
-| N/D A 0002 | 00000041 | 2026-02-26 | Continua |
-| FAC A 0003 | 00000004 | 2023-05-24 | Talonario "Factura de Crédito Electrónica MiPyME" |
-| REC 0001 | 00004288 | 2026-09-24 | **No usar el máximo (00041189, H4)** |
-| REM R 0001 | 00010366 | 2026-09-23 | **El contador de Supabase está en 10324 (H3)** |
-| Series 0001 (FAC/NC/ND) | — | ≤ 2016 | Históricas, sin uso |
+| Serie Tango | `contadores.tipo` | Punto de venta | Último por fecha | Fecha | Comentario |
+|---|---|---|---|---|---|
+| FAC A 0002 | `factura_a` | 00002 | 2321 | 2026-09-23 | Serie activa, numeración continua (2.321 comprobantes del 1 al 2321) |
+| FAC B 0002 | `factura_b` | 00002 | 63 | 2026-05-19 | 62 comprobantes, falta un número |
+| N/C A 0002 | `nota_credito` | 00002 | 165 | 2026-05-04 | Continua |
+| N/C B 0002 | `nota_credito_b` | 00002 | 1 | 2025-12-16 | Serie propia desde H16 |
+| N/D A 0002 | `nota_debito` | 00002 | 41 | 2026-02-26 | Continua |
+| N/D B 0002 | `nota_debito_b` | 00002 | 0 | — | Sin emitir; existe sólo para que la primera ND B arranque en 1 (H16) |
+| REC 0001 | `recibo` | 00001 | 4288 | 2026-09-24 | **No usar el máximo (00041189, H4)** |
+| REM R 0001 | `remito` | 00001 | 10366 | 2026-09-23 | Talonario preimpreso AGEE; **el contador de Supabase está en 10324 (H3)** |
+| O/P (sin serie fiscal) | `pago_proveedor` | **00000** | 3358 | — | El punto de venta es 00000, no el 00002 del seed (H20) |
+| — | `presupuesto` | 00002 | 0 | — | Tango no tiene presupuestos |
+| — | `asiento` | — | *(lo setea el ETL)* | — | `sql/50_contabilidad.sql` lo deja en la cantidad de asientos cargados |
+| FAC A 0003 | — | — | 4 | 2023-05-24 | Talonario "Factura de Crédito Electrónica MiPyME": **sin contador** (H21) |
+| Series 0001 (FAC/NC/ND) | — | — | — | ≤ 2016 | Históricas, sin uso |
+
+Los diez contadores los carga `supabase/tango/05_cargar.sh` con un `INSERT … ON CONFLICT (tipo) DO
+UPDATE` dentro de la misma transacción que la carga — no es un `UPDATE` a mano, porque la mayoría de
+las filas **no existen** en la base (§3.2.8 del plan maestro: hoy sólo están `asiento`,
+`pago_proveedor` y `remito`). Los recalcula `python3 -m etl.contadores`.
 
 ---
 
@@ -185,16 +207,24 @@ Stock no tiene destino y por eso de `STA14` sólo entran los 6.835 `REM`.
 
 ```
 supabase/tango/
-├── bak_reader.py          NUEVO  (T1) lector del .bak: páginas, catálogo, filas
-├── test_bak_reader.py     NUEVO  (T1) tests unitarios + contra el .bak real
-├── 03_exportar_bak.py     NUEVO  (T2) .bak → csv/ en el formato de 02_verificar_export.py
-├── test_exportar_bak.py   NUEVO  (T2)
+├── bak_reader.py          HECHO  (T1) lector del .bak: páginas, catálogo, filas
+├── test_bak_reader.py     HECHO  (T1) tests unitarios + contra el .bak real
+├── 03_exportar_bak.py     HECHO  (T2) .bak → csv/ en el formato de 02_verificar_export.py
+├── test_exportar_bak.py   HECHO  (T2)
 ├── README.md              HECHO  (2026-10-06) reescrito con el ".bak directo" como única vía
-├── .gitignore             MODIF. (T2) agregar sql/
-├── etl/                   NUEVO  (Fase 3) un módulo por dominio + comun.py, con sus tests
-├── sql/                   GENERADO, gitignoreado (Fase 3) un .sql de carga por módulo
-└── 05_cargar.sh           NUEVO  (T10) psql: una transacción, replica role, TRUNCATE + carga
-supabase/migrations/       NUEVAS (T3) sólo las que salgan de D1 / D2 / D3; D9 lleva sub-plan propio
+├── .gitignore             HECHO  (T2) ignora csv/, sql/ y *.csv
+├── etl/                   HECHO  (Fase 3) un módulo por dominio + comun.py, con sus tests
+│   ├── comun.py           (T4) lectura de CSV, fechas centinela, COPY, reset de secuencias
+│   ├── maestros.py ventas.py compras.py tesoreria.py contabilidad.py   (T5–T9)
+│   ├── controles_*.py     (T6–T8) controles de aceptación contra los saldos de Tango
+│   ├── contadores.py      (T10/T11) último número por serie, por fecha → el bloque de 05_cargar.sh
+│   └── test_*.py          64 tests (`python3 -m unittest discover -s . -p 'test_*.py' -t .`)
+├── sql/                   GENERADO, gitignoreado (Fase 3) un .sql de carga por módulo + _anomalias.txt
+├── sql_conteos.sql        HECHO  (T10) conteo por tabla con el esperado del .bak al lado
+├── sql_reset_secuencias.sql  HECHO (T10) setval de cada SERIAL (paso 2 de §3.2.5 del plan maestro)
+└── 05_cargar.sh           HECHO  (T10) psql: una transacción, replica role, TRUNCATE + carga + contadores
+supabase/migrations/       HECHAS (T3) 20261006120000 … 20261006150000 — escritas y **aplicadas**
+supabase/POST_LOAD_VERIFY*.sql  MODIF. (T10) §1 dinámico, §3b/3c integridad, §5b totales de Compras
 PLAN_MAESTRO.md            MODIF. (T3) §3.2: estado nuevo y referencia a este plan
 ```
 
@@ -242,7 +272,7 @@ documentadas para que nadie las "simplifique":
   los slots sin asignar, y no se usan.
 - **Versión:** está en el offset 4 del registro de la página de arranque (1:9).
 
-- [ ] **Paso 1: Escribir los tests** (`supabase/tango/test_bak_reader.py`)
+- [x] **Paso 1: Escribir los tests** (`supabase/tango/test_bak_reader.py`)
 
 ```python
 """
@@ -346,12 +376,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Paso 2: Correrlos y ver que fallan**
+- [x] **Paso 2: Correrlos y ver que fallan**
 
 Run: `cd supabase/tango && python3 -m unittest -v test_bak_reader`
 Expected: `ModuleNotFoundError: No module named 'bak_reader'`
 
-- [ ] **Paso 3: Escribir el lector** (`supabase/tango/bak_reader.py`)
+- [x] **Paso 3: Escribir el lector** (`supabase/tango/bak_reader.py`)
 
 ```python
 """
@@ -647,13 +677,13 @@ class Bak:
             yield row
 ```
 
-- [ ] **Paso 4: Correr los tests y ver que pasan**
+- [x] **Paso 4: Correr los tests y ver que pasan**
 
 Run: `cd supabase/tango && python3 -m unittest -v test_bak_reader`
 Expected: `Ran 11 tests … OK`, en unos 6 segundos. Con un `.bak` que no sea el del 2026-09-25,
 `test_snapshot_2026_09_25` aparece como *skipped*, y eso es correcto.
 
-- [ ] **Paso 5: Commit** (después de que Nico lo confirme)
+- [x] **Paso 5: Commit** (después de que Nico lo confirme)
 
 ```bash
 git add supabase/tango/bak_reader.py supabase/tango/test_bak_reader.py
@@ -673,7 +703,7 @@ git commit -m "feat(tango): lector directo del .bak de SQL Server 2005, sin SQL 
   `rcrows` y es independiente del decodificador) y `csv/_manifiesto.txt` (sha256, fecha del backup y
   totales). Es exactamente lo que espera `02_verificar_export.py`, que **no se modifica**.
 
-- [ ] **Paso 1: Escribir el test** (`supabase/tango/test_exportar_bak.py`)
+- [x] **Paso 1: Escribir el test** (`supabase/tango/test_exportar_bak.py`)
 
 ```python
 """
@@ -709,12 +739,12 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Paso 2: Correrlo y ver que falla**
+- [x] **Paso 2: Correrlo y ver que falla**
 
 Run: `cd supabase/tango && python3 -m unittest -v test_exportar_bak`
 Expected: `FileNotFoundError` (todavía no existe `03_exportar_bak.py`)
 
-- [ ] **Paso 3: Escribir el exportador** (`supabase/tango/03_exportar_bak.py`)
+- [x] **Paso 3: Escribir el exportador** (`supabase/tango/03_exportar_bak.py`)
 
 ```python
 #!/usr/bin/env python3
@@ -805,7 +835,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Paso 4: Correr los tests y el pipeline completo**
+- [x] **Paso 4: Correr los tests y el pipeline completo**
 
 ```bash
 cd supabase/tango
@@ -817,7 +847,7 @@ python3 02_verificar_export.py                             # [OK] Export integro
 Expected (con el `.bak` del 25/09): `57 tablas, 250678 filas`, ninguna tabla marcada `<-- rcrows=`, y
 la última línea del verificador es `[OK] Export integro: columnas y conteos coinciden con el origen.`
 
-- [ ] **Paso 5: Revisar `README.md` y actualizar `.gitignore`**
+- [x] **Paso 5: Revisar `README.md` y actualizar `.gitignore`**
 
 `supabase/tango/README.md` ya describe este flujo (se reescribió el 2026-10-06, al borrar la vía por
 LAN y la vía Docker). Sólo hay que confirmar que los comandos y los nombres de archivo coincidan con
@@ -829,7 +859,7 @@ Agregar al final de `supabase/tango/.gitignore`:
 sql/
 ```
 
-- [ ] **Paso 6: Commit** (después de que Nico lo confirme)
+- [x] **Paso 6: Commit** (después de que Nico lo confirme)
 
 ```bash
 git add supabase/tango/03_exportar_bak.py supabase/tango/test_exportar_bak.py supabase/tango/README.md supabase/tango/.gitignore
@@ -852,12 +882,45 @@ git commit -m "feat(tango): export del .bak a CSV verificable; reemplaza la vía
 - Produce, para la Fase 3: `recibo_facturas.importe`, `pago_proveedor_facturas.importe`, `notas.factura_id`
   nullable y el nuevo `CHECK` de descuento (si se eligen D1a, D2a y D3a).
 
-- [ ] **Paso 1:** Nico decide D1–D8 (D9 ya está decidida: (a)); las respuestas se anotan en la tabla de §3.
-- [ ] **Paso 1b:** D9 = (a): las percepciones de compra se construyen como **desarrollo de Compras con
+- [x] **Paso 1:** Nico decide D1–D8 (D9 ya está decidida: (a)); las respuestas se anotan en la tabla de §3.
+- [x] **Paso 1b:** D9 = (a): las percepciones de compra se construyen como **desarrollo de Compras con
   sub-plan propio** (`PLAN_MAESTRO.md` §3.9) (schema + RPC + formulario + Libro IVA Compras), **antes de la Tarea 7**. No entran en
   la migración de ajustes de abajo: cambian el comportamiento de la app, no sólo la carga.
-- [ ] **Paso 2:** Si D1 = (a), D2 = (a) y D3 = (a), la migración es esta. Se aplica **primero en el
-  dry-run** (Tarea 10) y nunca se agrega `FORCE RLS`:
+- [x] **Paso 2:** Si D1 = (a), D2 = (a) y D3 = (a), la migración es esta. Se aplica **primero en el
+  dry-run** (Tarea 10) y nunca se agrega `FORCE RLS`.
+
+  > ✅ **Aplicadas el 2026-10-06** por MCP sobre `kkdbvzixwlyeahgianuc`, en este orden:
+  >
+  > | Migración | Qué trae | Hallazgos |
+  > |---|---|---|
+  > | `20261006120000_migracion_tango_ajustes` | `importe` en `recibo_facturas` / `pago_proveedor_facturas` + los dos `recalcular_estado_*`; `notas.factura_id` nullable | D1 (H5), D2 (H6) |
+  > | `20261006130000_numeracion_unica_por_letra` | UNIQUE por letra en `facturas` y `notas`; `notas_compra.factura_compra_id` nullable | H17, H18 |
+  > | `20261006140000_percepciones_compra_schema` | tabla `percepciones_compra`, `percepciones_monto`, helpers, RLS sin FORCE | D9 (H13) |
+  > | `20261006140001_rpc_compras_percepciones` | `p_percepciones` en las 3 RPC, `*_compra_list`, Libro IVA con percepción separada del crédito fiscal | D9, H18 |
+  > | `20261006140002_notas_cliente_id_y_contador_por_letra` | `notas.cliente_id` con backfill; cuatro contadores de nota | H22, H16 |
+  >
+  > | `20261006150000_revoke_trigger_fn_de_anon` | hallazgo del chequeo post-aplicación: `asiento_balanceado_check()` quedó con `EXECUTE` a `PUBLIC` desde `20260801120000` | — |
+  >
+  > El código de abajo es el de la primera; las otras están completas en `supabase/migrations/`.
+  > `05_cargar.sh` chequea las cinco antes de cargar y aborta si falta alguna.
+  >
+  > **Verificado después de aplicar:** las columnas (`recibo_facturas.importe`,
+  > `pago_proveedor_facturas.importe`, `notas.cliente_id`, `percepciones_monto` ×2), las constraints
+  > (`facturas_tipo_numero_key`, `notas_tipo_letra_numero_key`, `percepciones_compra_owner_chk`), los
+  > dos `factura_id` nullables, y `percepciones_compra` con RLS + policy `staff_all` y **sin** FORCE.
+  > §6 de `POST_LOAD_VERIFY` da OK en los cuatro chequeos: 0 tablas sin RLS, **`anon` ejecuta 0
+  > funciones**, `anon` lee 0 tablas. Los advisors de seguridad devuelven sólo los dos warns
+  > esperados por diseño (`authenticated_security_definer_function_executable` ×46 —las RPC están
+  > hechas para que las llame `authenticated`— y `auth_leaked_password_protection`, que se resuelve
+  > en el dashboard junto con §3.4 del plan maestro).
+  >
+  > **Smoke de la RPC con percepciones** (en una transacción revertida, la base quedó intacta):
+  > factura de compra de $1.000.000 neto → IVA 21 % $210.000, percepción de IVA al 3 % calculada
+  > desde la base $30.000 + percepción de IIBB Bs. As. con monto explícito $15.000 ⇒
+  > **total $1.255.000**, con `total = neto + IVA + percepciones` cerrando al centavo. En el Libro
+  > IVA Compras el crédito fiscal queda en $210.000 y las percepciones salen en sus propias columnas
+  > ($30.000 IVA / $15.000 IIBB): **no inflan el crédito fiscal**, que es el punto 6 del Review Focus
+  > y el criterio de verificación de §3.9. `notas_compra_list()` corre con el `LEFT JOIN` nuevo.
 
 ```sql
 -- Ajustes de schema para cargar la historia de Tango (PLAN_MIGRACION_TANGO.md D1–D3)
@@ -915,9 +978,9 @@ ALTER TABLE clientes ADD CONSTRAINT clientes_descuento_porcentaje_check
   firma y los atributos de `recalcular_estado_factura` (`SECURITY`, `search_path`) siguen siendo los del
   schema `0001`. Si algún advisor fix posterior los cambió, hay que conservarlos.
 
-- [ ] **Paso 3:** Si D3 = (a), en `frontend/src/views/Clientes/index.jsx` el selector de descuento tiene que
+- [x] **Paso 3:** Si D3 = (a), en `frontend/src/views/Clientes/index.jsx` el selector de descuento tiene que
   aceptar los valores existentes (5, 7, 18), por ejemplo con un input numérico en lugar de las 4 opciones.
-- [ ] **Paso 4: Commit** (después de que Nico lo confirme) de la migración, la UI y los dos documentos.
+- [x] **Paso 4: Commit** (después de que Nico lo confirme) de la migración, la UI y los dos documentos.
 
 ### Fase 3 — ETL (CSV → `.sql` por módulo)
 
@@ -1039,31 +1102,103 @@ ser igual a `GVA14.SALDO_CC`. Es el control que mejor detecta errores de imputac
 
 ### Tarea 10: `05_cargar.sh` + dry-run
 
-- [ ] **Paso 1:** El script hace `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1` con `BEGIN;
+- [x] **Paso 1:** El script hace `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1` con `BEGIN;
   SET session_replication_role = replica;` → `TRUNCATE` de las tablas destino `RESTART IDENTITY CASCADE`
   (sin tocar `productos`, ni `config_empresa`, ni los contadores sembrados, salvo que §3.2.8 del plan
   maestro decida otra cosa) → `\i sql/*.sql` en el orden de la Fase 3 → `SET session_replication_role =
   origin; COMMIT;` → reset de secuencias (el `DO $$` de §3.2.5 del plan maestro).
+
+  Es `supabase/tango/05_cargar.sh`, y además: chequea antes de empezar que las migraciones del
+  2026-10-06 estén aplicadas y que el rol pueda hacer `SET session_replication_role` (si no, aborta
+  sin tocar nada); vacía **42 tablas**, verificadas contra `pg_constraint` para que el `CASCADE` no
+  arrastre `productos` ni los catálogos del sistema; carga `sql/31_percepciones_compra.sql`
+  **después** de `30_compras.sql`, porque reparte el `total` de Tango en `percepciones_monto`; y
+  cierra con el UPSERT de los 10 contadores (`python3 -m etl.contadores` los recalcula desde el
+  `.bak`) y el reset de secuencias. Tiene `--conteos` y `--vaciar` para los pasos 2 y 5.
 - [ ] **Paso 2:** Correr la carga **dos veces seguidas** y comparar los conteos: tienen que ser idénticos
-  (punto 5 de Review Focus).
+  (punto 5 de Review Focus). `./05_cargar.sh` imprime `sql_conteos.sql` al terminar, que trae el
+  esperado del `.bak` al lado de lo cargado.
 - [ ] **Paso 3:** `psql "$SUPABASE_DB_URL" -f supabase/POST_LOAD_VERIFY.sql`, más los controles de
-  aceptación de las Tareas 5 a 9.
+  aceptación de las Tareas 5 a 9 (`python3 -m etl.controles_ventas` / `_compras` / `_tesoreria`).
+  El script ya cubre los cuatro módulos: §1 cuenta **todas** las tablas de `public`, §3b/§3c son la
+  integridad de Compras / Tesorería / Contabilidad y el cuadre de asientos, y §5b las invariantes de
+  totales de Compras (incluida `total = neto + IVA + percepciones`, que sólo cierra si corrió el
+  `31_`). Ninguna fila debería salir con `⚠`.
 - [ ] **Paso 4:** Entrar a la app, abrir 3 clientes (uno con descuento de 18 %, uno con recibos que
   cancelan varias facturas y uno con NC), comparar la cuenta corriente con Tango y emitir un comprobante
-  de prueba en un cliente descartable.
-- [ ] **Paso 5:** Vaciar (`TRUNCATE`) hasta el cutover.
+  de prueba en un cliente descartable. Sumar una NC "a cuenta" de las 23 de H22: tiene que aparecer en
+  la lista y en el saldo del cliente.
+- [ ] **Paso 5:** Vaciar (`./05_cargar.sh --vaciar`) hasta el cutover.
+
+> **Lo que falta para poder correr los pasos 2 a 5:** sólo el URI directo de la base en un archivo
+> gitignoreado (las migraciones ya están aplicadas, Tarea 3 paso 2) —
+> `export SUPABASE_DB_URL="$(cat ../../.db_url)"`. Tiene que ser el connection string **directo**
+> (usuario `postgres`), no el pooler: el pooler no deja hacer `SET session_replication_role`.
 
 ### Tarea 11: Cutover real (runbook del día D8)
 
-1. Avisar que desde ese momento **no se carga nada más en Tango**.
-2. En la máquina vieja, con clics: Tango → *Copias de seguridad* (o SSMS → *Back Up…*, tipo **Full**, **sin
-   comprimir**) → pendrive.
-3. En esta Mac: `03_exportar_bak.py` → `02_verificar_export.py` (tiene que dar `[OK]`) → ETL → revisar
-   `sql/_anomalias.txt` → `05_cargar.sh` → `POST_LOAD_VERIFY`.
-4. **Contadores (D5):** cargar el último número de cada serie, confirmado contra ARCA (facturas y notas) y
-   contra el talonario físico (remitos).
-5. Salir en vivo. **Rollback:** Tango queda intacto y congelado (nada de este plan lo modifica), así que
-   volver atrás es seguir usándolo. El `.bak` del día queda guardado como respaldo.
+El pipeline completo tarda minutos, así que todo esto entra en una mañana. **Nada de esto toca Tango:**
+se lee un `.bak` y se carga Supabase.
+
+**Antes del día D** (se puede hacer con anticipación):
+
+- [x] Las migraciones del 2026-10-06 **aplicadas** en producción (Tarea 3 paso 2).
+- [ ] El dry-run de la Tarea 10 cerrado con `POST_LOAD_VERIFY` sin `⚠`.
+- [ ] La base **vacía** (`./05_cargar.sh --vaciar`): el `TRUNCATE` está dentro de la transacción de
+      carga, así que esto es por prolijidad, no por necesidad.
+- [ ] Usuarios de staff creados y *"Allow new users to sign up"* deshabilitado (`PLAN_MAESTRO.md` §3.4).
+- [ ] D6 cerrada (los tres códigos de estado de cheque) y D8 con fecha.
+
+**El día D:**
+
+1. [ ] Avisar que desde ese momento **no se carga nada más en Tango**. Anotar la hora.
+2. [ ] En la máquina vieja, con clics: Tango → *Copias de seguridad* (o SSMS → *Back Up…*, tipo
+   **Full**, **sin comprimir**) → pendrive. Copiar el `.bak` nuevo a la raíz del repo como
+   `MARBLOCK_SA.bak` (está gitignoreado).
+3. [ ] En esta Mac, desde `supabase/tango/`:
+
+   ```bash
+   python3 -m unittest discover -s . -p 'test_*.py' -t .   # 64 tests; falla si el .bak cambió de esquema
+   python3 03_exportar_bak.py                              # .bak → csv/
+   python3 02_verificar_export.py                          # tiene que terminar en [OK]
+   python3 -m etl                                          # csv/ → sql/ + sql/_anomalias.txt
+   ```
+
+4. [ ] **Revisar `sql/_anomalias.txt`.** Contra el `.bak` del 25/09 son 610 líneas, todas de tipos ya
+   conocidos (remitos vinculados a varias facturas, NC/ND imputadas a varias, netos ajustados contra la
+   alícuota mayor, cheques revertidos, fechas centinela). **Un tipo de anomalía que no esté en esa lista
+   frena el cutover** hasta entenderlo.
+5. [ ] **Contadores (D5).** `python3 -m etl.contadores` imprime el bloque con el último número de cada
+   serie **por fecha** (no el máximo: H4) y, aparte, las series que quedan sin contador (H21).
+   Reconfirmar antes de pegarlo en `05_cargar.sh`:
+   - facturas y notas → ARCA (`FECompUltimoAutorizado` o *Mis Comprobantes*);
+   - remitos → el **talonario físico** AGEE, que es la fuente real (Supabase quedó en 10324, H3);
+   - recibos y O/P → Tango.
+
+   Son `INSERT … ON CONFLICT (tipo) DO UPDATE`, **no `UPDATE`**: de los 10 tipos sólo existen hoy
+   `asiento`, `pago_proveedor` y `remito` (`PLAN_MAESTRO.md` §3.2.8), así que un `UPDATE` no haría nada
+   y `crear_factura` seguiría fallando con *"Contador no encontrado"*.
+6. [ ] Cargar y verificar:
+
+   ```bash
+   export SUPABASE_DB_URL="$(cat ../../.db_url)"      # connection string DIRECTO, no el pooler
+   ./05_cargar.sh
+   psql "$SUPABASE_DB_URL" -f ../POST_LOAD_VERIFY.sql
+   python3 -m etl.controles_ventas ; python3 -m etl.controles_compras ; python3 -m etl.controles_tesoreria
+   ```
+
+   Criterio de corte: **ninguna fila con `⚠`** en `POST_LOAD_VERIFY`, los conteos iguales a los que
+   imprimió el ETL, y los controles de aceptación con las mismas diferencias conocidas que en el
+   dry-run (5 proveedores con redondeos de centavos contra `CPA01.SALDO_CC`, 0 órdenes de pago
+   descuadradas).
+7. [ ] Smoke en la app, con la data real: 3 clientes (uno con descuento de 18 %, uno con varios recibos,
+   uno con NC), una NC "a cuenta" de las de H22, un comprobante de prueba en un cliente descartable
+   (que tome el número siguiente del contador) y un PDF.
+8. [ ] Salir en vivo.
+
+**Rollback:** Tango queda intacto y congelado — nada de este plan lo modifica — así que volver atrás es
+seguir usándolo, y el `.bak` del día queda guardado como respaldo. Para rehacer la carga desde cero:
+`./05_cargar.sh --vaciar` y volver al paso 6; el `TRUNCATE` dentro de la transacción la hace idempotente.
 
 ---
 

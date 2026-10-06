@@ -353,6 +353,7 @@ export const FacturasCompraAPI = {
     p_cae:                   data.cae ?? null,
     p_afip_tipo_comprobante: data.afip_tipo_comprobante ?? null,
     p_observaciones:         data.observaciones ?? null,
+    p_percepciones:          data.percepciones ?? null,
   }),
   update: (id, data) => rpc('actualizar_factura_compra', {
     p_id: id,
@@ -367,6 +368,8 @@ export const FacturasCompraAPI = {
     p_cae:                   data.cae ?? null,
     p_afip_tipo_comprobante: data.afip_tipo_comprobante ?? null,
     p_observaciones:         data.observaciones ?? null,
+    // La RPC reemplaza el detalle completo: null equivale a "sin percepciones", no a "no tocar".
+    p_percepciones:          data.percepciones ?? null,
   }),
   anular: (id) => rpc('factura_compra_anular', { p_id: id }),
 }
@@ -398,6 +401,7 @@ export const NotasCompraAPI = {
     p_punto_venta: data.punto_venta, p_numero_comp: data.numero_comp, p_fecha: data.fecha,
     p_items: data.items, p_tipo_letra: data.tipo_letra || 'A',
     p_motivo: data.motivo ?? null, p_observaciones: data.observaciones ?? null,
+    p_percepciones: data.percepciones ?? null,
   }),
 }
 

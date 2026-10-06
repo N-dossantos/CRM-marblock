@@ -59,7 +59,7 @@
 |---|---|---|
 | 0–6 | Migración Express → Supabase (schema, RLS, RPCs, Auth, capa de datos, Edge Function PDF) | ✅ completo — *salvo la config de Auth del dashboard* |
 | 4-bis | **Config de Auth en el dashboard** (apagar signup público + crear staff) | ⛔ **pendiente** — manual, crítico pre-go-live |
-| 7 | **Cutover de datos (Tango → Supabase)** | ⛔ **bloqueado** — credenciales SQL Server |
+| 7 | **Cutover de datos (Tango → Supabase)** | 🔄 **pipeline completo, migraciones aplicadas** — falta correr el dry-run contra la base (`PLAN_MIGRACION_TANGO.md` Tareas 10–11), que necesita el connection string directo. Ya **no** está bloqueado por credenciales de Tango: se lee el `.bak` directo |
 | A | Compras + Procesos Generales (audit_log, tablas_generales) | ✅ completo |
 | B | Consultas 360° Ventas / Compras | ✅ completo |
 | C | Tesorería (ledger, cheques propios, conciliación) | ✅ completo |
@@ -73,10 +73,12 @@
 | — | Productos por pallets (catálogo 25 productos) | 🔄 completo — **falta smoke E2E** |
 | — | Remito sobre talonario preimpreso | 🔄 DB + frontend listos — **falta deploy PDF + smoke** |
 | — | Facturación multi-remito (una factura cubre N remitos) | ✅ completo |
-| — | **Percepciones de compra** (D9: tabla propia + `percepciones_monto`) | ⏳ **decidido, sin empezar** — §3.9 |
+| — | **Percepciones de compra** (D9: tabla propia + `percepciones_monto`) | ✅ aplicado y probado 2026-10-06 (§3.9); falta sólo el paso 5, las cuentas contables, que va con la matriz |
 
 **Un solo bloqueo técnico** (deploy de la Edge Function `pdf`) y **un solo bloqueo de datos**
-(credenciales de Tango) explican casi todo lo que falta.
+explican casi todo lo que falta. *(Actualización 2026-10-06: el bloqueo de datos ya no son las
+credenciales de Tango —el `.bak` se lee directo— sino correr el dry-run de la carga: las 6
+migraciones del 2026-10-06 ya están aplicadas.)*
 
 ---
 
@@ -244,14 +246,24 @@ de env/secrets, ni advisors que revisar. Rollback = redesplegar la carpeta anter
 
 ### 3.2 Cutover de datos desde Tango (Fase 7) — **el bloqueo de datos raíz**
 
-> **Estado 2026-10-06:** la extracción quedó resuelta leyendo `MARBLOCK_SA.bak` directo (sin SQL Server,
-> sin credencial, sin red): ver `PLAN_MIGRACION_TANGO.md` (Tareas 1 y 2 hechas, D1–D4 y D7 decididas;
-> D5, D6 y D8 pendientes). Donde esta sección habla de la credencial de SQL Server (§3.2.3 pasos 1–4 y
-> §3.2.7), ya no hace falta.
+> **Estado 2026-10-06 (fin del día):** el pipeline está **completo y probado en seco**. Se lee
+> `MARBLOCK_SA.bak` directo (sin SQL Server, sin credencial, sin red) y las Tareas 1 a 9 están hechas:
+> lector, exportador a CSV (`[OK]` de `02_verificar_export.py`, 250.678 filas), ETL de los cuatro
+> módulos con 64 tests en verde, y los `.sql` de carga generados en `supabase/tango/sql/`. Decididas
+> D1–D4, D7 y D9; pendientes D5 (se confirma serie por serie el día del cutover), D6 y D8.
+>
+> **Las cinco migraciones `20261006120000` … `20261006140002` quedaron aplicadas** el 2026-10-06
+> (más `20261006150000`, un REVOKE que salió del chequeo posterior). Verificado: §6 de
+> `POST_LOAD_VERIFY` en OK —0 tablas sin RLS, `anon` ejecuta 0 funciones y lee 0 tablas— y los
+> advisors sólo con los dos warns esperados por diseño.
+>
+> **Lo único que falta para la Tarea 10 (dry-run):** el connection string **directo** de la base
+> (usuario `postgres`, no el pooler, que no admite `SET session_replication_role`) en un archivo
+> gitignoreado. Después, `supabase/tango/05_cargar.sh` hace la carga entera en una transacción.
+>
+> Donde esta sección habla de la credencial de SQL Server (§3.2.3 pasos 1–4 y §3.2.7), ya no hace falta.
 
-Todo lo demás está construido sobre una base **vacía**. El bloqueo es el mismo que frena la
-contabilidad automática (§3.3): **no hay credencial funcional de SSMS / SQL Server para la instancia
-de Tango**.
+Todo lo demás está construido sobre una base **vacía**.
 
 Esta sección absorbe `supabase/TANGO_Migration.md` (**qué** se carga) y las mecánicas reutilizables de
 `supabase/DATA_MIGRATION.md` (**cómo** se carga). Los dos archivos se borraron el 2026-10-06: el SQL
@@ -408,16 +420,33 @@ END $$;
 ```
 
 **3. Setear `contadores`.** No es una secuencia — está tecleada por `tipo` (+ `punto_venta`), así que
-el `DO $$` de arriba no la toca: hay que **cargarla a mano** con el último número emitido por Tango
-por tipo y punto de venta. *(Excepción ya resuelta: el contador de `remito` no sale de Tango sino del
-talonario preimpreso AGEE — ya está cargado en `00001-00010324`, próxima hoja `00001-00010325`.)*
+el `DO $$` de arriba no la toca.
+
+*Actualización 2026-10-06:* lo hace `supabase/tango/05_cargar.sh` dentro de la misma transacción de la
+carga, con un **`INSERT … ON CONFLICT (tipo) DO UPDATE` de los 10 tipos** — no un `UPDATE`, porque de
+esos 10 hoy sólo existen tres filas (§3.2.8), y un `UPDATE` sobre las que faltan no haría nada.
+`python3 -m etl.contadores` recalcula el bloque desde el `.bak` y lo imprime listo para pegar; toma el
+último número **por fecha**, no el máximo (`PLAN_MIGRACION_TANGO.md` H4), y una serie por letra (H16).
+Dos correcciones sobre lo que decía este párrafo: el contador de `remito` **no** está en
+`00001-00010324` sino que hay que cargarlo en **10366** (H3, la numeración del talonario preimpreso
+AGEE siguió avanzando), y `pago_proveedor` va en el punto de venta **00000**, no en el 00002 del seed
+(H20). La serie FAC A 00003 ("MiPyME", inactiva desde 2023) se queda sin contador porque `contadores`
+admite un punto de venta por tipo (H21).
 
 #### 3.2.6 Verificación post-carga
 
 No inventar chequeos a mano: está escrito el script que cubre **todas** las tablas y controles —
-conteo de filas (contra el origen), continuidad de numeración en `contadores`, integridad referencial
-(11 chequeos de huérfanos), cordura de secuencias vs `MAX(id)`, coherencia de totales con IVA 21%, y
-el cerrojo de RLS/`anon`/auth. Dos ediciones, los mismos chequeos:
+conteo de filas (contra el origen), continuidad de numeración en `contadores`, integridad referencial,
+cordura de secuencias vs `MAX(id)`, coherencia de totales, y el cerrojo de RLS/`anon`/auth.
+Dos ediciones, los mismos chequeos:
+
+*Actualización 2026-10-06 (Tarea 10):* el script era de julio y cubría **sólo Ventas**. Ahora §1
+cuenta **todas** las tablas de `public` de forma dinámica (una tabla nueva ya no pasa desapercibida) y
+§4 resuelve las secuencias por `pg_depend` en vez de una lista a mano. Se agregaron §3b (integridad de
+Compras / Tesorería / Contabilidad), §3c (ningún asiento descuadrado, H10) y §5b (invariantes de
+totales de Compras: `total = neto + IVA + percepciones`, cabecera contra detalle de IVA y de
+percepciones, IVA dentro de la banda 0–27 % —que es lo que delata una percepción colada en el crédito
+fiscal, H13— y `pagos_proveedor.total` contra la suma de medios).
 
 - **`supabase/POST_LOAD_VERIFY.sql`** — edición psql (`\echo` + un `DO` con `RAISE NOTICE`):
   ```bash
@@ -492,10 +521,10 @@ una factura + sus renglones + su cliente**.
   así que hoy `crear_factura` y compañía fallan con *"Contador no encontrado"* — **no es un bug**, se
   cargan en el cutover.
 - **La base ya no está vacía.** Quedan `clientes` id=1 ("Marblock SA") y, sobre todo, el **catálogo de
-  25 productos sembrado por la migración `20260819120000`**. Si el dump de Tango trae esos mismos ids
-  hay **conflicto de PK**. La nota de "base pristina" de `MIGRATION_PLAN.md` quedó desactualizada por
-  el seed de pallets: **decidir explícitamente si el catálogo de productos viene de Tango o se
-  conserva el sembrado**, antes de cargar.
+  25 productos sembrado por la migración `20260819120000`**. ✅ *Resuelto 2026-10-06:* **se conserva el
+  catálogo sembrado** (§5.1 y `PLAN_MIGRACION_TANGO.md` §3); `STA11` sólo aporta la descripción de los
+  renglones históricos. `05_cargar.sh` deja `productos` **fuera** del `TRUNCATE`, y se verificó contra
+  `pg_constraint` que el `CASCADE` de las 42 tablas que sí vacía no lo arrastre.
 - **Rollback.** Express fue borrado sin backup en git ⇒ el camino de vuelta es el **LAN Postgres que
   sigue corriendo**, no este repo.
 
@@ -754,9 +783,13 @@ y la percepción de IVA (que se computa contra el IVA a pagar) no queda registra
 3. **Lecturas** — `facturas_compra_list` / `notas_compra_list` exponen el detalle, e
    `informe_iva_compras` (Libro IVA Compras) suma columnas de **percepción IVA**, **percepción IIBB**
    (por jurisdicción) y **otros**, **separadas del crédito fiscal**.
-4. **Frontend** — grilla de percepciones (tipo, jurisdicción, alícuota, monto) en
-   `components/Forms/CompraComprobanteForm.jsx` y `NotaCompraForm.jsx`, más su paso por
-   `api/index.js`.
+4. **Frontend** — ✅ **hecho 2026-10-06.** `components/UI/index.jsx` exporta `PercepcionesTable`
+   (grilla tipo / jurisdicción / base / alícuota / monto, con el monto editable que **gana** sobre
+   base × alícuota, igual que la RPC) y `TotalesBoxMulti` toma una prop `percepciones` que suma las
+   líneas al TOTAL. La usan `CompraComprobanteForm.jsx` (sólo en factura) y `NotaCompraForm.jsx`, y
+   `api/index.js` pasa `p_percepciones` en `crear_factura_compra`, `actualizar_factura_compra` y
+   `crear_nota_compra`. Al editar, las percepciones se releen de `facturas_compra_list`. `npm run
+   build` pasa.
 5. **Contabilidad** — la matriz (§3.3) necesita las cuentas de activo para "Percepción IVA sufrida" y
    "Percepción IIBB sufrida".
 
@@ -774,8 +807,19 @@ percepciones de venta (`PLAN_MIGRACION_TANGO.md` H11).
 - Un pago por el total la deja `pagada`.
 - `anon` no lee ni ejecuta nada nuevo, y los advisors no muestran hallazgos nuevos.
 
-**Próximo paso:** escribir el sub-plan con código (migraciones + RPC + frontend), siguiendo el patrón
-de `20260821140000_ventas_percepciones.sql`, que ya resolvió la misma forma en Ventas.
+**Estado 2026-10-06:** ✅ **pasos 1 a 4 hechos, aplicados y verificados.** Migraciones
+`20261006140000` (schema + helpers + RLS) y `20261006140001` (las 3 RPC, los dos `*_list`, Libro IVA),
+más el frontend, siguiendo el patrón de `20260821140000_ventas_percepciones.sql`.
+
+Smoke contra la base (en una transacción revertida): factura de $1.000.000 neto → IVA $210.000 +
+percepción de IVA 3 % $30.000 + percepción de IIBB Bs. As. $15.000 = **total $1.255.000**, y en el
+Libro IVA Compras el crédito fiscal queda en $210.000 con las percepciones en columnas aparte —
+**no suman al crédito fiscal**. `percepciones_compra` tiene RLS + `staff_all` sin FORCE, `anon` no
+llega a nada nuevo y los advisors no trajeron hallazgos nuevos.
+
+**El paso 5** (cuentas de "Percepción IVA sufrida" e "IIBB sufrida" en la matriz) sigue bloqueado
+con §3.3. Falta además la verificación "un pago por el total la deja `pagada`", que necesita datos
+cargados: va con el smoke de la Tarea 10 paso 4.
 
 ---
 
@@ -787,8 +831,11 @@ de `20260821140000_ventas_percepciones.sql`, que ya resolvió la misma forma en 
 3. **Config de Auth en el dashboard** (§3.4) — barato y crítico antes del go-live.
 4. **Percepciones de compra** (§3.9) — hueco que existe hoy, con o sin cutover; tiene que estar antes
    de la Tarea 7 (Compras) del cutover.
-5. **Credenciales de Tango** (§3.2) — es el bloqueo raíz; todo lo de abajo espera acá.
-6. **Cutover de datos** (§3.2) — con las minas de PK y `contadores` resueltas de antemano.
+5. ~~**Credenciales de Tango**~~ — ya no hace falta: el `.bak` se lee directo (`PLAN_MIGRACION_TANGO.md`).
+   Las 6 migraciones del 2026-10-06 ya están aplicadas. En su lugar: correr el **dry-run** de la
+   carga (Tarea 10), que necesita el connection string directo en un archivo gitignoreado.
+6. **Cutover de datos** (§3.2) — el runbook del día D está en la Tarea 11 del plan de migración; las
+   minas de PK y `contadores` quedaron resueltas de antemano.
 7. **Go-live smoke-test completo** (§3.6) — todos los módulos, informes y PDFs contra la data real.
 8. **Matriz de imputación + prender el flag contable** (§3.3).
 9. **Decidir Pedidos (A o B)** (§3.5) — se puede hacer en paralelo, no depende de datos.

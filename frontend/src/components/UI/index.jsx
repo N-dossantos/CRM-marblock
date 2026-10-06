@@ -93,11 +93,110 @@ export function TotalesBoxC2({ items = [], dtoGeneral = 0 }) {
   )
 }
 
+// ── PERCEPCIONES SUFRIDAS (Compras) ─────────────────────────────────
+// Grilla de percepciones de un comprobante de compra — PLAN_MAESTRO.md §3.9 paso 4.
+// Al revés que en Ventas: acá el que liquida la percepción es el proveedor, así que el número
+// autoritativo es el `monto` impreso en el papel. crm_calc_percepciones_compra respeta el monto
+// explícito y NO lo recalcula; base y alícuota quedan como dato informativo y acá sirven, además,
+// para precargar el monto mientras se tipea.
+export const PERCEPCION_TIPOS = [
+  { value: 'iva',          label: 'Percepción IVA' },
+  { value: 'iibb',         label: 'Percepción IIBB' },
+  { value: 'ganancias',    label: 'Percepción Ganancias' },
+  { value: 'imp_internos', label: 'Impuestos internos' },
+]
+export const PERCEPCION_LABELS = Object.fromEntries(PERCEPCION_TIPOS.map((t) => [t.value, t.label]))
+
+const PERCEPCION_BASE = { tipo: 'iva', jurisdiccion: '', base_imponible: 0, alicuota: 0, monto: 0 }
+const round2 = (n) => Math.round((+n || 0) * 100) / 100
+
+export const sumaPercepciones = (percepciones = []) =>
+  round2((percepciones || []).reduce((a, p) => a + (+p.monto || 0), 0))
+
+export function PercepcionesTable({ percepciones = [], neto = 0, onChange }) {
+  const add = () => onChange([...percepciones, { ...PERCEPCION_BASE, base_imponible: round2(neto) }])
+
+  const remove = (i) => onChange(percepciones.filter((_, idx) => idx !== i))
+
+  const upd = (i, field, val) =>
+    onChange(percepciones.map((p, idx) => {
+      if (idx !== i) return p
+      if (field === 'tipo' || field === 'jurisdiccion') return { ...p, [field]: val }
+      const next = { ...p, [field]: parseFloat(val) || 0 }
+      // Tocar base o alícuota reprecarga el monto; escribirlo a mano lo deja fijo: gana el papel.
+      if (field !== 'monto') next.monto = round2(next.base_imponible * next.alicuota / 100)
+      return next
+    }))
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '14px 0 8px' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+          Percepciones sufridas
+        </span>
+        <button className="btn btn-secondary btn-sm" onClick={add}>+ Agregar percepción</button>
+      </div>
+
+      <div className="items-table-wrap">
+        <table className="items-table">
+          <thead>
+            <tr>
+              <th style={{ width: 170 }}>Tipo</th>
+              <th>Jurisdicción</th>
+              <th className="th-right" style={{ width: 120 }}>Base</th>
+              <th className="th-right" style={{ width: 70 }}>Alíc%</th>
+              <th className="th-right" style={{ width: 120 }}>Monto</th>
+              <th style={{ width: 34 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {percepciones.length === 0 ? (
+              <tr><td colSpan={6} className="empty-state">Sin percepciones</td></tr>
+            ) : percepciones.map((p, i) => (
+              <tr key={i}>
+                <td>
+                  <select className="inp inp-sm sel" value={p.tipo} onChange={(e) => upd(i, 'tipo', e.target.value)}>
+                    {PERCEPCION_TIPOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </td>
+                <td>
+                  <input className="inp inp-sm" value={p.jurisdiccion || ''}
+                    placeholder={p.tipo === 'iibb' ? 'Ej: Buenos Aires' : '—'}
+                    onChange={(e) => upd(i, 'jurisdiccion', e.target.value)} />
+                </td>
+                <td className="td-right">
+                  <input type="number" className="inp inp-sm inp-right" style={{ width: 115 }}
+                    value={p.base_imponible ?? 0} onChange={(e) => upd(i, 'base_imponible', e.target.value)} />
+                </td>
+                <td className="td-right">
+                  <input type="number" className="inp inp-sm inp-right" style={{ width: 64 }} min="0" step="0.01"
+                    value={p.alicuota ?? 0} onChange={(e) => upd(i, 'alicuota', e.target.value)} />
+                </td>
+                <td className="td-right">
+                  <input type="number" className="inp inp-sm inp-right" style={{ width: 115 }} step="0.01"
+                    value={p.monto ?? 0} onChange={(e) => upd(i, 'monto', e.target.value)} />
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red-500)', fontSize: 19, lineHeight: 1, padding: 0 }}>×</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
 // ── TOTALES BOX MULTI-ALÍCUOTA (Compras) ────────────────────────────
 // Recibe un objeto de totales ya calculado (calcTotalesMulti): general + `detalle`
 // (una línea de IVA por alícuota). Preview; el servidor recalcula (anti-tamper).
-export function TotalesBoxMulti({ totales }) {
+// `percepciones` no pasa por calcTotalesMulti: se suma al final, igual que la RPC
+// (total = neto_gravado + iva_monto + percepciones_monto).
+export function TotalesBoxMulti({ totales, percepciones = [] }) {
   const t = totales || { subtotal: 0, descuento_monto: 0, neto_gravado: 0, iva_monto: 0, total: 0, detalle: [] }
+  const percRows  = (percepciones || []).filter((p) => +p.monto)
+  const percTotal = sumaPercepciones(percRows)
   return (
     <div className="totales-box">
       <div className="totales-row">
@@ -125,9 +224,18 @@ export function TotalesBoxMulti({ totales }) {
         <span style={{ fontWeight: 600 }}>IVA total</span>
         <span style={{ fontWeight: 600 }}>{$ar(t.iva_monto)}</span>
       </div>
+      {percRows.map((p, i) => (
+        <div className="totales-row" key={i}>
+          <span>
+            {PERCEPCION_LABELS[p.tipo] || p.tipo}{p.jurisdiccion ? ` — ${p.jurisdiccion}` : ''}
+            {+p.alicuota ? <span style={{ color: 'var(--gray-400)' }}> ({p.alicuota}%)</span> : null}
+          </span>
+          <span>{$ar(p.monto)}</span>
+        </div>
+      ))}
       <div className="totales-row total">
         <span>TOTAL</span>
-        <span className="val">{$ar(t.total)}</span>
+        <span className="val">{$ar(round2(t.total + percTotal))}</span>
       </div>
     </div>
   )

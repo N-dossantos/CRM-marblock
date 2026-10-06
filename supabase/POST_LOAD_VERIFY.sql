@@ -5,24 +5,16 @@
 -- self-judge; the row-count block you compare by eye against the LAN DB.
 -- =============================================================
 
-\echo '=== 1) ROW COUNTS (compara cada número contra la LAN: corré el mismo SELECT allá) ==='
-SELECT 'clientes'          AS tabla, COUNT(*) AS filas FROM clientes
-UNION ALL SELECT 'productos',          COUNT(*) FROM productos
-UNION ALL SELECT 'presupuestos',       COUNT(*) FROM presupuestos
-UNION ALL SELECT 'presupuesto_items',  COUNT(*) FROM presupuesto_items
-UNION ALL SELECT 'remitos',            COUNT(*) FROM remitos
-UNION ALL SELECT 'remito_items',       COUNT(*) FROM remito_items
-UNION ALL SELECT 'facturas',           COUNT(*) FROM facturas
-UNION ALL SELECT 'factura_items',      COUNT(*) FROM factura_items
-UNION ALL SELECT 'notas',              COUNT(*) FROM notas
-UNION ALL SELECT 'nota_items',         COUNT(*) FROM nota_items
-UNION ALL SELECT 'recibos',            COUNT(*) FROM recibos
-UNION ALL SELECT 'recibo_medios',      COUNT(*) FROM recibo_medios
-UNION ALL SELECT 'recibo_facturas',    COUNT(*) FROM recibo_facturas
-UNION ALL SELECT 'cheques',            COUNT(*) FROM cheques
-UNION ALL SELECT 'config_empresa',     COUNT(*) FROM config_empresa
-UNION ALL SELECT 'contadores',         COUNT(*) FROM contadores
-UNION ALL SELECT 'cuentas_bancarias',  COUNT(*) FROM cuentas_bancarias
+\echo '=== 1) ROW COUNTS — todas las tablas de public (compará contra la LAN; si la carga vino de Tango, contra supabase/tango/sql_conteos.sql, que trae el esperado al lado) ==='
+-- Dinámico a propósito: la lista a mano cubría sólo Ventas (era todo lo que existía en julio) y una
+-- tabla de Compras / Tesorería / Contabilidad que quedara vacía no se notaba. query_to_xml es la
+-- única forma de contar N tablas dentro de un SELECT sin PL/pgSQL, así que esto corre igual acá y
+-- en la edición MCP.
+SELECT t.table_name AS tabla,
+       (xpath('/row/c/text()', query_to_xml(
+          format('SELECT count(*) AS c FROM public.%I', t.table_name), false, true, '')))[1]::text::bigint AS filas
+FROM information_schema.tables t
+WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE'
 ORDER BY tabla;
 
 \echo ''
@@ -51,9 +43,16 @@ UNION ALL SELECT 'factura_items->facturas',
 UNION ALL SELECT 'nota_items->notas',
        CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
   FROM nota_items i LEFT JOIN notas n ON n.id=i.nota_id WHERE n.id IS NULL
+-- `factura_id IS NOT NULL AND` es obligatorio: D2 (20261006120000) dejó `notas.factura_id` nullable
+-- para las 30 NC/ND que Tango tiene "a cuenta" o anuladas sin imputar. Sin ese filtro, esas 30 se
+-- contaban como huérfanas y el check daba ⚠ sobre datos correctos.
 UNION ALL SELECT 'notas->facturas',
        CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
-  FROM notas n LEFT JOIN facturas f ON f.id=n.factura_id WHERE f.id IS NULL
+  FROM notas n LEFT JOIN facturas f ON f.id=n.factura_id
+  WHERE n.factura_id IS NOT NULL AND f.id IS NULL
+UNION ALL SELECT 'notas->clientes (H22: toda nota tiene cliente)',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM notas n LEFT JOIN clientes c ON c.id=n.cliente_id WHERE c.id IS NULL
 UNION ALL SELECT 'recibo_medios->recibos',
        CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
   FROM recibo_medios m LEFT JOIN recibos r ON r.id=m.recibo_id WHERE r.id IS NULL
@@ -76,6 +75,84 @@ UNION ALL SELECT 'comprobantes->clientes',
     UNION ALL SELECT cliente_id FROM facturas UNION ALL SELECT cliente_id FROM recibos
   ) q LEFT JOIN clientes c ON c.id=q.cliente_id WHERE c.id IS NULL
 ORDER BY check;
+
+\echo ''
+\echo '=== 3b) INTEGRIDAD REFERENCIAL — Compras / Tesorería / Contabilidad (0 huérfanos esperado) ==='
+-- Agregado para la Tarea 10 del cutover: §3 sólo cubría Ventas, que era todo lo que existía en
+-- julio. Las FK no se validan durante la carga (session_replication_role = replica), así que estos
+-- checks son la única red: si falta uno, el huérfano entra en silencio.
+SELECT 'facturas_compra_items->facturas_compra' AS check,
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END AS status, COUNT(*) AS huerfanos
+  FROM facturas_compra_items i LEFT JOIN facturas_compra f ON f.id=i.factura_compra_id WHERE f.id IS NULL
+UNION ALL SELECT 'factura_compra_iva_detalle->facturas_compra',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM factura_compra_iva_detalle d LEFT JOIN facturas_compra f ON f.id=d.factura_compra_id WHERE f.id IS NULL
+UNION ALL SELECT 'nota_compra_items->notas_compra',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM nota_compra_items i LEFT JOIN notas_compra n ON n.id=i.nota_compra_id WHERE n.id IS NULL
+-- Igual que notas->facturas: 20261006130000 dejó factura_compra_id nullable para 3 ND "a cuenta".
+UNION ALL SELECT 'notas_compra->facturas_compra',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM notas_compra n LEFT JOIN facturas_compra f ON f.id=n.factura_compra_id
+  WHERE n.factura_compra_id IS NOT NULL AND f.id IS NULL
+UNION ALL SELECT 'pago_proveedor_facturas->pagos_proveedor',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM pago_proveedor_facturas pf LEFT JOIN pagos_proveedor p ON p.id=pf.pago_proveedor_id WHERE p.id IS NULL
+UNION ALL SELECT 'pago_proveedor_facturas->facturas_compra',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM pago_proveedor_facturas pf LEFT JOIN facturas_compra f ON f.id=pf.factura_compra_id WHERE f.id IS NULL
+UNION ALL SELECT 'pago_proveedor_medios->pagos_proveedor',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM pago_proveedor_medios m LEFT JOIN pagos_proveedor p ON p.id=m.pago_proveedor_id WHERE p.id IS NULL
+UNION ALL SELECT 'pago_proveedor_medios->cheques (terceros)',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM pago_proveedor_medios m LEFT JOIN cheques c ON c.id=m.cheque_id
+  WHERE m.cheque_id IS NOT NULL AND c.id IS NULL
+UNION ALL SELECT 'pago_proveedor_medios->cheques_propios',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM pago_proveedor_medios m LEFT JOIN cheques_propios cp ON cp.id=m.cheque_propio_id
+  WHERE m.cheque_propio_id IS NOT NULL AND cp.id IS NULL
+UNION ALL SELECT 'percepciones_compra->comprobante (XOR)',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM percepciones_compra pc
+  LEFT JOIN facturas_compra f ON f.id=pc.factura_compra_id
+  LEFT JOIN notas_compra    n ON n.id=pc.nota_compra_id
+  WHERE COALESCE(f.id, n.id) IS NULL
+UNION ALL SELECT 'comprobantes_compra->proveedores',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM (SELECT proveedor_id FROM facturas_compra UNION ALL SELECT proveedor_id FROM notas_compra
+        UNION ALL SELECT proveedor_id FROM pagos_proveedor) q
+  LEFT JOIN proveedores p ON p.id=q.proveedor_id WHERE p.id IS NULL
+UNION ALL SELECT 'movimientos_tesoreria->cuentas_bancarias',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM movimientos_tesoreria m LEFT JOIN cuentas_bancarias cb ON cb.id=m.cuenta_bancaria_id WHERE cb.id IS NULL
+UNION ALL SELECT 'movimientos_tesoreria->tipos_comprobante',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM movimientos_tesoreria m
+  LEFT JOIN tipos_comprobante_tesoreria t ON t.id=m.tipo_comprobante_tesoreria_id
+  WHERE m.tipo_comprobante_tesoreria_id IS NOT NULL AND t.id IS NULL
+UNION ALL SELECT 'cheques_propios->cuentas_bancarias',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM cheques_propios cp LEFT JOIN cuentas_bancarias cb ON cb.id=cp.cuenta_bancaria_id WHERE cb.id IS NULL
+UNION ALL SELECT 'asiento_items->asientos_contables',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM asiento_items i LEFT JOIN asientos_contables a ON a.id=i.asiento_id WHERE a.id IS NULL
+UNION ALL SELECT 'asiento_items->plan_de_cuentas',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM asiento_items i LEFT JOIN plan_de_cuentas c ON c.id=i.cuenta_id WHERE c.id IS NULL
+ORDER BY check;
+
+\echo ''
+\echo '=== 3c) CONTABILIDAD — ningún asiento descuadrado (H10: Debe = Haber al centavo) ==='
+SELECT 'asientos_descuadrados' AS check,
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END AS status, COUNT(*) AS asientos
+  FROM (SELECT asiento_id FROM asiento_items
+        GROUP BY asiento_id HAVING round(SUM(debe)-SUM(haber),2) <> 0) q
+UNION ALL
+SELECT 'asientos_sin_renglones',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE 'ⓘ revisar' END, COUNT(*)
+  FROM asientos_contables a
+  WHERE NOT EXISTS (SELECT 1 FROM asiento_items i WHERE i.asiento_id = a.id);
 
 \echo ''
 \echo '=== 4) SECUENCIAS — cada SERIAL debe estar >= MAX(id) o la próxima alta colisiona (paso 2 de PLAN_MAESTRO.md §3.2.5) ==='
@@ -113,7 +190,7 @@ END $$;
 \echo '=== 5) TOTALES — invariantes exactas de importación (multi-alícuota + percepciones) ==='
 -- Ya no se valida "IVA = 21%" (multi-alícuota 20260802120000 admite 0/10,5/21/27%) ni se re-deriva
 -- el IVA desde los ítems (habría que replicar crm_calc_totales_multi_alicuota y desincronizarse).
--- Mismos checks que POST_LOAD_VERIFY_MCP.sql §5 — mantener las dos ediciones en sync.
+-- Mismos checks que POST_LOAD_VERIFY_MCP.sql §5 y §5b — mantener las dos ediciones en sync.
 SELECT 'facturas_total_neto_iva_percep' AS check,
        CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END AS status, COUNT(*) AS filas_mal
   FROM facturas WHERE round(neto_gravado+iva_monto+COALESCE(percepciones_monto,0),2) <> total
@@ -130,6 +207,64 @@ UNION ALL
 SELECT 'facturas_iva_en_banda_0_27',
        CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
   FROM facturas WHERE iva_monto < 0 OR iva_monto > round(neto_gravado*0.27,2)+0.01;
+
+\echo ''
+\echo '=== 5b) TOTALES DE COMPRAS — invariantes exactas de la carga de Tango ==='
+-- 30_compras.sql carga `total` = CPA04.IMPORTE_TO (que ya incluye las percepciones) y recién
+-- 31_percepciones_compra.sql reparte ese total en `percepciones_monto`. O sea: estos checks sólo
+-- cierran con los dos .sql cargados, en ese orden — si 31_ no corrió, el primero da ⚠ y esa es
+-- justamente la señal. Las dos invariantes contra el detalle son exactas por construcción del ETL
+-- (`desglose()` ajusta la alícuota mayor para que los netos del detalle sumen IMPORTE_NE+IMPORTE_EX).
+SELECT 'facturas_compra_total_neto_iva_percep' AS check,
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END AS status, COUNT(*) AS filas_mal
+  FROM facturas_compra WHERE round(neto_gravado+iva_monto+COALESCE(percepciones_monto,0),2) <> total
+UNION ALL
+SELECT 'notas_compra_total_neto_iva_percep',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM notas_compra WHERE round(neto_gravado+iva_monto+COALESCE(percepciones_monto,0),2) <> total
+UNION ALL
+SELECT 'facturas_compra_percep_vs_detalle',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM facturas_compra fc WHERE COALESCE(fc.percepciones_monto,0)
+       <> COALESCE((SELECT round(SUM(pc.monto),2) FROM percepciones_compra pc
+                     WHERE pc.factura_compra_id=fc.id),0)
+UNION ALL
+SELECT 'notas_compra_percep_vs_detalle',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM notas_compra nc WHERE COALESCE(nc.percepciones_monto,0)
+       <> COALESCE((SELECT round(SUM(pc.monto),2) FROM percepciones_compra pc
+                     WHERE pc.nota_compra_id=nc.id),0)
+UNION ALL
+SELECT 'facturas_compra_neto_vs_iva_detalle',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM facturas_compra fc WHERE fc.neto_gravado
+       <> COALESCE((SELECT round(SUM(d.neto_gravado),2) FROM factura_compra_iva_detalle d
+                     WHERE d.factura_compra_id=fc.id),0)
+UNION ALL
+SELECT 'facturas_compra_iva_vs_iva_detalle',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM facturas_compra fc WHERE fc.iva_monto
+       <> COALESCE((SELECT round(SUM(d.iva_monto),2) FROM factura_compra_iva_detalle d
+                     WHERE d.factura_compra_id=fc.id),0)
+UNION ALL
+-- H13: el crédito fiscal no puede traer percepción adentro. Un slot COD_IVA 3 / 4 que se colara en
+-- factura_compra_iva_detalle infla el IVA por encima del 27 % y se delata acá.
+SELECT 'facturas_compra_iva_en_banda_0_27',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM facturas_compra WHERE iva_monto < 0 OR iva_monto > round(neto_gravado*0.27,2)+0.01
+UNION ALL
+-- Control de aceptación de la Tarea 7 (etl/controles_compras.py: 0 diferencias sobre el .bak del 25/09).
+SELECT 'pagos_proveedor_total_vs_medios',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE '⚠ REVISAR' END, COUNT(*)
+  FROM pagos_proveedor pp WHERE pp.total
+       <> COALESCE((SELECT round(SUM(m.monto),2) FROM pago_proveedor_medios m
+                     WHERE m.pago_proveedor_id=pp.id),0)
+UNION ALL
+-- Una percepción sin tipo válido no entra (CHECK), pero una con monto 0 es carga a medias.
+SELECT 'percepciones_compra_con_monto_0',
+       CASE WHEN COUNT(*)=0 THEN 'OK' ELSE 'ⓘ revisar' END, COUNT(*)
+  FROM percepciones_compra WHERE monto = 0
+ORDER BY check;
 
 \echo ''
 \echo '=== 6) SEGURIDAD — RLS/anon/auth listos para go-live ==='
