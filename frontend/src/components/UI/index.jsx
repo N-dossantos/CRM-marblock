@@ -1,6 +1,7 @@
 // src/components/UI/index.jsx
 import { useEffect, useId, useState } from 'react'
 import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem } from '../../utils'
+import { useEscape } from '../../hooks/useEscape'
 
 // Vive en su propio archivo (combobox con teclado + filtrado); se reexporta para que los
 // formularios lo importen desde '../UI' como al resto.
@@ -17,6 +18,7 @@ export function Badge({ estado }) {
 
 // ── MODAL ────────────────────────────────────────────────────────────
 export function Modal({ title, size = 'md', onClose, footer, children }) {
+  useEscape(onClose)
   return (
     <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal modal-${size}`}>
@@ -467,4 +469,26 @@ export function EmptyState({ icon = '📋', message = 'Sin resultados' }) {
 // ── LOADING ──────────────────────────────────────────────────────────
 export function Loading() {
   return <div className="loading-wrap">Cargando…</div>
+}
+
+// ── PAGINADOR ────────────────────────────────────────────────────────
+// Pie de las listas paginadas en el servidor (useListaPaginada): "1–50 de 4.596" + anterior/siguiente.
+export function Paginador({ pagina, total, porPagina, onChange, disabled = false }) {
+  if (total <= porPagina) return null
+  const paginas = Math.ceil(total / porPagina)
+  const desde   = pagina * porPagina + 1
+  const hasta   = Math.min(total, desde + porPagina - 1)
+  const n       = (x) => x.toLocaleString('es-AR')
+  return (
+    <div className="paginador">
+      <span>{n(desde)}–{n(hasta)} de {n(total)}</span>
+      <div className="paginador-btns">
+        <button className="btn btn-secondary btn-sm" disabled={disabled || pagina === 0} onClick={() => onChange(0)}>«</button>
+        <button className="btn btn-secondary btn-sm" disabled={disabled || pagina === 0} onClick={() => onChange(pagina - 1)}>‹ Anterior</button>
+        <span>Página {n(pagina + 1)} de {n(paginas)}</span>
+        <button className="btn btn-secondary btn-sm" disabled={disabled || pagina >= paginas - 1} onClick={() => onChange(pagina + 1)}>Siguiente ›</button>
+        <button className="btn btn-secondary btn-sm" disabled={disabled || pagina >= paginas - 1} onClick={() => onChange(paginas - 1)}>»</button>
+      </div>
+    </div>
+  )
 }

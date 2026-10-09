@@ -1,5 +1,5 @@
 // src/views/Informes/index.jsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { InformesAPI, ClientesAPI, CuentasBancariasAPI, MovimientosTesoreriaAPI, PlanCuentasAPI, pdfUrl } from '../../api'
 import { $ar, fFecha, hoy } from '../../utils'
 import { Loading } from '../../components/UI'
@@ -76,8 +76,13 @@ export default function Informes() {
   const [estadoCheque, setEstadoCheque] = useState('')
   const [cuentasCtb, setCuentasCtb] = useState([])
   const [cuentaCtb, setCuentaCtb]   = useState('')
-  const [data, setData]         = useState(null)
+  // Los datos quedan etiquetados con la solapa que los pidió: al cambiar de solapa el primer render
+  // ya es de la nueva, y si se dibujara con los datos de la anterior (otra forma) se rompe la
+  // pantalla. `pedido` descarta además la respuesta de una consulta vieja que llegue tarde.
+  const [res, setRes]           = useState({ tab: null, data: null })
   const [loading, setLoading]   = useState(false)
+  const pedido = useRef(0)
+  const data = res.tab === tab ? res.data : null
   const [pdfModal, setPdfModal] = useState(null)
 
   useEffect(() => { ClientesAPI.list().then(setClientes) }, [])
@@ -97,8 +102,11 @@ export default function Informes() {
   useEffect(() => { cargar() }, [tab])
 
   const cargar = async () => {
+    const id = ++pedido.current
+    const tabPedida = tab
+    const setData = (d) => { if (id === pedido.current) setRes({ tab: tabPedida, data: d }) }
     setLoading(true)
-    setData(null)
+    setRes({ tab: null, data: null })
     try {
       switch (tab) {
         case 'ventas':
@@ -160,7 +168,7 @@ export default function Informes() {
           break
       }
     } finally {
-      setLoading(false)
+      if (id === pedido.current) setLoading(false)
     }
   }
 
@@ -809,43 +817,51 @@ export default function Informes() {
             </div>
           )}
 
-          {/* MAYOR TESORERÍA */}
-          {tab === 'mayor_tes' && data.cuentas && (
-            <div className="tbl-wrap">
-              <table>
-                <thead><tr>
-                  <th>Cuenta</th><th>Clase</th>
-                  <th className="th-right">Saldo inicial</th><th className="th-right">Débitos</th>
-                  <th className="th-right">Créditos</th><th className="th-right">Saldo final</th>
-                </tr></thead>
-                <tbody>
-                  {data.cuentas.length === 0
-                    ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin cuentas</td></tr>
-                    : data.cuentas.map(c => (
-                      <tr key={c.id}>
-                        <td className="td-bold">{c.descripcion}</td>
-                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.clase}</td>
-                        <td className="td-right">{$ar(c.saldo_inicial || 0)}</td>
-                        <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(c.debitos || 0)}</td>
-                        <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(c.creditos || 0)}</td>
-                        <td className="td-right td-bold">{$ar(c.saldo_final || 0)}</td>
+          {/* MAYOR TESORERÍA — sólo el período: entradas, salidas y su diferencia por cuenta.
+              El saldo inicial/final que trae el RPC es histórico (desde el alta de la cuenta) y no
+              se muestra acá; para el saldo a la fecha está "Saldos tesorería". */}
+          {tab === 'mayor_tes' && data.cuentas && (() => {
+            const ctas = data.cuentas.filter(c => +c.creditos || +c.debitos)
+            const tot  = ctas.reduce((a, c) => ({ e: a.e + +c.creditos, s: a.s + +c.debitos }), { e: 0, s: 0 })
+            return (
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <th>Cuenta</th><th>Clase</th>
+                    <th className="th-right">Entradas (Debe)</th><th className="th-right">Salidas (Haber)</th>
+                    <th className="th-right">Diferencia</th>
+                  </tr></thead>
+                  <tbody>
+                    {ctas.length === 0
+                      ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos en el período</td></tr>
+                      : ctas.map(c => {
+                        const dif = +c.creditos - +c.debitos
+                        return (
+                          <tr key={c.id}>
+                            <td className="td-bold">{c.descripcion}</td>
+                            <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.clase}</td>
+                            <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(c.creditos || 0)}</td>
+                            <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(c.debitos || 0)}</td>
+                            <td className="td-right td-bold" style={{ color: dif < 0 ? 'var(--red-500)' : 'inherit' }}>{$ar(dif)}</td>
+                          </tr>
+                        )
+                      })
+                    }
+                  </tbody>
+                  {ctas.length > 0 && (
+                    <tfoot>
+                      <tr style={{ fontWeight: 700, borderTop: '2px solid var(--gray-200)' }}>
+                        <td colSpan={2} className="td-right">Totales del período</td>
+                        <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(tot.e)}</td>
+                        <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(tot.s)}</td>
+                        <td className="td-right">{$ar(tot.e - tot.s)}</td>
                       </tr>
-                    ))
-                  }
-                </tbody>
-                {data.totales && data.cuentas.length > 0 && (
-                  <tfoot>
-                    <tr style={{ fontWeight: 700, borderTop: '2px solid var(--gray-200)' }}>
-                      <td colSpan={3} className="td-right">Totales</td>
-                      <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(data.totales.debitos || 0)}</td>
-                      <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(data.totales.creditos || 0)}</td>
-                      <td className="td-right">{$ar(data.totales.saldo_final || 0)}</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          )}
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            )
+          })()}
 
           {/* MOVIMIENTOS POR OPERACIÓN */}
           {tab === 'oper_tes' && data.operaciones && (

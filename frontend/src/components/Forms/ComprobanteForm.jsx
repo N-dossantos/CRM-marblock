@@ -1,8 +1,8 @@
 // src/components/Forms/ComprobanteForm.jsx
 // Formulario reutilizable para Factura, Presupuesto y Remito
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal, ClienteSearch } from '../UI'
-import { calcTotalesMulti } from '../../utils'
+import { calcTotalesMulti, renglonesDeRemito } from '../../utils'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
 import toast from 'react-hot-toast'
 
@@ -72,6 +72,38 @@ export default function ComprobanteForm({
     multiIva ? { alicuota_iva_id: alic21?.id } : null,
   )
 
+  // Remito → factura: el remito se emite sin precio (es para el camión), así que cada renglón que
+  // llega de un remito con precio 0 toma el precio de lista del producto. Cubre las dos entradas:
+  // el checkbox de remitos pendientes y el botón "→ Factura" del listado de remitos (que llega por
+  // `initial`, a veces antes de que carguen los productos — por eso es un efecto y no va en el
+  // toggle). `_precio_auto` marca el renglón ya resuelto: si el operador después lo pone en 0 a
+  // propósito, no se lo vuelve a pisar.
+  useEffect(() => {
+    if (tipo !== 'factura' || !productos.length) return
+    setForm(f => {
+      let cambio = false
+      const items = f.items.map(it => {
+        if (!it._remito_id || it._precio_auto || +it.precio_unitario > 0) return it
+        const p = productos.find(p => p.id === +it.producto_id)
+        if (!p) return it
+        cambio = true
+        return { ...it, precio_unitario: +p.precio_sin_iva || 0, _precio_auto: true }
+      })
+      return cambio ? { ...f, items } : f
+    })
+  }, [tipo, productos, form.items])
+
+  // Factura nueva que llega con el cliente ya elegido (botón "→ Factura" de un remito): no pasa
+  // por onCliChange, así que el descuento del cliente se aplica acá, una sola vez.
+  const dtoClienteAplicado = useRef(initial.descuento_general != null || !!initial.id)
+  useEffect(() => {
+    if (dtoClienteAplicado.current || tipo !== 'factura' || !form.cliente_id) return
+    const cl = clientes.find(c => c.id === +form.cliente_id)
+    if (!cl) return
+    dtoClienteAplicado.current = true
+    if (cl.descuento_porcentaje != null) setForm(f => ({ ...f, descuento_general: +cl.descuento_porcentaje }))
+  }, [tipo, clientes, form.cliente_id])
+
   // Auto-aplicar descuento del cliente al seleccionarlo
   const onCliChange = (cliId) => {
     const cl = clientes.find(c => c.id === +cliId)
@@ -87,6 +119,7 @@ export default function ComprobanteForm({
       // obra suele ser otro (capataz/obrador) y es el que sirve si hay que llamar en la entrega.
       ...(esRemito && !f.telefono_entrega && cl?.telefono ? { telefono_entrega: cl.telefono } : {}),
     }))
+    dtoClienteAplicado.current = true
     onClienteChange?.(cliId)
   }
 
@@ -103,13 +136,9 @@ export default function ComprobanteForm({
         remito_ids: marcado ? f.remito_ids.filter(x => x !== id) : [...f.remito_ids, id],
         items: marcado
           ? f.items.filter(it => it._remito_id !== id)
-          : [...f.items, ...(rem?.items || [])
-              // La línea de pallets vacíos de cada remito se descarta a propósito:
-              // usePalletsVacios mantiene UNA sola sincronizada con el total y su findIndex sólo
-              // ve la primera, así que una segunda quedaría huérfana sumando de más. Sin ninguna,
-              // el hook la regenera consolidada sobre el total de los remitos juntos.
-              .filter(it => !it.es_pallet_vacio)
-              .map(it => ({ ...it, _remito_id: id }))],
+          // La línea de pallets vacíos de cada remito se descarta si el hook la puede regenerar
+          // consolidada (ver renglonesDeRemito): una por remito quedaría huérfana sumando de más.
+          : [...f.items, ...renglonesDeRemito(rem)],
       }
     })
   }
@@ -145,8 +174,9 @@ export default function ComprobanteForm({
     const payload = {
       cliente_id:        +form.cliente_id,
       descuento_general: +form.descuento_general || 0,
-      // `_remito_id` es sólo para saber qué renglón vino de qué remito dentro del formulario.
-      items:             form.items.map(({ _remito_id, ...it }) => it),
+      // `_remito_id` / `_precio_auto` son marcas de UI (qué renglón vino de qué remito, y si ya
+      // tomó el precio de lista): no van al servidor.
+      items:             form.items.map(({ _remito_id, _precio_auto, ...it }) => it),
       observaciones:     form.observaciones,
       ...(esRemitoNuevo && { numero: form.numero.trim() }),
       ...(esRemito && {
@@ -168,6 +198,13 @@ export default function ComprobanteForm({
       setLoading(false)
     }
   }
+
+  // Renglones de remito sin producto del catálogo (artículos de Tango que el CRM no tiene: bloques
+  // huecos, rodados…): no hay precio de lista que tomar y quedan en 0 hasta que el operador elija
+  // el producto o cargue el precio.
+  const sinPrecio = tipo === 'factura'
+    ? form.items.filter(it => it._remito_id && !it.producto_id && !(+it.precio_unitario > 0)).length
+    : 0
 
   const totMulti = multiIva ? calcTotalesMulti(form.items, form.descuento_general, alicuotasById) : null
 
@@ -318,6 +355,16 @@ export default function ComprobanteForm({
           <label className="lbl">Remitos facturados</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {initial.remitos.map(r => <span key={r.id} className="code">{r.numero}</span>)}
+          </div>
+        </div>
+      )}
+
+      {sinPrecio > 0 && (
+        <div className="warn-box" style={{ marginBottom: 14 }}>
+          <span>⚠️</span>
+          <div>
+            {sinPrecio === 1 ? 'Un renglón' : `${sinPrecio} renglones`} del remito no {sinPrecio === 1 ? 'tiene' : 'tienen'} producto
+            del catálogo y {sinPrecio === 1 ? 'quedó' : 'quedaron'} sin precio: elegí el producto o cargá el precio a mano.
           </div>
         </div>
       )}

@@ -65,6 +65,21 @@ class Reglas(unittest.TestCase):
         self.assertEqual(filas[0][4:9], ("ND", "A", "2016-05-02", None, 77))
         self.assertTrue(any("sin factura imputada" in a for a in comun.ANOMALIAS))
 
+    def test_vincular_productos_cruza_por_descripcion(self):
+        """M6: sin producto_id el remito de Tango no toma el precio de lista al pasar a factura. El
+        codigo de Tango no es el del CRM ('0004' -> '6'); lo no mapeado (arena) no entra al UPDATE."""
+        sql = ventas.vincular_productos({"0004": "Bloque Liso 15 Portante", "021": "Arena", "0016": "O'Pallets"},
+                                        ("remito_items",))
+        self.assertIn("UPDATE remito_items t SET producto_id = p.id", sql)
+        self.assertIn("('Bloque Liso 15 Portante', '6')", sql)
+        self.assertIn("('O''Pallets', '24')", sql)
+        self.assertNotIn("Arena", sql)
+        self.assertIn("t.producto_id IS NULL", sql)
+
+    def test_vincular_productos_rechaza_descripciones_repetidas(self):
+        with self.assertRaises(ValueError):
+            ventas.vincular_productos({"0001": "Bloque", "0002": "Bloque"}, ("remito_items",))
+
 
 if __name__ == "__main__":
     unittest.main()

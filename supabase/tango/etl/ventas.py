@@ -17,6 +17,36 @@ ALICUOTAS = {D("0"): 1, D("10.5"): 2, D("21"): 3, D("27"): 4}       # alicuotas_
 TOL = D("0.01")
 CONSUMIDOR_FINAL = "000004"       # COD_CLIENT de "Consumidor Final" en GVA14
 
+# Articulo de Tango (STA11.COD_ARTICU) -> productos.codigo del CRM. Los codigos NO coinciden (el CRM
+# renumero el catalogo: '0004' de Tango es el 14x19x39 Portante, '4' del CRM es el 19x19x39 Estandar),
+# asi que el cruce sale de la medida de STA11.DESC_ADIC contra la descripcion del CRM. Lo que no esta
+# aca (arena, piedra, ferrite, bloques huecos, ladrillo techo, rodados, descarga, gastos bancarios,
+# cheque rechazado) no tiene producto en el CRM y queda con producto_id NULL. Sin producto_id, un
+# remito de Tango no puede tomar el precio de lista al pasar a factura (M6).
+ARTICULO_A_PRODUCTO = {
+    "0001": "1",  "0002": "2",  "0003": "3",  "0004": "6",  "0005": "7",  "0006": "8",
+    "0007": "10", "0008": "11", "0009": "12", "0010": "13", "0011": "14", "0012": "15",
+    "0013": "17", "0014": "18", "0015": "23", "0016": "24", "0017": "25", "023": "16",
+    "024": "20",  "0030": "22", "0031": "4",  "0032": "5",  "0034": "9",  "0035": "21",
+    "0036": "19",
+}
+
+
+def vincular_productos(descripciones, tablas):
+    """UPDATE que completa producto_id en los renglones ya cargados. Los renglones guardan la descripcion
+    de STA11 (no el COD_ARTICU), y entre los articulos mapeados no hay dos con la misma descripcion, asi que
+    se cruza por descripcion: un UPDATE por tabla en vez de un VALUES con miles de ids."""
+    pares = sorted({(descripciones[c], p) for c, p in ARTICULO_A_PRODUCTO.items() if c in descripciones})
+    if len({d for d, _ in pares}) != len(pares):
+        raise ValueError("dos articulos mapeados comparten descripcion en STA11")
+    lit = lambda s: "'%s'" % s.replace("'", "''")
+    valores = ",\n    ".join("(%s, %s)" % (lit(d), lit(p)) for d, p in pares)
+    return "".join(
+        "UPDATE %s t SET producto_id = p.id\n  FROM (VALUES\n    %s\n  ) m(descripcion, codigo)\n"
+        "  JOIN productos p ON p.codigo = m.codigo\n"
+        " WHERE t.descripcion = m.descripcion AND t.producto_id IS NULL;\n" % (t, valores)
+        for t in tablas)
+
 
 def alicuota_id(porc, exento):
     if exento != 0 or porc == 0:
@@ -320,6 +350,7 @@ def generar():
                             "fecha_emision", "fecha_vcto", "monto"], rmed),
         C("cheques", ["id", "numero", "banco", "titular", "cuit_titular", "fecha_emision", "fecha_vcto", "monto",
                       "cliente_id", "proveedor_id", "estado"], chq),
+        vincular_productos(desc, ("factura_items", "remito_items", "nota_items")),
     ] + [comun.reset_secuencia(t) for t in ("facturas", "factura_items", "remitos", "remito_items", "notas", "nota_items",
                                            "recibos", "recibo_facturas", "recibo_medios", "cheques")]
     comun.escribir_sql("20_ventas.sql", partes)

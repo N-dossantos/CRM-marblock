@@ -62,3 +62,4 @@ scratch/
 
 # Supabase CLI (estado local del link, no del proyecto)
 supabase/.temp/
+.db_url

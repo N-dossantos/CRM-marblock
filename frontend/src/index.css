@@ -205,6 +205,12 @@ body { min-height: 100vh; overflow: hidden; }
   box-shadow: var(--shadow-sm);
 }
 table { width: 100%; border-collapse: collapse; }
+.paginador {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; border-top: 1px solid var(--gray-200);
+  font-size: 12px; color: var(--gray-500);
+}
+.paginador-btns { display: flex; align-items: center; gap: 6px; }
 th {
   background: var(--gray-50);
   padding: 9px 14px;

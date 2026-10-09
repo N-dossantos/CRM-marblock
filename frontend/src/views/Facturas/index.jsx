@@ -1,8 +1,9 @@
 // src/views/Facturas/index.jsx
 import { useState, useEffect, useCallback } from 'react'
+import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { FacturasAPI, ClientesAPI, ProductosAPI, AlicuotasIvaAPI, RemitosAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
-import { Badge, Loading, EmptyState } from '../../components/UI'
+import { Badge, Loading, EmptyState, Paginador } from '../../components/UI'
 import ComprobanteForm from '../../components/Forms/ComprobanteForm'
 import ReciboForm from '../../components/Forms/ReciboForm'
 import NotaForm from '../Notas/NotaForm'
@@ -10,8 +11,6 @@ import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
 export default function Facturas() {
-  const [rows, setRows]         = useState([])
-  const [loading, setLoading]   = useState(true)
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
   const [alicuotas, setAlicuotas] = useState([])
@@ -24,12 +23,8 @@ export default function Facturas() {
   const [remPend, setRemPend]   = useState([])   // remitos pendientes del cliente elegido
   const [remLoading, setRemLoading] = useState(false)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    FacturasAPI.list({ q: search, estado: filtroEst }).then(setRows).finally(() => setLoading(false))
-  }, [search, filtroEst])
-
-  useEffect(() => { load() }, [load])
+  const { rows, total, loading, pagina, setPagina, recargar: load } =
+    useListaPaginada(FacturasAPI.list, { q: search, estado: filtroEst })
   useEffect(() => {
     ClientesAPI.list().then(setClientes)
     ProductosAPI.list({ activo: true }).then(setProductos)
@@ -152,6 +147,7 @@ export default function Facturas() {
             </tbody>
           </table>
         )}
+        <Paginador pagina={pagina} total={total} porPagina={POR_PAGINA} onChange={setPagina} disabled={loading} />
       </div>
 
       {facForm && (
@@ -176,8 +172,8 @@ export default function Facturas() {
           initial={reciboFor}
           onSave={async (payload) => {
             const { RecibosAPI } = await import('../../api')
-            await RecibosAPI.create(payload)
-            toast.success('Cobro registrado')
+            const r = await RecibosAPI.create(payload)
+            toast.success(r?.numero ? `Cobro registrado — Recibo ${r.numero}` : 'Cobro registrado')
             setReciboFor(null); load()
           }}
           onClose={() => setReciboFor(null)}

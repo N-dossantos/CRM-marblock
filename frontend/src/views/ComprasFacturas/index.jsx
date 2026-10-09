@@ -2,18 +2,17 @@
 // Facturas de COMPRA (Fase A). Espeja views/Facturas pero: proveedor (no cliente),
 // numeración del proveedor, IVA multi-alícuota, "Pagar" abre PagoProveedorForm y
 // "NC/ND" abre NotaCompraForm. Sin PDF: los comprobantes de compra son del proveedor.
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { FacturasCompraAPI, ProveedoresAPI, MaterialesAPI, AlicuotasIvaAPI, PagosProveedorAPI, NotasCompraAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
-import { Badge, Loading, EmptyState } from '../../components/UI'
+import { Badge, Loading, EmptyState, Paginador } from '../../components/UI'
 import CompraComprobanteForm from '../../components/Forms/CompraComprobanteForm'
 import PagoProveedorForm from '../../components/Forms/PagoProveedorForm'
 import NotaCompraForm from '../../components/Forms/NotaCompraForm'
 import toast from 'react-hot-toast'
 
 export default function ComprasFacturas() {
-  const [rows, setRows]           = useState([])
-  const [loading, setLoading]     = useState(true)
   const [proveedores, setProveedores] = useState([])
   const [materiales, setMateriales]   = useState([])
   const [alicuotas, setAlicuotas]     = useState([])
@@ -23,12 +22,8 @@ export default function ComprasFacturas() {
   const [pagoFor, setPagoFor]     = useState(null)  // { provId, facIds, totalSugerido }
   const [notaFor, setNotaFor]     = useState(null)  // factura
 
-  const load = useCallback(() => {
-    setLoading(true)
-    FacturasCompraAPI.list({ q: search, estado: filtroEst }).then(setRows).finally(() => setLoading(false))
-  }, [search, filtroEst])
-
-  useEffect(() => { load() }, [load])
+  const { rows, total, loading, pagina, setPagina, recargar: load } =
+    useListaPaginada(FacturasCompraAPI.list, { q: search, estado: filtroEst })
   useEffect(() => {
     ProveedoresAPI.list().then(setProveedores)
     MaterialesAPI.list({ activo: true }).then(setMateriales)
@@ -124,6 +119,7 @@ export default function ComprasFacturas() {
             </tbody>
           </table>
         )}
+        <Paginador pagina={pagina} total={total} porPagina={POR_PAGINA} onChange={setPagina} disabled={loading} />
       </div>
 
       {facForm && (

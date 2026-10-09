@@ -346,7 +346,7 @@ export async function generarMayorTesoreria(data: any, empresa: any, filtros: an
     const W = doc.page.width
     const M = 45
     const ancho = W - M * 2
-    const { cuentas = [], totales = {} } = data
+    const { cuentas = [] } = data
 
     let y = dibujarHeader(doc, empresa, 'MAYOR TESORERÍA', '', new Date().toISOString().split('T')[0])
 
@@ -359,35 +359,39 @@ export async function generarMayorTesoreria(data: any, empresa: any, filtros: an
       y += 6
     }
 
+    // Sólo el período: el saldo inicial/final del RPC es histórico (desde el alta de la cuenta).
+    // Se listan las cuentas con movimiento en el período, con su diferencia entradas − salidas.
     const cols = [
-      { label: 'Cuenta',        w: ancho - 70 - 95 - 95 - 100, align: 'left'  },
-      { label: 'Clase',         w: 70,  align: 'left'  },
-      { label: 'Saldo inicial', w: 95,  align: 'right' },
-      { label: 'Débitos',       w: 95,  align: 'right' },
-      { label: 'Saldo final',   w: 100, align: 'right' },
+      { label: 'Cuenta',          w: ancho - 70 - 95 - 95 - 100, align: 'left'  },
+      { label: 'Clase',           w: 70,  align: 'left'  },
+      { label: 'Entradas (Debe)', w: 95,  align: 'right' },
+      { label: 'Salidas (Haber)', w: 95,  align: 'right' },
+      { label: 'Diferencia',      w: 100, align: 'right' },
     ]
-    // Nota: se muestran saldo inicial, débitos y saldo final; los créditos se derivan
-    // (saldo_final = saldo_inicial + creditos − debitos). Columna créditos omitida por ancho.
     y = dibujarCabeceraTabla(doc, y, cols)
 
-    cuentas.forEach((c: any, i: number) => {
+    const conMov = cuentas.filter((c: any) => Number(c.creditos) || Number(c.debitos))
+    let totE = 0, totS = 0
+    conMov.forEach((c: any, i: number) => {
+      const e = Number(c.creditos) || 0, s = Number(c.debitos) || 0
+      totE += e; totS += s
       y = dibujarFilaItem(doc, y, [
         c.descripcion || '—',
         c.clase || '—',
-        $ar(c.saldo_inicial),
-        $ar(c.debitos),
-        $ar(c.saldo_final),
+        $ar(e),
+        $ar(s),
+        $ar(e - s),
       ], cols, i % 2 === 1)
       if (y > doc.page.height - 120) { doc.addPage(); y = 50; y = dibujarCabeceraTabla(doc, y, cols) }
     })
 
-    // Totales
+    // Totales del período
     y += 4
     doc.rect(M, y, ancho, 26).fill(COLORES.azul_oscuro)
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(9)
-       .text(`Débitos: ${$ar(totales.debitos)}   ·   Créditos: ${$ar(totales.creditos)}`, M + 8, y + 9)
+       .text(`Entradas: ${$ar(totE)}   ·   Salidas: ${$ar(totS)}`, M + 8, y + 9)
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12)
-       .text(`Saldo final: ${$ar(totales.saldo_final)}`, M + 8, y + 8, { width: ancho - 16, align: 'right' })
+       .text(`Diferencia: ${$ar(totE - totS)}`, M + 8, y + 8, { width: ancho - 16, align: 'right' })
 
     dibujarFooter(doc, empresa)
     doc.end()

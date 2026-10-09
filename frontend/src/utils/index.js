@@ -164,3 +164,22 @@ export const fechaLarga = () =>
   new Date().toLocaleDateString('es-AR', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
+
+// Renglones de un remito listos para sumarse a una factura: los usan el checkbox de remitos
+// pendientes de ComprobanteForm y el botón "→ Factura" del listado de remitos, que tienen que dar
+// lo mismo. Cada renglón queda etiquetado con `_remito_id` (destildar el remito se lleva sólo los
+// suyos). La línea de pallets vacíos se descarta cuando el resto del remito trae `pallets`:
+// usePalletsVacios la regenera UNA sola, consolidada sobre el total de los remitos marcados. Los
+// remitos que vienen de Tango no traen `pallets` en los renglones — su línea "Pallets" es el único
+// dato —, así que ahí se conserva, marcada como manual para que el hook no la borre al ver total 0.
+export const renglonesDeRemito = (rem) => {
+  const items = rem?.items || []
+  const regenerable = items.some(it => !it.es_pallet_vacio && (parseInt(it.pallets, 10) || 0) > 0)
+  return items
+    .filter(it => !(it.es_pallet_vacio && regenerable))
+    .map(it => ({
+      ...it,
+      _remito_id: rem.id,
+      ...(it.es_pallet_vacio && { pallets: it.pallets ?? Math.trunc(+it.cantidad || 0), pallets_auto: false }),
+    }))
+}

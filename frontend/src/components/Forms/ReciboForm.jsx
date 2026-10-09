@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Modal, ClienteSearch } from '../UI'
 import { $ar } from '../../utils'
-import { FacturasAPI, ConfigAPI } from '../../api'
+import { FacturasAPI, ConfigAPI, RecibosAPI } from '../../api'
 import toast from 'react-hot-toast'
 
 const MEDIO_BASE = { tipo: 'efectivo', detalle: '', monto: 0, cuenta_bancaria_id: '' }
@@ -17,10 +17,21 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
   })
   const [cuentas, setCuentas]  = useState([])
   const [loading, setLoading]  = useState(false)
+  // El recibo se escribe sobre talonario: el número se prellena con el próximo de `contadores`, pero
+  // queda editable porque a veces una hoja se tacha o se pierde la copia (M7). Sólo se manda si el
+  // operador lo cambió; si no, lo asigna crear_recibo al guardar (dos formularios abiertos a la vez
+  // no chocan por el mismo sugerido).
+  const [sugerido, setSugerido] = useState(null)
+  const [numero, setNumero]     = useState('')
 
   useEffect(() => {
     ConfigAPI.cuentasBancarias().then(setCuentas)
+    RecibosAPI.numeroSugerido()
+      .then(n => { setSugerido(n); setNumero(actual => actual || n || '') })
+      .catch(() => {})
   }, [])
+
+  const numeroManual = numero.trim() && numero.trim() !== sugerido ? numero.trim() : null
 
   // Cuando cambia el cliente, traer sus facturas pendientes + parciales.
   // Las dos listas se resuelven juntas y se mergean en un solo setForm: dos .then() sueltos
@@ -84,6 +95,9 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
     if (!form.cliente_id)    { toast.error('Seleccione un cliente'); return }
     if (!form.medios.length) { toast.error('Agregue al menos un medio de pago'); return }
     if (totalMedios <= 0)    { toast.error('El total debe ser mayor a cero'); return }
+    if (numeroManual && !/^\d{5}-\d{8}$/.test(numeroManual)) {
+      toast.error('El número del recibo debe tener el formato 00001-00004289'); return
+    }
 
     setLoading(true)
     try {
@@ -92,6 +106,7 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
         factura_ids:  form.selFacs,
         medios:       form.medios,
         observaciones: form.observaciones,
+        ...(numeroManual && { numero: numeroManual }),
       })
     } finally {
       setLoading(false)
@@ -112,14 +127,33 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
         </>
       }
     >
-      {/* Cliente */}
-      <div className="field">
-        <label className="lbl">Cliente *</label>
-        <ClienteSearch
-          clientes={clientes}
-          value={form.cliente_id}
-          onChange={cliId => setForm(f => ({ ...f, cliente_id: cliId, selFacs: [], facturas: [] }))}
-        />
+      <div className="form-row3">
+        {/* Cliente */}
+        <div className="field" style={{ gridColumn: '1 / 3' }}>
+          <label className="lbl">Cliente *</label>
+          <ClienteSearch
+            clientes={clientes}
+            value={form.cliente_id}
+            onChange={cliId => setForm(f => ({ ...f, cliente_id: cliId, selFacs: [], facturas: [] }))}
+          />
+        </div>
+
+        {/* Número de la hoja del talonario */}
+        <div className="field">
+          <label className="lbl">N° de recibo</label>
+          <input
+            className="inp"
+            value={numero}
+            placeholder="00001-00004289"
+            onChange={e => setNumero(e.target.value)}
+            style={{ fontFamily: 'monospace' }}
+          />
+          {numeroManual && sugerido && (
+            <div style={{ fontSize: 11, color: 'var(--orange-500)', marginTop: 4 }}>
+              Distinto del sugerido ({sugerido}): se usa el que cargaste.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Facturas a imputar */}

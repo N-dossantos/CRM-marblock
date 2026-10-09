@@ -1,15 +1,14 @@
 // src/views/Remitos/index.jsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { RemitosAPI, ClientesAPI, ProductosAPI, pdfUrl } from '../../api'
-import { fFecha } from '../../utils'
-import { Badge, Loading, EmptyState } from '../../components/UI'
+import { fFecha, renglonesDeRemito } from '../../utils'
+import { Badge, Loading, EmptyState, Paginador } from '../../components/UI'
 import ComprobanteForm from '../../components/Forms/ComprobanteForm'
 import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
 export default function Remitos() {
-  const [rows, setRows]         = useState([])
-  const [loading, setLoading]   = useState(true)
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
   const [search, setSearch]     = useState('')
@@ -17,12 +16,8 @@ export default function Remitos() {
   const [form, setForm]         = useState(null)
   const [pdfModal, setPdfModal] = useState(null)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    RemitosAPI.list({ q: search, estado: filtroEst }).then(setRows).finally(() => setLoading(false))
-  }, [search, filtroEst])
-
-  useEffect(() => { load() }, [load])
+  const { rows, total, loading, pagina, setPagina, recargar: load } =
+    useListaPaginada(RemitosAPI.list, { q: search, estado: filtroEst })
   useEffect(() => {
     ClientesAPI.list().then(setClientes)
     ProductosAPI.list({ activo: true }).then(setProductos)
@@ -65,10 +60,8 @@ export default function Remitos() {
     sessionStorage.setItem('crm_desde_remito', JSON.stringify({
       cliente_id: r.cliente_id,
       remito_ids: [r.id],
-      // Mismo formato que produce el checkbox de remitos en ComprobanteForm: sin la línea de
-      // pallets vacíos (la regenera usePalletsVacios) y con `_remito_id` para que destildar el
-      // remito en la factura se lleve estos renglones.
-      items: (r.items || []).filter(it => !it.es_pallet_vacio).map(it => ({ ...it, _remito_id: r.id })),
+      // Mismo armado que el checkbox de remitos en ComprobanteForm (ver renglonesDeRemito).
+      items: renglonesDeRemito(r),
     }))
     window.location.href = '/facturas'
   }
@@ -141,6 +134,7 @@ export default function Remitos() {
             </tbody>
           </table>
         )}
+        <Paginador pagina={pagina} total={total} porPagina={POR_PAGINA} onChange={setPagina} disabled={loading} />
       </div>
 
       {form && (

@@ -156,6 +156,7 @@ aparecieron recién al armar los `.sql` y chocar contra el schema del destino:
 | H20 | **Las órdenes de pago no tienen punto de venta fiscal:** los 3.358 pagos de la historia de Tango van en el punto de venta **00000**, no en el 00002 que traía `seed.sql`. | El punto de venta sembrado para `pago_proveedor` | `supabase/tango/05_cargar.sh`: el UPSERT de `contadores` lo deja en `00000` |
 | H21 | **La serie FAC A 00003 se queda sin contador.** Es el talonario *"Factura de Crédito Electrónica MiPyME"* (4 comprobantes, el último del 2023-05-24) y `contadores` tiene **un solo punto de venta por tipo**. Está inactiva desde 2023, así que no se modela; si se vuelve a usar hay que agregarle una fila propia. | Que `contadores` cubra todas las series de Tango | Decisión registrada: no se carga (ver `05_cargar.sh`) |
 | H22 | **Las notas sin factura quedaban sin cliente.** `notas` nunca tuvo `cliente_id`: se deducía con `JOIN` a `facturas`. Al volver `factura_id` nullable (D2), las **23 notas reales "a cuenta"** (18 clientes, $5,59 M netos) quedaban invisibles en `notas_list` y fuera del saldo de cuenta corriente — con lo cual la base **no podía reproducir `GVA14.SALDO_CC`**, que es el control de aceptación de la Tarea 10. | Que el cliente de una nota se pueda deducir siempre de su factura | `20261006140002`: `notas.cliente_id` con backfill, `crear_nota` la setea, y `notas_list` / `informe_cta_cte` leen con `COALESCE`; el ETL la carga de `GVA12.COD_CLIENT` |
+| H23 | **Dos facturas de 2011 con el total 1 centavo abajo de neto + IVA en el propio Tango** (dry-run del 2026-10-09). FAC A 00001-00001416 y 00001-00001426: `IMPORTE_GR + IMPORTE_IV` = 16.778,20 / 11.584,18 contra `IMPORTE` = 16.778,19 / 11.584,17. El IVA es el 21 % exacto y el total es lo cobrado. Entra por debajo de la tolerancia de 0,05 del ETL, así que no figura en `_anomalias.txt`. | Que `POST_LOAD_VERIFY` (`facturas_total_neto_iva_percep`) cierre en 0 | **Se acepta como diferencia conocida** (decidido 2026-10-09): se cargan tal cual, sin tocar datos fiscales de 2011. El control da `⚠` con **exactamente 2** filas y eso es lo esperado (criterio de corte de la Tarea 11) |
 
 ---
 
@@ -1051,7 +1052,7 @@ Reglas (cada una con su test):
 | `tipos_comprobante_tesoreria` | `SBA02` | `codigo` = `COD_COMP`; `signo` según `D_H` | 5 |
 | `plan_de_cuentas` | `CUENTA` + `RUBRO_CN` | `codigo` = `COD_CUENTA`; `descripcion` = `DESC_CUENTA`; la jerarquía sale de `RUBRO_CN.ID_RUBRO_PADRE` / `NRO_NIVEL`; `tipo_cuenta` (Activo / Pasivo / Patrimonio / Ingreso / Egreso / Orden) sale del rubro raíz y la valida el contador; `activo` = `HABILITADO`; `imputable` = cuenta hoja | 152 cuentas |
 | `materiales` | `CPA45` | `codigo` = `COD_CONCEP`; `descripcion` = `DESC_CONCE` | 19 |
-| `productos` | — | **No se carga** (ya está decidido): `COD_ARTICU` se cruza con `productos.codigo` para `producto_id`, y si no coincide → `NULL` con la descripción de `STA11` | 25 sembrados intactos |
+| `productos` | — | **No se carga** (ya está decidido). Los renglones guardan la descripción de `STA11`, y `producto_id` sale de la tabla `ARTICULO_A_PRODUCTO` de `etl/ventas.py` (`COD_ARTICU` → `productos.codigo`; los códigos **no** coinciden, el cruce es por medida). 25 de los 39 artículos tienen producto; el resto (arena, piedra, bloques huecos, rodados, servicios, gastos) queda `NULL` (ver M6) | 25 sembrados intactos |
 
 ### Tarea 6: Ventas
 
@@ -1115,15 +1116,29 @@ ser igual a `GVA14.SALDO_CC`. Es el control que mejor detecta errores de imputac
   **después** de `30_compras.sql`, porque reparte el `total` de Tango en `percepciones_monto`; y
   cierra con el UPSERT de los 10 contadores (`python3 -m etl.contadores` los recalcula desde el
   `.bak`) y el reset de secuencias. Tiene `--conteos` y `--vaciar` para los pasos 2 y 5.
-- [ ] **Paso 2:** Correr la carga **dos veces seguidas** y comparar los conteos: tienen que ser idénticos
+- [x] **Paso 2:** Correr la carga **dos veces seguidas** y comparar los conteos: tienen que ser idénticos
   (punto 5 de Review Focus). `./05_cargar.sh` imprime `sql_conteos.sql` al terminar, que trae el
   esperado del `.bak` al lado de lo cargado.
-- [ ] **Paso 3:** `psql "$SUPABASE_DB_URL" -f supabase/POST_LOAD_VERIFY.sql`, más los controles de
+- [x] **Paso 3:** `psql "$SUPABASE_DB_URL" -f supabase/POST_LOAD_VERIFY.sql`, más los controles de
   aceptación de las Tareas 5 a 9 (`python3 -m etl.controles_ventas` / `_compras` / `_tesoreria`).
   El script ya cubre los cuatro módulos: §1 cuenta **todas** las tablas de `public`, §3b/§3c son la
   integridad de Compras / Tesorería / Contabilidad y el cuadre de asientos, y §5b las invariantes de
   totales de Compras (incluida `total = neto + IVA + percepciones`, que sólo cierra si corrió el
   `31_`). Ninguna fila debería salir con `⚠`.
+
+  > **Resultado del dry-run (2026-10-09):** un solo `⚠`, aceptado como diferencia conocida (H23):
+  > `facturas_total_neto_iva_percep` = **2** — FAC A 00001-00001416 (id 7) y 00001-00001426 (id 25), de
+  > enero de 2011. Es Tango: `IMPORTE_GR + IMPORTE_IV` da 1 centavo más que `IMPORTE` (16.778,20 vs
+  > 16.778,19 y 11.584,18 vs 11.584,17). El IVA es el 21 % exacto del neto y el `total` es lo que se
+  > cobró (el recibo 00001-00000554 suma 16.778,19), así que se cargan tal cual: no se tocan datos
+  > fiscales de 2011 para que cierre un control. Ambas están cobradas. Controles de aceptación: ventas
+  > 0 diferencias; compras los 5 proveedores con centavos de siempre y 0 O/P descuadradas; tesorería
+  > 0 cuentas con diferencia.
+  >
+  > Para llegar acá hubo que corregir `etl/tesoreria.py`: las 34 anulaciones `REV` de Tango (21 de
+  > O/P, 13 de REC) traen `MONTO` negativo y `movimientos_tesoreria` exige `monto >= 0`. Se invierte
+  > el signo y se carga el valor absoluto, que deja igual `monto_con_signo` y los saldos contra
+  > `SBA01.SALDO_ACT`.
 - [ ] **Paso 4:** Entrar a la app, abrir 3 clientes (uno con descuento de 18 %, uno con recibos que
   cancelan varias facturas y uno con NC), comparar la cuenta corriente con Tango y emitir un comprobante
   de prueba en un cliente descartable. Sumar una NC "a cuenta" de las 23 de H22: tiene que aparecer en
@@ -1187,10 +1202,12 @@ se lee un `.bak` y se carga Supabase.
    python3 -m etl.controles_ventas ; python3 -m etl.controles_compras ; python3 -m etl.controles_tesoreria
    ```
 
-   Criterio de corte: **ninguna fila con `⚠`** en `POST_LOAD_VERIFY`, los conteos iguales a los que
-   imprimió el ETL, y los controles de aceptación con las mismas diferencias conocidas que en el
-   dry-run (5 proveedores con redondeos de centavos contra `CPA01.SALDO_CC`, 0 órdenes de pago
-   descuadradas).
+   Criterio de corte: **ninguna fila con `⚠`** en `POST_LOAD_VERIFY` salvo
+   `facturas_total_neto_iva_percep` = **2** (las FAC A 00001-00001416 y 00001-00001426 de 2011, H23:
+   Tango tiene el total 1 centavo abajo de neto + IVA; cualquier otra factura en ese control frena el
+   cutover), los conteos iguales a los que imprimió el ETL, y los controles de aceptación con las
+   mismas diferencias conocidas que en el dry-run (5 proveedores con redondeos de centavos contra
+   `CPA01.SALDO_CC`, 0 órdenes de pago descuadradas).
 7. [ ] Smoke en la app, con la data real: 3 clientes (uno con descuento de 18 %, uno con varios recibos,
    uno con NC), una NC "a cuenta" de las de H22, un comprobante de prueba en un cliente descartable
    (que tome el número siguiente del contador) y un PDF.
@@ -1266,4 +1283,63 @@ vencimientos).
 | `ASIENTO_COMPROBANTE_CP` | Contabilidad | asientos_contables | 6.649 | 6.671 | +22 | 2026-09-24 |
 | `ASIENTO_COMPROBANTE_SB` | Contabilidad | asientos_contables | 7.108 | 7.150 | +42 | 2026-09-25 |
 | `CONCEPTO_CP` | Contabilidad | (matriz) | 19 | 19 | 0 | — |
+
+
+
+
+# Mejoras detectadas en el smoke del dry-run (2026-10-09)
+
+Las anotó Nico navegando la app con la data real cargada (paso 4 de la Tarea 10). Se resuelven
+**antes de vaciar** la base (paso 5), porque es la única forma de reproducirlas con datos reales.
+Las marcadas **(bloquea go-live)** afectan la operación diaria del día D.
+
+| # | Pantalla | Qué pasa | Causa | Cambio | Dónde |
+|---|---|---|---|---|---|
+| M1 | Informes → Ventas por período | Al cambiar a otro informe y volver: *"Cannot read properties of undefined (reading 'cantidad_facturas')"* | Al cambiar de solapa se renderiza la solapa nueva con los `data` de la anterior (el `setData(null)` corre después, en el efecto), y una respuesta lenta de la solapa vieja puede pisar a la nueva | Los datos quedan etiquetados con la solapa que los pidió y sólo se dibujan si coinciden; las respuestas viejas se descartan | `frontend/src/views/Informes/index.jsx` |
+| M2 | Informes → Mayor tesorería | Muestra saldo inicial y saldo final **históricos** (desde el alta de la cuenta) | `informe_mayor_tesoreria` suma el saldo previo al período | La pantalla y el PDF muestran sólo el período: **Entradas (Debe)**, **Salidas (Haber)** y **Diferencia** por cuenta, más totales; se ocultan las cuentas sin movimiento en el período. El RPC no cambia | `Informes/index.jsx`, `supabase/functions/pdf/reportes.ts` |
+| M3 | Cheques | Abre en "Todos" | Filtro inicial vacío | Abre en **En cartera** | `frontend/src/views/Cheques/index.jsx` |
+| M4 | Cheques | El histórico no se puede filtrar ni ordenar | Con ~5.000 cheques, "Todos" trae sólo los **1.000 más viejos** (tope de PostgREST, orden por vencimiento ascendente) | Filtro por rango de vencimiento y búsqueda (número, banco, titular, cliente) + orden elegible (vencimiento ↑/↓, emisión ↓, monto ↓). Filtro y orden van al servidor; si el resultado llega al tope de 1.000 se avisa que hay que acotar | `Cheques/index.jsx`, `ChequesAPI.list` |
+| M5 | Dashboard | "Últimas facturas emitidas" no muestra las últimas (aparecen del PV 00001). Además "Total por cobrar" y "Top deudores" sumaban el **total entero** de las facturas pendientes/parciales | `informe_dashboard` ordena por `created_at`, y en la carga masiva todas las facturas tienen el mismo `created_at`; los totales no restaban lo cobrado ni las NC | Ordenar por `fecha DESC, numero DESC, id DESC`; "Total por cobrar" y "Top deudores" sobre el **saldo** de cada factura (total − imputado en recibos − NC, la misma cuenta que `recalcular_estado_factura`). Con la data cargada: por cobrar $79,1 M → **$51,2 M**; "Lopez Carlos" salía primero con $18,2 M brutos y su saldo real es $0,82 M | migración `20261009120000_informes_orden_y_saldos.sql` |
+| M6 | Remitos → Factura **(bloquea go-live)** | Al traer remitos a la factura el precio queda en 0 — **seguía pasando después del primer arreglo** | (a) El remito se guarda sin precio (es para el camión) y la factura copia sus renglones tal cual. (b) **Causa de fondo:** el ETL nunca completaba `producto_id` en los renglones de Tango (`COD_ARTICU` `0004` ≠ `productos.codigo` `6`): los 30 remitos pendientes tenían todos `producto_id` NULL, así que no había precio de lista que tomar. (c) La línea "Pallets" de Tango se descartaba al traer el remito y el hook no la regeneraba (los renglones de Tango no traen `pallets`) | El remito sigue sin precio. Al traerlo a la factura, cada renglón con precio 0 toma el **precio de lista** (`precio_sin_iva`), y entrando por "→ Factura" se aplica el **descuento del cliente**. El ETL vincula `producto_id` con la tabla `ARTICULO_A_PRODUCTO` (25 artículos; UPDATE por descripción al final de `20_ventas.sql`) en `factura_items` / `remito_items` / `nota_items`; en la base del dry-run se aplicó el mismo UPDATE (10.697 / 14.448 / 459 renglones). La línea de pallets de un remito de Tango se conserva como manual. Los renglones sin producto (Bloque Hueco 8/12, Rodados: 4 en los pendientes) muestran un aviso para elegir producto o precio | `ComprobanteForm.jsx`, `utils` (`renglonesDeRemito`), `Remitos/index.jsx`, `supabase/tango/etl/ventas.py` |
+| M7 | Recibos **(bloquea go-live)** | Al hacer uno nuevo no se ve la numeración. Además, a veces la hoja del talonario se tacha o se pierde la copia: el número tiene que poder cambiarse | El formulario no muestra número: lo asigna el servidor al guardar, sin forma de elegir otro | Campo **N° de recibo** prellenado con el próximo (lectura de `contadores`, no consume numeración) y **editable**. Si no se toca, lo asigna `crear_recibo` al guardar; si se cambia, `crear_recibo(p_numero)` valida el formato, frena duplicados ("El recibo … ya fue emitido") y el contador sigue al talonario sin volver atrás (mismo criterio que los remitos). El aviso al guardar dice el número emitido | migración `20261009130000_…`, `ReciboForm.jsx`, `Recibos/index.jsx`, `RecibosAPI` |
+| M8 | Financiero → Cuenta corriente | Con período, el saldo final no es el saldo a la fecha de fin; "sin filtro" no vuelve al saldo de hoy | (a) el saldo corrido arranca de 0 en vez del saldo anterior al período; (b) con una sola fecha el filtro se ignora; (c) "Limpiar" reconsulta con las fechas viejas | El RPC agrega una fila **SALDO ANTERIOR** y filtra `desde`/`hasta` por separado: el saldo final es el saldo al `hasta` (o el de hoy sin filtro). La pantalla dice **"Saldo al dd/mm/aaaa"** o **"Saldo actual"**, y "Limpiar" consulta sin fechas. Mismo arreglo en la cta. cte. de **proveedores** (tenía el mismo error) | migración `20261009120000_…`, `CtaCte/index.jsx`, `ComprasCtaCte/index.jsx`, PDF `templates.ts` |
+| M9 | Ventas → Nota de crédito / débito | No se puede buscar la factura a imputar; no se ven sus ítems | El selector es un desplegable con todas las facturas (corta en 1.000) y el formulario arranca vacío | Buscador de factura por número / cliente / CUIT. Con la factura elegida se listan sus ítems con casilla: los marcados pasan a la nota con **su precio, su descuento de ítem y el descuento general de la factura** (combinado en el descuento del ítem, salvo pallets vacíos y transporte, que no lo llevan); la cantidad queda editable | `Notas/index.jsx`, `Notas/NotaForm.jsx` |
+| M10 | Todos los formularios | ESC no hace nada | — | **ESC cancela y cierra** el formulario o comprobante abierto, igual que "Cancelar". Con modales apilados (PDF sobre una factura) cierra sólo el de arriba; si la lista del buscador de clientes está abierta, el primer ESC cierra la lista | `hooks/useEscape.js`, `Modal` (UI), `PDFModal` |
+| M11 | Facturas, Remitos, Recibos, Facturas de compra, Órdenes de pago | Las listas tardan | Traían todo de una: facturas 4.596 filas / ~9 MB, remitos 6.835 / ~10 MB, facturas de compra 6.191 / ~8 MB (~0,8 s sólo en la base para facturas) | **Paginado en el servidor de a 50**: las `*_list` reciben `p_limit` / `p_offset`, eligen la página antes de armar el JSON de ítems y devuelven `total_filas` (y `total_importe` en recibos / órdenes de pago, para que los totales del filtro sigan siendo del filtro completo). Pie con "1–50 de 4.596" y anterior/siguiente; cambiar un filtro vuelve a la página 1. Sin `p_limit` las RPC devuelven todo como antes (consultas por cliente, PDF, remitos pendientes). Facturas: 775 ms → 43 ms en la base | migraciones `20261009130000_…` y `20261009130001_…`, `hooks/useListaPaginada.js`, `Paginador` (UI), las 5 vistas |
+
+**Cómo se verifica cada uno (con la data cargada):**
+
+- M1: Informes → Ventas → otro informe → Ventas, varias veces y rápido: no se rompe.
+- M2: Mayor tesorería de un mes: Diferencia = Entradas − Salidas por cuenta, sin saldos históricos; el PDF dice lo mismo.
+- M3/M4: Cheques abre en cartera; "Todos" ordenado por vencimiento ↓ muestra los más recientes; un rango de fechas acota.
+- M5: el dashboard muestra las 8 facturas de fecha más reciente (PV 00002).
+
+- M6: Remitos → "→ Factura" del remito 00001-00010348 (Trans. Vesprini, 900 Bloque Liso 15 Portante + 6 Pallets): el bloque sale a $1.237,13 (lista del 14x19x39 Portante), los pallets a $4.000 y el descuento es el del cliente; idem marcando el remito dentro de Nueva factura. Un remito con Bloque Hueco o Rodados muestra el aviso de renglón sin producto.
+- M7: Nuevo recibo muestra 00001-00004289 en el campo N° de recibo; guardado sin tocarlo, el aviso trae ese número. Cambiado a otro libre (p. ej. 00001-00004295), se emite con ese; con uno ya usado, avisa "ya fue emitido".
+- M10: abrir Nueva factura, cargar algo y apretar ESC: se cierra. Con el PDF abierto encima de otro modal, ESC cierra sólo el PDF.
+- M11: Facturas abre en "1–50 de 4.596"; Siguiente / » recorren; buscar "curto" vuelve a la página 1. Recibos y Órdenes de pago: "Total cobrado/pagado" y "Cantidad" son los del filtro completo, no de la página.
+
+- M8: un cliente con movimientos: saldo con `hasta` = saldo de la fila de esa fecha en la vista sin filtro; "Limpiar" vuelve al saldo actual.
+- M9: NC buscando la factura por número, marcando 1 ítem: el neto de la nota = cantidad × precio con los descuentos de la factura.
+
+**Fuera del navegador — hecho el 2026-10-09:** la migración `20261009120000_informes_orden_y_saldos`
+quedó **aplicada** y la Edge Function `pdf` **redeployada (v5, `verify_jwt=true`)**. Verificado
+contra la data cargada: las últimas facturas son las del PV 00002 de sep-2026; en la cta. cte. de
+Curto Martins Alberto, el saldo con período 01/01–30/06/2025, con sólo `hasta` = 30/06/2025 y el
+de esa fecha en la vista sin filtro dan los tres $5.361.110,29, y el saldo anterior ($2.021.811,57)
+coincide con el de la vista sin filtro al 31/12/2024. El contador `recibo` existe (00001, último
+4288): el formulario va a mostrar 00001-00004289.
+
+**Segunda vuelta (M6, M7, M10, M11) — hecho el 2026-10-09:** migraciones
+`20261009130000_paginado_listas_y_recibo_numero` y `20261009130001_listas_total_importe`
+**aplicadas**. Verificado contra la data cargada: las 5 `*_list` sin `p_limit` devuelven exactamente
+lo mismo que antes (md5 de la salida completa y de 4 combinaciones de filtros, sacando
+`total_filas` / `total_importe`); la página 2 y la última página coinciden fila por fila con el orden
+completo; `total_importe` = `SUM(total)` real; `anon` no ejecuta ninguna. `crear_recibo` probado en
+una transacción revertida: automático 00001-00004289; manual 00001-00004300 sube el contador a 4300;
+manual 00001-00004295 (hueco) no lo baja; el siguiente automático da 00001-00004301; duplicado y
+formato inválido rechazados. En la base del dry-run se aplicó el UPDATE de `producto_id` de M6 (el
+ETL ya lo trae para la carga del día D: `python3 -m etl` regenera `20_ventas.sql` con los tres
+UPDATE; el resto de los `.sql` no cambia). Falta repetir en el navegador las verificaciones de M6,
+M7, M10 y M11 de arriba.
 

@@ -257,6 +257,19 @@ de env/secrets, ni advisors que revisar. Rollback = redesplegar la carpeta anter
 > `POST_LOAD_VERIFY` en OK —0 tablas sin RLS, `anon` ejecuta 0 funciones y lee 0 tablas— y los
 > advisors sólo con los dos warns esperados por diseño.
 >
+> **2026-10-09 — mejoras del smoke del dry-run** (`PLAN_MIGRACION_TANGO.md`, M1–M9): aplicada
+> `20261009120000_informes_orden_y_saldos` (dashboard ordenado por fecha y con saldos reales;
+> cta. cte. de clientes y proveedores con saldo anterior y saldo al `hasta`) y redeployada la Edge
+> Function `pdf` (**v5**, `verify_jwt=true`: mayor de tesorería sólo del período, cta. cte. con
+> "Saldo al …"). El resto de M1–M9 es frontend.
+>
+> **2026-10-09 — segunda vuelta (M6, M7, M10, M11):** aplicadas
+> `20261009130000_paginado_listas_y_recibo_numero` (`facturas_list`, `remitos_list`,
+> `recibos_list`, `facturas_compra_list` y `pagos_proveedor_list` con `p_limit` / `p_offset` y
+> `total_filas`; `crear_recibo` con `p_numero` opcional — cambian las firmas, se re-otorgan a
+> `authenticated` y se revocan a `anon`) y `20261009130001_listas_total_importe`. El ETL de ventas
+> completa `producto_id` en los renglones de Tango (M6).
+>
 > **Lo único que falta para la Tarea 10 (dry-run):** el connection string **directo** de la base
 > (usuario `postgres`, no el pooler, que no admite `SET session_replication_role`) en un archivo
 > gitignoreado. Después, `supabase/tango/05_cargar.sh` hace la carga entera en una transacción.

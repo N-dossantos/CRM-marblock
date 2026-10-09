@@ -7,6 +7,11 @@
 import { supabase } from '../lib/supabase'
 import { unwrap, rpc, one } from './base'
 
+// Paginado de las listas grandes de comprobantes (M11): sin `limit` la RPC devuelve todo, como
+// siempre (lo siguen usando las consultas por cliente/proveedor). Con `limit`, cada fila trae
+// `total_filas` = total que cumple el filtro, para armar el "página X de Y".
+const pagina = (limit, offset) => (limit ? { p_limit: limit, p_offset: offset || 0 } : {})
+
 // Normalizadores (trim / defaults / tipos) equivalentes a los del backend.
 const cli = (d) => ({
   razon_social:         d.razon_social?.trim(),
@@ -139,8 +144,8 @@ export const PresupuestosAPI = {
 
 // ── REMITOS ─────────────────────────────────────────────────────────
 export const RemitosAPI = {
-  list: ({ q, estado, cliente_id } = {}) =>
-    rpc('remitos_list', { p_q: q || null, p_estado: estado || null, p_cliente_id: cliente_id || null }),
+  list: ({ q, estado, cliente_id, limit, offset } = {}) =>
+    rpc('remitos_list', { p_q: q || null, p_estado: estado || null, p_cliente_id: cliente_id || null, ...pagina(limit, offset) }),
   pendientes: (cliId) => rpc('remitos_list', { p_estado: 'pendiente', p_cliente_id: cliId }),
   get:        (id)    => rpc('remitos_list', { p_id: id }).then(one),
   // El número de los remitos de venta lo da el talonario preimpreso, no el sistema:
@@ -168,9 +173,10 @@ export const RemitosAPI = {
 
 // ── FACTURAS ─────────────────────────────────────────────────────────
 export const FacturasAPI = {
-  list: ({ q, estado, tipo, cliente_id, desde, hasta } = {}) => rpc('facturas_list', {
+  list: ({ q, estado, tipo, cliente_id, desde, hasta, limit, offset } = {}) => rpc('facturas_list', {
     p_q: q || null, p_estado: estado || null, p_tipo: tipo || null,
     p_cliente_id: cliente_id || null, p_desde: desde || null, p_hasta: hasta || null,
+    ...pagina(limit, offset),
   }),
   pendientesRemitir: () => rpc('facturas_list', { p_solo_sin_remito: true }),
   get:               (id) => rpc('facturas_list', { p_id: id }).then(one),
@@ -203,25 +209,48 @@ export const NotasAPI = {
 
 // ── RECIBOS ──────────────────────────────────────────────────────────
 export const RecibosAPI = {
-  list: ({ q, cliente_id, desde, hasta } = {}) =>
-    rpc('recibos_list', { p_q: q || null, p_cliente_id: cliente_id || null, p_desde: desde || null, p_hasta: hasta || null }),
+  list: ({ q, cliente_id, desde, hasta, limit, offset } = {}) =>
+    rpc('recibos_list', { p_q: q || null, p_cliente_id: cliente_id || null, p_desde: desde || null, p_hasta: hasta || null, ...pagina(limit, offset) }),
   get:    (id)   => rpc('recibos_list', { p_id: id }).then(one),
+  // `numero` sólo viaja si el operador lo cambió (hoja tachada / copia perdida del talonario); si no,
+  // crear_recibo lo asigna con siguiente_numero('recibo'), así dos operadores con el formulario abierto
+  // no chocan por el mismo número sugerido.
   create: (data) => rpc('crear_recibo', {
     p_cliente_id: data.cliente_id, p_medios: data.medios,
     p_factura_ids: data.factura_ids ?? [], p_observaciones: data.observaciones ?? null,
+    p_numero: data.numero ?? null,
   }),
+  // Sólo MUESTRA el próximo número (lectura de `contadores`, no consume numeración): si no se toca,
+  // el definitivo lo asigna crear_recibo al guardar, y puede ser otro si alguien emitió un recibo en
+  // el medio.
+  numeroSugerido: () => supabase.from('contadores')
+    .select('punto_venta, ultimo_numero').eq('tipo', 'recibo').maybeSingle()
+    .then(unwrap)
+    .then(c => c && `${c.punto_venta}-${String(c.ultimo_numero + 1).padStart(8, '0')}`),
 }
 
 // ── CHEQUES ──────────────────────────────────────────────────────────
 const flattenCheque = ({ clientes, ...rest }) => ({ ...rest, cliente_razon_social: clientes?.razon_social ?? null })
 
 export const ChequesAPI = {
-  list: ({ estado, vencen_pronto } = {}) => {
+  // `orden` = 'vto_asc' (default) | 'vto_desc' | 'emision_desc' | 'monto_desc'. Filtro y orden van
+  // al servidor: PostgREST corta en 1.000 filas, así que ordenar en el browser sólo reordenaría
+  // los primeros 1.000 de la cartera histórica (~5.000 cheques).
+  list: ({ estado, vencen_pronto, vto_desde, vto_hasta, orden = 'vto_asc' } = {}) => {
+    const ORDENES = {
+      vto_asc:      ['fecha_vcto', true],
+      vto_desc:     ['fecha_vcto', false],
+      emision_desc: ['fecha_emision', false],
+      monto_desc:   ['monto', false],
+    }
+    const [col, asc] = ORDENES[orden] || ORDENES.vto_asc
     let query = supabase.from('cheques')
       .select('*, clientes(razon_social)')
-      .order('fecha_vcto', { ascending: true })
-      .order('estado', { ascending: true })
+      .order(col, { ascending: asc, nullsFirst: false })
+      .order('id', { ascending: asc })
     if (estado) query = query.eq('estado', estado)
+    if (vto_desde) query = query.gte('fecha_vcto', vto_desde)
+    if (vto_hasta) query = query.lte('fecha_vcto', vto_hasta)
     if (vencen_pronto === 'true' || vencen_pronto === true) {
       const hoy = new Date(); const en7 = new Date(); en7.setDate(en7.getDate() + 7)
       query = query.eq('estado', 'en_cartera')
@@ -335,9 +364,9 @@ export const AlicuotasIvaAPI = {
 
 // ── FACTURAS DE COMPRA ───────────────────────────────────────────────
 export const FacturasCompraAPI = {
-  list: ({ q, estado, proveedor_id, desde, hasta } = {}) => rpc('facturas_compra_list', {
+  list: ({ q, estado, proveedor_id, desde, hasta, limit, offset } = {}) => rpc('facturas_compra_list', {
     p_q: q || null, p_estado: estado || null, p_proveedor_id: proveedor_id || null,
-    p_desde: desde || null, p_hasta: hasta || null,
+    p_desde: desde || null, p_hasta: hasta || null, ...pagina(limit, offset),
   }),
   get:    (id) => rpc('facturas_compra_list', { p_id: id }).then(one),
   create: (data) => rpc('crear_factura_compra', {
@@ -407,8 +436,8 @@ export const NotasCompraAPI = {
 
 // ── PAGOS A PROVEEDOR ────────────────────────────────────────────────
 export const PagosProveedorAPI = {
-  list: ({ q, proveedor_id, desde, hasta } = {}) =>
-    rpc('pagos_proveedor_list', { p_q: q || null, p_proveedor_id: proveedor_id || null, p_desde: desde || null, p_hasta: hasta || null }),
+  list: ({ q, proveedor_id, desde, hasta, limit, offset } = {}) =>
+    rpc('pagos_proveedor_list', { p_q: q || null, p_proveedor_id: proveedor_id || null, p_desde: desde || null, p_hasta: hasta || null, ...pagina(limit, offset) }),
   get:    (id)   => rpc('pagos_proveedor_list', { p_id: id }).then(one),
   create: (data) => rpc('crear_pago_proveedor', {
     p_proveedor_id: data.proveedor_id, p_medios: data.medios,

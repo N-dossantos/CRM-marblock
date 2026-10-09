@@ -431,7 +431,7 @@ export async function generarCtaCte(data: any, empresa: any, filtros: any = {}):
     // Saldo (derecha)
     const saldoColor = saldo_total > 0 ? COLORES.rojo : saldo_total < 0 ? COLORES.verde : COLORES.gris_texto
     doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5)
-       .text('SALDO ACTUAL', W - M - 170, y + 14)
+       .text(data.hasta ? `SALDO AL ${fFecha(data.hasta)}` : 'SALDO ACTUAL', W - M - 170, y + 14)
     doc.fillColor(saldoColor).font('Helvetica-Bold').fontSize(16)
        .text($ar(saldo_total), W - M - 170, y + 25, { width: 160, align: 'right' })
     doc.fillColor(saldoColor).font('Helvetica').fontSize(8)
@@ -461,6 +461,7 @@ export async function generarCtaCte(data: any, empresa: any, filtros: any = {}):
     const TIPO_LABELS_CTA: Record<string, string> = {
       FACTURA: 'Factura', RECIBO: 'Recibo',
       'NOTA CRED.': 'N. Crédito', 'NOTA DEB.': 'N. Débito',
+      'SALDO ANTERIOR': 'Saldo anterior',
     }
 
     let saldoAcum = 0

@@ -10,6 +10,7 @@ const TIPO_STYLE = {
   RECIBO:     { bg: '#d1fae5', color: '#065f46', label: 'Recibo' },
   'NOTA CRED.': { bg: '#e0e7ff', color: '#3730a3', label: 'NC' },
   'NOTA DEB.':  { bg: '#fce7f3', color: '#9d174d', label: 'ND' },
+  'SALDO ANTERIOR': { bg: 'var(--gray-100)', color: 'var(--gray-700)', label: 'Saldo anterior' },
 }
 
 export default function CtaCte() {
@@ -24,12 +25,14 @@ export default function CtaCte() {
 
   useEffect(() => { ClientesAPI.list().then(setClientes) }, [])
 
-  const cargar = () => {
+  // `fechas` permite consultar con otras fechas que las del estado ("Limpiar" las vacía y consulta
+  // en el mismo click: el estado nuevo recién se ve en el próximo render).
+  const cargar = (fechas = { desde, hasta }) => {
     if (!selCli) return
     setLoading(true)
     const params = {}
-    if (desde) params.desde = desde
-    if (hasta) params.hasta = hasta
+    if (fechas.desde) params.desde = fechas.desde
+    if (fechas.hasta) params.hasta = fechas.hasta
     InformesAPI.ctaCte(selCli, params).then(setData).finally(() => setLoading(false))
   }
 
@@ -105,7 +108,7 @@ export default function CtaCte() {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? '#10b981' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(data.saldo_total)}
                   </div>
@@ -134,8 +137,8 @@ export default function CtaCte() {
                 <input type="date" className="inp" style={{ width: 150 }} value={desde} onChange={e => setDesde(e.target.value)} />
                 <span style={{ color: 'var(--gray-400)' }}>al</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={hasta} onChange={e => setHasta(e.target.value)} />
-                <button className="btn btn-secondary btn-sm" onClick={cargar}>Aplicar</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => { setDesde(''); setHasta(''); setTimeout(cargar, 0) }}>Limpiar</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => cargar()}>Aplicar</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setDesde(''); setHasta(''); cargar({}) }}>Limpiar</button>
               </div>
             </div>
 
