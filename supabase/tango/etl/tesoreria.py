@@ -37,8 +37,11 @@ def movimientos(sba05, cabeceras, cuentas, ids_comprobante, _unused):
         cab = cabeceras[(r["COD_COMP"], r["N_COMP"])]
         _, _, _, numero = n_comp(r["N_COMP"])
         ref = ids_comprobante.get(r["N_COMP"]) if origen != "manual" else None
+        signo, monto = 1 if r["D_H"] == "D" else -1, q2(dec(r["MONTO"]))
+        if monto < 0:            # anulaciones REV: la tabla exige monto >= 0; se conserva signo * monto
+            signo, monto = -signo, -monto
         out.append((int(r["ID_SBA05"]), numero, fecha(r["FECHA"], ctx), int(cuentas[r["COD_CTA"]]["ID_SBA01"]), tipo,
-                    1 if r["D_H"] == "D" else -1, q2(dec(r["MONTO"])), origen,
+                    signo, monto, origen,
                     origen if ref else None, ref, (texto(cab["CONCEPTO"]) or "")[:300] or None,
                     r["CONCILIADO"] == "1"))
     return out

@@ -30,6 +30,15 @@ class Reglas(unittest.TestCase):
         self.assertEqual(mov[0][3:6], (1, 6, 1))        # cuenta, tipo comprobante, signo +1
         self.assertEqual(mov[0][8:10], ("recibo", 77))
 
+    def test_anulacion_con_monto_negativo_invierte_el_signo(self):
+        # Las 34 anulaciones de REC / O/P de Tango (COD_COMP REV) traen MONTO negativo; la tabla exige monto >= 0.
+        cab = {("REV", " 000000000129"): {"CONCEPTO": "ANULACION O/P  000000000129/ 0"}}
+        cuentas = {"4.0": {"ID_SBA01": "4"}}
+        lineas = [{"ID_SBA05": "634", "COD_COMP": "REV", "N_COMP": " 000000000129", "COD_CTA": "4.0", "D_H": "H",
+                   "FECHA": "2011-05-06 00:00:00.000", "MONTO": "-9221.2500000", "CONCILIADO": "0"}]
+        mov = tesoreria.movimientos(lineas, cab, cuentas, {}, {})
+        self.assertEqual(mov[0][5:7], (1, D("9221.25")))   # mismo monto_con_signo (+9221.25) que en Tango
+
     def test_cheque_propio(self):
         r = {"ID_SBA15": "4", "CTA_BANCO": "3.0", "N_CHEQUE": "22040499.0", "ORDEN": "Telecom", "COD_CPA01": "0010",
              "FECHA_EMI": "2011-02-15 00:00:00.000", "FECHA_CHEQ": "2011-02-20 00:00:00.000", "IMPORTE_CH": "1285.52",
