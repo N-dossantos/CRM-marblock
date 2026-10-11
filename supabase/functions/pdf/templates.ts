@@ -7,7 +7,7 @@ import { Buffer } from 'node:buffer'
 import {
   COLORES, $ar, fFecha,
   dibujarHeader, dibujarCliente, dibujarCabeceraTabla,
-  dibujarFilaItem, dibujarTotales, dibujarFooter, calcularDetalleAlicuotas,
+  dibujarFilaItem, dibujarTotales, dibujarFooter, calcularDetalleAlicuotas, textoTenue,
 } from './base.ts'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -650,8 +650,8 @@ export async function generarComprobanteTesoreria(mov: any, empresa: any): Promi
     // Importe destacado con signo
     const color = esEntrada ? COLORES.verde : COLORES.rojo
     doc.rect(M, y, ancho, 46).fill(COLORES.azul_oscuro)
-    doc.fillColor('rgba(255,255,255,0.75)').font('Helvetica-Bold').fontSize(9)
-       .text(esEntrada ? 'ENTRADA (CRÉDITO)' : 'SALIDA (DÉBITO)', M + 14, y + 10)
+    textoTenue(doc, 0.75, () => doc.font('Helvetica-Bold').fontSize(9)
+       .text(esEntrada ? 'ENTRADA (CRÉDITO)' : 'SALIDA (DÉBITO)', M + 14, y + 10))
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(20)
        .text(`${esEntrada ? '' : '− '}${$ar(mov.monto)}`, M + 14, y + 22, { width: ancho - 28, align: 'right' })
     // Franja de color según signo
@@ -730,7 +730,7 @@ export async function generarCheque(cheque: any, empresa: any, clase: 'propio' |
 
     // Importe
     doc.rect(M, y, ancho, 46).fill(COLORES.azul_oscuro)
-    doc.fillColor('rgba(255,255,255,0.75)').font('Helvetica-Bold').fontSize(9).text('IMPORTE', M + 14, y + 10)
+    textoTenue(doc, 0.75, () => doc.font('Helvetica-Bold').fontSize(9).text('IMPORTE', M + 14, y + 10))
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(20).text($ar(cheque.monto), M + 14, y + 22, { width: ancho - 28, align: 'right' })
     y += 60
 

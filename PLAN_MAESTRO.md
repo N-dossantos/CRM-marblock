@@ -47,7 +47,7 @@
 > 📌 Nota de versionado: hasta el 2026-08-20 este archivo estaba **gitignoreado**; ese día se
 > comentó la línea en `.gitignore` (`#PLAN_MAESTRO.md`), así que **ahora sí entra en git**.
 >
-> Última actualización: **2026-10-10** (la Edge Function `pdf` figura como desplegada, v5 — §3.1).
+> Última actualización: **2026-10-10** (smoke de los PDF y Edge Function `pdf` v6 — §3.1).
 > Anterior: **2026-10-06** (borrado de los planes viejos de `supabase/`; alta de la
 > facturación multi-remito, que sólo figuraba en `MIGRATION_PLAN.md`; y percepciones de compra, D9
 > → §3.9).
@@ -64,15 +64,15 @@
 | A | Compras + Procesos Generales (audit_log, tablas_generales) | ✅ completo |
 | B | Consultas 360° Ventas / Compras | ✅ completo |
 | C | Tesorería (ledger, cheques propios, conciliación) | ✅ completo |
-| D | Consultas Tesorería + impresión + transferencias | 🔄 código + PDF desplegados (v5) — **falta smoke de PDF** (§3.1) |
+| D | Consultas Tesorería + impresión + transferencias | ✅ completo — PDF v6 con smoke hecho (§3.1) |
 | E | Núcleo contable (plan de cuentas, asientos, informes) | 🔄 núcleo + frontend listos — **matriz bloqueada** |
 | F/WS1 | Cobranzas Ventas → Tesorería | ✅ completo |
 | F/WS2 | Ventas → Contabilidad (enganche) | 🔄 aplicado en `off` (no-op) — **matriz bloqueada** |
-| F/WS3a | IVA multi-alícuota en Ventas | ✅ completo (PDF con desglose desplegado; falta el smoke de §3.1) |
+| F/WS3a | IVA multi-alícuota en Ventas | ✅ completo (PDF con desglose probado, §3.1) |
 | F/WS3b | **Pedidos** | ⏸ **sin empezar** — falta decisión de modelado |
 | — | Cuenta 2 (circuito paralelo Ventas/Compras) | 🔄 completo, PDF desplegado — **falta smoke** |
 | — | Productos por pallets (catálogo 25 productos) | 🔄 completo — **falta smoke E2E** |
-| — | Remito sobre talonario preimpreso | 🔄 DB + frontend + PDF listos — **falta smoke + prueba sobre papel** |
+| — | Remito sobre talonario preimpreso | 🔄 DB + frontend + PDF listos y probados en pantalla — **falta la prueba sobre papel** |
 | — | Facturación multi-remito (una factura cubre N remitos) | ✅ completo |
 | — | **Percepciones de compra** (D9: tabla propia + `percepciones_monto`) | ✅ aplicado y probado 2026-10-06 (§3.9); falta sólo el paso 5, las cuentas contables, que va con la matriz |
 
@@ -201,12 +201,13 @@ valores calculados y hace rollback, así las tablas quedaban vacías para el cut
 
 ## 3. ⏳ Pendiente — detallado
 
-### 3.1 Edge Function `pdf` — ✅ **desplegada (v5, 2026-10-09)**; falta el smoke
+### 3.1 Edge Function `pdf` — ✅ **desplegada (v6, 2026-10-10)** y con smoke hecho
 
 Era el bloqueo técnico #1: hasta el 2026-08-20 corría la **`version 1` (~2026-07-27)**, anterior a
 Tesorería. **Resuelto el 2026-10-09**: la función quedó en la **v5** (`ACTIVE`, `verify_jwt=true`),
 redeployada junto con las mejoras del smoke del dry-run (M2 y M8 de `PLAN_MIGRACION_TANGO.md`).
-El 2026-10-10 se comparó con `get_edge_function` contra `supabase/functions/pdf/`: los 5 archivos
+El 2026-10-10 pasó a la **v6** con los arreglos del smoke (abajo), deployada por el MCP
+(`deploy_edge_function`) y comparada con `get_edge_function` contra `supabase/functions/pdf/`: los 5 archivos
 (`index.ts`, `base.ts`, `templates.ts`, `reportes.ts`, `preimpreso.ts`) son **idénticos** a los
 locales, así que en producción está todo lo que antes faltaba:
 - los 6 casos de tesorería del `switch` de `index.ts` (comprobantes, cheques propios y de terceros,
@@ -223,17 +224,35 @@ npx -y supabase@latest functions deploy pdf --project-ref kkdbvzixwlyeahgianuc
 `deploy pdf` bundlea **la carpeta entera**; si el bundle no compila, sigue corriendo la versión
 anterior.
 
-**Smoke de navegador — pendiente.** El 2026-10-10 sólo se probó el PDF de una factura (Ficha de
-cliente → detalle → "📄 Ver PDF"), que generó bien. Faltan los PDF nuevos (era
-`system_plan_fase_d_consultas_tesoreria.md §6`, pasos 2–4 —
-`git show 97ad046:system_plan_fase_d_consultas_tesoreria.md`). Conviene hacerlo **antes de vaciar**
-la base (paso 5 de la Tarea 10), mientras hay data real para imprimir:
-1. Consultas → Cuenta → en un movimiento, "📄 PDF" abre el `PDFModal` en iframe.
-2. Imprimir un cheque propio y uno de tercero.
-3. Imprimir los 3 informes de tesorería (saldos, subdiario, mayor) desde `Informes/`.
-4. Factura con dos alícuotas → el PDF muestra ambas tasas desglosadas.
-5. Remito preimpreso: `?preimpreso=1` sobre la hoja **00001-00010325** (que después se anula).
-6. Cuenta 2 → cta. cte. de un cliente C2 → "📄 PDF" del resumen.
+**Smoke de navegador — hecho el 2026-10-10** (con la data del dry-run; pasos de
+`system_plan_fase_d_consultas_tesoreria.md §6` — `git show 97ad046:system_plan_fase_d_consultas_tesoreria.md`):
+
+| # | PDF | Resultado |
+|---|---|---|
+| 1 | Movimiento de tesorería (Consultas → Cuenta → Ver → PDF) | ✅ |
+| 2 | Cheque propio (Consultas → Cuenta → Cheques propios → 📄) y de tercero (Cartera de cheques → 📄 PDF) | ✅ |
+| 3 | Saldos, subdiario y mayor de tesorería desde `Informes/` | ✅ importes iguales a la pantalla; el mayor cierra con el subdiario |
+| 4 | Factura con dos alícuotas (00002-00001686, la única que hay) | ✅ desglosa 10,5 % y 21 % |
+| 5 | Remito preimpreso (`?preimpreso=1`, 2 hojas) y calibración | ✅ en pantalla — **falta la prueba sobre papel** (§3.6) |
+| 6 | Resumen de Cuenta 2 | ⏸ sin datos: no hay clientes de Cuenta 2 cargados |
+
+El smoke encontró y se arregló en la **v6** (2026-10-10, verificada idéntica a la carpeta local):
+- **El tipo, número y fecha del comprobante no se veían en ningún PDF.** `base.ts` usaba colores
+  `rgba(...)`, que pdfkit ignora (sigue con el color anterior): el recuadro salía blanco opaco y el
+  texto blanco encima. Igual con "ENTRADA/SALIDA" del comprobante de tesorería e "IMPORTE" del cheque
+  (azul sobre azul). Ahora la transparencia es opacidad real (`textoTenue` en `base.ts`). **No usar
+  `rgba()` con pdfkit.**
+- Filas de tabla con alto fijo: un texto de dos líneas pisaba la fila siguiente (Concepto del
+  subdiario, nombres de cuenta en saldos). `dibujarFilaItem` ahora agranda la fila; se rebalancearon
+  las columnas del subdiario y de saldos.
+- El título del encabezado achica la letra hasta entrar en una línea ("COMPROBANTE TESORERÍA" tapaba
+  el número).
+- El PDF del cheque de tercero no tenía acceso desde la UI con la data de Tango (esos cheques cuelgan
+  del recibo, no de un movimiento): botón 📄 PDF en la Cartera de cheques.
+
+**Pendiente para el go-live:** `config_empresa` no tiene razón social, CUIT, dirección, condición de
+IVA, IIBB ni inicio de actividades — todos los PDF dicen "Mi Empresa S.A." / "CUIT: —". Se carga a
+mano (lo hace Nico).
 
 > El frontend **no** requiere acción manual: Vercel (`crm-marblock`) despliega solo al pushear a `main`.
 
@@ -833,8 +852,8 @@ cargados: va con el smoke de la Tarea 10 paso 4.
 
 ## 4. Orden recomendado
 
-1. ~~**Deploy de la Edge Function `pdf`**~~ — ✅ hecho el 2026-10-09 (v5). Queda su **smoke** (§3.1),
-   que se suma al punto 2.
+1. ~~**Deploy de la Edge Function `pdf`**~~ — ✅ hecho (v6, 2026-10-10) y con smoke (§3.1). Sólo
+   queda cargar `config_empresa` y la prueba del remito sobre papel.
 2. **Smokes pendientes** (§3.6) — contabilidad en el navegador, remito en la UI, prueba sobre papel.
 3. **Config de Auth en el dashboard** (§3.4) — barato y crítico antes del go-live.
 4. **Percepciones de compra** (§3.9) — hueco que existe hoy, con o sin cutover; tiene que estar antes

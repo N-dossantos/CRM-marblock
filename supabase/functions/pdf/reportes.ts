@@ -6,7 +6,7 @@ import PDFDocument from 'npm:pdfkit@0.15.0'
 import { Buffer } from 'node:buffer'
 import {
   COLORES, $ar, fFecha,
-  dibujarHeader, dibujarCabeceraTabla, dibujarFilaItem, dibujarFooter,
+  dibujarHeader, dibujarCabeceraTabla, dibujarFilaItem, dibujarFooter, textoTenue,
 } from './base.ts'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -34,8 +34,8 @@ export async function generarRankingDeudores(deudores: any[], empresa: any): Pro
        .text(`${deudores.length} cliente(s) con saldo pendiente`, M + 12, y + 14)
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(16)
        .text($ar(totalAdeudado), M + 12, y + 11, { width: ancho - 24, align: 'right' })
-    doc.fillColor('rgba(255,255,255,0.55)').font('Helvetica').fontSize(8)
-       .text('TOTAL ADEUDADO', M + 12, y + 28, { width: ancho - 24, align: 'right' })
+    textoTenue(doc, 0.55, () => doc.font('Helvetica').fontSize(8)
+       .text('TOTAL ADEUDADO', M + 12, y + 28, { width: ancho - 24, align: 'right' }))
     y += 50
 
     const cols = [
@@ -228,14 +228,16 @@ export async function generarSubdiario(data: any, empresa: any, filtros: any = {
     }
 
     y += 4
+    // Concepto se llevaba lo que sobraba (48 pt) y no entraba ni una palabra: se le da el ancho
+    // que liberan Fecha y Tipo; lo que siga sin entrar parte la fila en dos líneas.
     const cols = [
-      { label: 'Fecha',       w: 62,  align: 'left'  },
-      { label: 'Comprob.',    w: 80,  align: 'left'  },
-      { label: 'Tipo',        w: 80,  align: 'left'  },
-      { label: 'Concepto',    w: ancho - 62 - 80 - 80 - 75 - 75 - 85, align: 'left' },
-      { label: 'Entrada',     w: 75,  align: 'right' },
-      { label: 'Salida',      w: 75,  align: 'right' },
-      { label: 'Saldo',       w: 85,  align: 'right' },
+      { label: 'Fecha',       w: 50,  align: 'left'  },
+      { label: 'Comprob.',    w: 76,  align: 'left'  },
+      { label: 'Tipo',        w: 54,  align: 'left'  },
+      { label: 'Concepto',    w: ancho - 50 - 76 - 54 - 72 - 72 - 80, align: 'left' },
+      { label: 'Entrada',     w: 72,  align: 'right' },
+      { label: 'Salida',      w: 72,  align: 'right' },
+      { label: 'Saldo',       w: 80,  align: 'right' },
     ]
     y = dibujarCabeceraTabla(doc, y, cols)
 
@@ -293,8 +295,8 @@ export async function generarSaldos(data: any, empresa: any): Promise<Uint8Array
     y += 52
 
     const cols = [
-      { label: 'Cuenta',       w: ancho - 90 - 95 - 95 - 100, align: 'left'  },
-      { label: 'Clase',        w: 90,  align: 'left'  },
+      { label: 'Cuenta',       w: ancho - 60 - 95 - 95 - 100, align: 'left'  },
+      { label: 'Clase',        w: 60,  align: 'left'  },
       { label: 'Entradas',     w: 95,  align: 'right' },
       { label: 'Salidas',      w: 95,  align: 'right' },
       { label: 'Saldo actual', w: 100, align: 'right' },

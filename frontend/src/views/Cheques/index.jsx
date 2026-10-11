@@ -1,8 +1,9 @@
 // src/views/Cheques/index.jsx
 import { useState, useEffect, useCallback } from 'react'
-import { ChequesAPI, ClientesAPI, CuentasBancariasAPI } from '../../api'
+import { ChequesAPI, ClientesAPI, CuentasBancariasAPI, pdfUrl } from '../../api'
 import { $ar, fFecha, hoy, addDias, isVencido } from '../../utils'
 import { Badge, Loading, EmptyState, Modal } from '../../components/UI'
+import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
 const ESTADO_OPTS = [
@@ -33,6 +34,7 @@ export default function Cheques() {
   const [entregar, setEntregar] = useState(null) // { cheque, prov }
   const [depositar, setDepositar] = useState(null) // { cheque, cuenta_id, fecha }
   const [cuentas, setCuentas]   = useState([])
+  const [pdf, setPdf]           = useState(null) // { url, titulo }
 
   const load = useCallback(() => {
     setLoading(true)
@@ -166,6 +168,12 @@ export default function Cheques() {
                   <td><Badge estado={ch.estado} /></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {/* Único acceso al PDF de un cheque de tercero con la data de Tango: esos
+                          cheques cuelgan del recibo, no de un movimiento propio de tesorería. */}
+                      <button className="btn btn-secondary btn-xs" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                        onClick={() => setPdf({ url: pdfUrl.cheque(ch.id), titulo: `Cheque ${ch.numero}` })}>
+                        📄 PDF
+                      </button>
                       {ch.estado === 'en_cartera' && <>
                         <button className="btn btn-secondary btn-xs" style={{ background: 'var(--green-50)', color: 'var(--green-700)', borderColor: 'var(--green-100)' }}
                           onClick={() => { if (confirm('¿Marcar como depositado?')) cambiarEstado(ch.id, 'depositado') }}>
@@ -190,6 +198,8 @@ export default function Cheques() {
           </table>
         )}
       </div>
+
+      {pdf && <PDFModal url={pdf.url} titulo={pdf.titulo} onClose={() => setPdf(null)} />}
 
       {/* Modal nuevo cheque */}
       {nuevo && (
