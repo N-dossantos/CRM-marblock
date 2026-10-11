@@ -189,10 +189,8 @@ export const FacturasAPI = {
     p_presupuesto_id:    data.presupuesto_id ?? null,
     p_observaciones:     data.observaciones ?? null,
   }),
-  update: (id, data) => rpc('actualizar_factura', {
-    p_id: id, p_cliente_id: data.cliente_id, p_items: data.items,
-    p_descuento_general: data.descuento_general || 0, p_observaciones: data.observaciones ?? null,
-  }),
+  // Sin `update`: una factura emitida no se edita (se corrige con NC/ND o se anula y reemite).
+  // `actualizar_factura` sigue en la base, pero la app ya no la llama.
   anular: (id) => rpc('factura_anular', { p_id: id }),
 }
 

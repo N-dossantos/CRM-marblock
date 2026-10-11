@@ -76,7 +76,15 @@ function TotalesLineas({ lineas }) {
   )
 }
 
-export default function VentaDetalle({ doc, onClose }) {
+// El IVA de una factura puede venir de varias alícuotas (Fase F/WS3a): se rotula con las tasas de
+// sus renglones; el importe es el guardado (`iva_monto`), no se recalcula acá.
+const rotuloIva = (items = []) => {
+  const tasas = [...new Set(items.map(it => +it.iva_porcentaje).filter(p => !Number.isNaN(p)))].sort((a, b) => a - b)
+  return tasas.length ? `IVA ${tasas.join(' / ')}%` : 'IVA'
+}
+
+// `acciones`: botones extra para el pie (p. ej. NC/ND y Anular desde el listado de Facturas).
+export default function VentaDetalle({ doc, onClose, acciones = null }) {
   const [pdf, setPdf] = useState(null)
   if (!doc) return null
   const tipoDoc = doc._doc
@@ -91,14 +99,19 @@ export default function VentaDetalle({ doc, onClose }) {
         title={titulo}
         size="lg"
         onClose={onClose}
-        footer={pdfBuilder && (
-          <button
-            className="btn btn-secondary btn-sm"
-            style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
-            onClick={abrirPdf}
-          >
-            📄 Ver PDF
-          </button>
+        footer={(pdfBuilder || acciones) && (
+          <>
+            {acciones}
+            {pdfBuilder && (
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                onClick={abrirPdf}
+              >
+                📄 Ver PDF
+              </button>
+            )}
+          </>
         )}
       >
         {/* Cabecera común: cliente */}
@@ -121,14 +134,18 @@ export default function VentaDetalle({ doc, onClose }) {
           <>
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 14 }}>
               <Field label="Tipo"><span className={`badge badge-${doc.tipo}`}>Fac {doc.tipo}</span></Field>
-              <Field label="Remito vinc.">{doc.remito_numero || '—'}</Field>
+              <Field label={doc.remitos?.length > 1 ? 'Remitos vinc.' : 'Remito vinc.'}>
+                {doc.remitos?.length ? doc.remitos.map(r => r.numero).join(', ') : (doc.remito_numero || '—')}
+              </Field>
+              {doc.observaciones && <Field label="Observaciones">{doc.observaciones}</Field>}
             </div>
             <ItemsVenta items={doc.items || []} />
             <TotalesLineas lineas={[
               ...(doc.subtotal != null ? [['Subtotal s/IVA', $ar(doc.subtotal)]] : []),
               ...(+doc.descuento_monto > 0 ? [[`Descuento ${doc.descuento_general}%`, `— ${$ar(doc.descuento_monto)}`, { color: 'var(--red-500)' }]] : []),
               ['Neto gravado', $ar(doc.neto_gravado)],
-              ['IVA 21%', $ar(doc.iva_monto)],
+              [rotuloIva(doc.items), $ar(doc.iva_monto)],
+              ...(+doc.percepciones_monto > 0 ? [['Percepciones', $ar(doc.percepciones_monto)]] : []),
               ['TOTAL', $ar(doc.total), { total: true }],
             ]} />
           </>
@@ -155,7 +172,7 @@ export default function VentaDetalle({ doc, onClose }) {
             <ItemsVenta items={doc.items || []} />
             <TotalesLineas lineas={[
               ['Neto gravado', $ar(doc.neto_gravado)],
-              ['IVA 21%', $ar(doc.iva_monto)],
+              [rotuloIva(doc.items), $ar(doc.iva_monto)],
               ['TOTAL', $ar(doc.total), { total: true }],
             ]} />
           </>

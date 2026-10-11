@@ -14,6 +14,13 @@ const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitar
 // MAPA.items.renglones en supabase/functions/pdf/preimpreso.ts.
 const RENGLONES_TALONARIO = 19
 
+// Letra de factura según la condición de IVA del receptor: A a Responsables Inscriptos y, desde
+// 2021, también a Monotributistas (con la leyenda "Receptor del comprobante – Responsable
+// Monotributo"); B a Consumidor Final y Exento. El CUIT genérico de consumidor final nunca va en A.
+const CUIT_CONSUMIDOR_FINAL = '00-00000000-0'
+const tipoFacturaPara = (cl) =>
+  cl && ['Resp. Inscripto', 'Monotributista'].includes(cl.condicion_iva) && cl.cuit !== CUIT_CONSUMIDOR_FINAL ? 'A' : 'B'
+
 export default function ComprobanteForm({
   title,
   tipo,           // 'factura' | 'presupuesto' | 'remito'
@@ -72,6 +79,15 @@ export default function ComprobanteForm({
     multiIva ? { alicuota_iva_id: alic21?.id } : null,
   )
 
+  // Los renglones que llegan de un remito o un presupuesto no traen alícuota (esos comprobantes no
+  // discriminan IVA). El servidor y los totales ya los toman al 21%, pero el selector de la fila
+  // mostraba la primera opción ("0%"): se completa el 21% explícito para que diga lo que se guarda.
+  useEffect(() => {
+    if (!multiIva || !alic21) return
+    if (form.items.every(it => it.alicuota_iva_id)) return
+    setForm(f => ({ ...f, items: f.items.map(it => it.alicuota_iva_id ? it : { ...it, alicuota_iva_id: alic21.id }) }))
+  }, [multiIva, alic21, form.items])
+
   // Remito → factura: el remito se emite sin precio (es para el camión), así que cada renglón que
   // llega de un remito con precio 0 toma el precio de lista del producto. Cubre las dos entradas:
   // el checkbox de remitos pendientes y el botón "→ Factura" del listado de remitos (que llega por
@@ -104,6 +120,17 @@ export default function ComprobanteForm({
     if (cl.descuento_porcentaje != null) setForm(f => ({ ...f, descuento_general: +cl.descuento_porcentaje }))
   }, [tipo, clientes, form.cliente_id])
 
+  // Misma idea para la letra: si la factura nueva llega con el cliente ya elegido (desde un remito
+  // o un presupuesto), se propone A o B según su condición de IVA, una sola vez.
+  const tipoClienteAplicado = useRef(!esFacturaNueva || !!initial.tipo)
+  useEffect(() => {
+    if (tipoClienteAplicado.current || !form.cliente_id) return
+    const cl = clientes.find(c => c.id === +form.cliente_id)
+    if (!cl) return
+    tipoClienteAplicado.current = true
+    setForm(f => ({ ...f, tipo_fac: tipoFacturaPara(cl) }))
+  }, [clientes, form.cliente_id])
+
   // Auto-aplicar descuento del cliente al seleccionarlo
   const onCliChange = (cliId) => {
     const cl = clientes.find(c => c.id === +cliId)
@@ -115,11 +142,13 @@ export default function ComprobanteForm({
       remito_ids: [],
       items: f.items.filter(it => !it._remito_id),
       descuento_general: cl?.descuento_porcentaje ?? f.descuento_general,
+      ...(esFacturaNueva && cl && { tipo_fac: tipoFacturaPara(cl) }),
       // El teléfono del remito se prellena con el del cliente pero queda editable: el de la
       // obra suele ser otro (capataz/obrador) y es el que sirve si hay que llamar en la entrega.
       ...(esRemito && !f.telefono_entrega && cl?.telefono ? { telefono_entrega: cl.telefono } : {}),
     }))
     dtoClienteAplicado.current = true
+    tipoClienteAplicado.current = true
     onClienteChange?.(cliId)
   }
 
@@ -158,6 +187,10 @@ export default function ComprobanteForm({
     const dif = parseInt(m[2], 10) - numeroSugerido.numero
     return Math.abs(dif) > UMBRAL_DESVIO ? dif : null
   })()
+
+  // Letra distinta de la que corresponde al cliente: avisa, no bloquea (el operador decide).
+  const clienteSel = tipo === 'factura' ? clientes.find(c => c.id === +form.cliente_id) : null
+  const letraDesvio = esFacturaNueva && clienteSel && form.tipo_fac !== tipoFacturaPara(clienteSel)
 
   const save = async (forzar = false) => {
     if (!form.cliente_id)   { toast.error('Seleccione un cliente'); return }
@@ -279,6 +312,17 @@ export default function ComprobanteForm({
             El número está <strong>{Math.abs(desvio)} hoja(s) {desvio > 0 ? 'adelante' : 'atrás'}</strong> del
             sugerido (<span style={{ fontFamily: 'monospace' }}>{numeroSugerido.numero_formateado}</span>).
             Verificá que coincida con la hoja que pusiste en la impresora.
+          </div>
+        </div>
+      )}
+
+      {letraDesvio && (
+        <div className="warn-box" style={{ marginBottom: 14 }}>
+          <span>⚠️</span>
+          <div>
+            {form.tipo_fac === 'A'
+              ? <>El cliente es <strong>{clienteSel.cuit === CUIT_CONSUMIDOR_FINAL ? 'consumidor final genérico (sin CUIT)' : clienteSel.condicion_iva}</strong>: le corresponde <strong>Factura B</strong>. Una Factura A necesita un receptor Responsable Inscripto o Monotributista con CUIT.</>
+              : <>El cliente es <strong>{clienteSel.condicion_iva}</strong>: le corresponde <strong>Factura A</strong>. Con una Factura B no puede computar el IVA.</>}
           </div>
         </div>
       )}
