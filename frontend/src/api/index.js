@@ -298,6 +298,7 @@ export const InformesAPI = {
   ctaCteProveedor: (id, { desde, hasta } = {}) =>
     rpc('informe_cta_cte_proveedor', { p_proveedor_id: id, p_desde: desde || null, p_hasta: hasta || null }),
   ivaCompras:        ({ desde, hasta } = {}) => rpc('informe_iva_compras', { p_desde: desde, p_hasta: hasta }),
+  libroIvaVentas:    ({ desde, hasta } = {}) => rpc('informe_libro_iva_ventas', { p_desde: desde, p_hasta: hasta }),
   preciosCompra:     ({ q } = {})            => rpc('informe_precios_compra', { p_q: q || null }),
   nominaProveedores: ()                      => rpc('informe_nomina_proveedores'),
   // ── Tesorería (Fase C) ──
@@ -656,6 +657,7 @@ export const pdfUrl = {
     if (cliId) p.set('cliente_id', cliId)
     return `/api/pdf/ventas?${p.toString()}`
   },
+  libroIvaVentas:  (desde, hasta)             => `/api/pdf/libro-iva-ventas?${new URLSearchParams({ desde, hasta }).toString()}`,
   // ── Tesorería (Fase D) — comprobantes internos e informes ──
   movimientoTesoreria: (id)         => `/api/pdf/movimiento-tesoreria/${id}`,
   chequePropio:        (id)         => `/api/pdf/cheque-propio/${id}`,

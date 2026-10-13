@@ -4,11 +4,13 @@ import { InformesAPI, ClientesAPI, CuentasBancariasAPI, MovimientosTesoreriaAPI,
 import { $ar, fFecha, hoy } from '../../utils'
 import { Loading } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
+import { exportarXlsx } from '../../utils/excel'
+import { EXCEL } from './exportar'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts'
 
-// Los 17 informes en una sola columna, agrupados por módulo. Antes era una fila horizontal con
+// Los 18 informes en una sola columna, agrupados por módulo. Antes era una fila horizontal con
 // overflow-x: con tantas opciones la mitad quedaba fuera de pantalla y había que scrollear a ciegas
 // para encontrar un informe. En columna entran todos a la vista y el agrupado dice de dónde sale
 // cada uno. GRUPOS es la fuente de verdad del orden; TABS queda derivado para el resto del código.
@@ -20,6 +22,7 @@ const GRUPOS = [
       { id: 'clientes',       label: '🏆 Ranking de clientes' },
       { id: 'deudores',       label: '🚨 Ranking de deudores' },
       { id: 'pendientes',     label: '⏳ Pendientes' },
+      { id: 'iva_ventas',     label: '📚 Libro IVA Ventas' },
     ],
   },
   {
@@ -79,7 +82,9 @@ export default function Informes() {
   // Los datos quedan etiquetados con la solapa que los pidió: al cambiar de solapa el primer render
   // ya es de la nueva, y si se dibujara con los datos de la anterior (otra forma) se rompe la
   // pantalla. `pedido` descarta además la respuesta de una consulta vieja que llegue tarde.
-  const [res, setRes]           = useState({ tab: null, data: null })
+  // `filtros` son los de la consulta que trajo los datos (no los del formulario, que pueden haber
+  // cambiado sin volver a consultar): el Excel se titula con el período de lo que se ve.
+  const [res, setRes]           = useState({ tab: null, data: null, filtros: null })
   const [loading, setLoading]   = useState(false)
   const pedido = useRef(0)
   const data = res.tab === tab ? res.data : null
@@ -104,9 +109,10 @@ export default function Informes() {
   const cargar = async () => {
     const id = ++pedido.current
     const tabPedida = tab
-    const setData = (d) => { if (id === pedido.current) setRes({ tab: tabPedida, data: d }) }
+    const filtros = { desde, hasta, estado: estadoCheque }
+    const setData = (d) => { if (id === pedido.current) setRes({ tab: tabPedida, data: d, filtros }) }
     setLoading(true)
-    setRes({ tab: null, data: null })
+    setRes({ tab: null, data: null, filtros: null })
     try {
       switch (tab) {
         case 'ventas':
@@ -127,6 +133,9 @@ export default function Informes() {
           break
         case 'iva_compras':
           setData(await InformesAPI.ivaCompras({ desde, hasta }))
+          break
+        case 'iva_ventas':
+          setData(await InformesAPI.libroIvaVentas({ desde, hasta }))
           break
         case 'nomina_prov':
           setData(await InformesAPI.nominaProveedores())
@@ -171,6 +180,20 @@ export default function Informes() {
       if (id === pedido.current) setLoading(false)
     }
   }
+
+  const exportarExcel = () => {
+    const { archivo, hojas } = EXCEL[tab](data, res.filtros || {})
+    return exportarXlsx(archivo, hojas)
+  }
+  const botonExcel = EXCEL[tab] && data && (
+    <button
+      className="btn btn-secondary btn-sm"
+      style={{ marginTop: 2, background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}
+      onClick={exportarExcel}
+    >
+      📊 Exportar Excel
+    </button>
+  )
 
   const COLORS = ['#1d4ed8','#10b981','#f97316','#7c3aed','#ef4444','#0891b2','#d97706','#059669']
 
@@ -226,7 +249,7 @@ export default function Informes() {
         </div>
       )}
 
-      {(tab === 'ventas' || tab === 'clientes' || tab === 'iva_compras' || TES_FECHA_TABS.includes(tab) || CTB_FECHA_TABS.includes(tab)) && (
+      {(tab === 'ventas' || tab === 'clientes' || tab === 'iva_compras' || tab === 'iva_ventas' || TES_FECHA_TABS.includes(tab) || CTB_FECHA_TABS.includes(tab)) && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div>
             <label className="lbl">Desde</label>
@@ -311,6 +334,16 @@ export default function Informes() {
               📄 Exportar PDF
             </button>
           )}
+          {tab === 'iva_ventas' && data && (
+            <button
+              className="btn btn-secondary btn-sm"
+              style={{ marginTop: 2, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+              onClick={() => setPdfModal({ url: pdfUrl.libroIvaVentas(res.filtros.desde, res.filtros.hasta), titulo: `Libro IVA Ventas ${res.filtros.desde} / ${res.filtros.hasta}` })}
+            >
+              📄 Exportar PDF
+            </button>
+          )}
+          {botonExcel}
         </div>
       )}
 
@@ -590,6 +623,81 @@ export default function Informes() {
               </div>
             </div>
           )}
+          {/* LIBRO IVA VENTAS — facturas y NC/ND del período; las NC vienen en negativo */}
+          {tab === 'iva_ventas' && data.comprobantes && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
+                {[
+                  { label: 'Comprobantes',  val: data.totales.cantidad, color: 'var(--blue-600)' },
+                  { label: 'Neto gravado',  val: $ar(data.totales.neto_gravado || 0), color: 'var(--gray-600)' },
+                  { label: 'IVA débito',    val: $ar(data.totales.iva_monto || 0), color: 'var(--gray-600)' },
+                  { label: 'Total',         val: $ar(data.totales.total || 0), color: '#10b981' },
+                ].map(k => (
+                  <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
+                    <div className="kpi-label">{k.label}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {data.resumen.length > 0 && (
+                <div className="card" style={{ marginBottom: 18 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>Resumen por comprobante</div>
+                  <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
+                    <table>
+                      <thead><tr>
+                        <th>Comprobante</th><th className="th-right">Cantidad</th><th className="th-right">Neto</th>
+                        <th className="th-right">IVA</th><th className="th-right">Percepciones</th><th className="th-right">Total</th>
+                      </tr></thead>
+                      <tbody>
+                        {data.resumen.map(r => (
+                          <tr key={`${r.comprobante}-${r.letra}`}>
+                            <td className="td-bold">{r.comprobante} {r.letra}</td>
+                            <td className="td-right">{r.cantidad}</td>
+                            <td className="td-right">{$ar(r.neto_gravado)}</td>
+                            <td className="td-right">{$ar(r.iva_monto)}</td>
+                            <td className="td-right">{$ar(r.percepciones_monto)}</td>
+                            <td className="td-right td-bold">{$ar(r.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <th>Fecha</th><th>Comprobante</th><th>Cliente</th><th>CUIT</th><th>Cond. IVA</th>
+                    <th className="th-right">Neto</th><th className="th-right">IVA</th><th className="th-right">Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.comprobantes.length === 0
+                      ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin comprobantes en el período</td></tr>
+                      : data.comprobantes.map(c => (
+                        <tr key={`${c.comprobante}-${c.id}`} style={{ opacity: c.anulada ? 0.45 : 1 }}>
+                          <td>{fFecha(c.fecha)}</td>
+                          <td>
+                            <span className="badge" style={{ marginRight: 6 }}>{c.comprobante} {c.letra}</span>
+                            <span className="code">{c.numero}</span>
+                            {c.anulada && <span style={{ color: 'var(--red-500)', marginLeft: 6, fontSize: 12 }}>(anulada)</span>}
+                          </td>
+                          <td className="td-bold">{c.razon_social}</td>
+                          <td className="td-mono">{c.cuit}</td>
+                          <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.condicion_iva}</td>
+                          <td className="td-right">{$ar(c.neto_gravado)}</td>
+                          <td className="td-right">{$ar(c.iva_monto)}</td>
+                          <td className="td-right td-bold" style={{ color: +c.total < 0 ? 'var(--red-500)' : 'inherit' }}>{$ar(c.total)}</td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* LIBRO IVA COMPRAS */}
           {tab === 'iva_compras' && data.comprobantes && (
             <div>
@@ -619,7 +727,7 @@ export default function Informes() {
                       : data.comprobantes.map((c, i) => (
                         <tr key={i}>
                           <td>{fFecha(c.fecha)}</td>
-                          <td><span className={`badge badge-${c.tipo}`} style={{ marginRight: 6 }}>{c.tipo}</span><span className="code">{c.punto_venta}-{c.numero}</span></td>
+                          <td><span className={`badge badge-${c.tipo}`} style={{ marginRight: 6 }}>{c.comprobante === 'FAC' ? c.tipo : `${c.comprobante} ${c.tipo || ''}`}</span><span className="code">{c.numero}</span></td>
                           <td className="td-bold">{c.razon_social}</td>
                           <td className="td-mono">{c.cuit}</td>
                           <td style={{ fontSize: 11, color: 'var(--gray-500)' }}>
@@ -739,6 +847,7 @@ export default function Informes() {
                   >
                     📄 Exportar PDF
                   </button>
+                  {botonExcel}
                 </div>
               </div>
               {data.agrupaciones.length === 0

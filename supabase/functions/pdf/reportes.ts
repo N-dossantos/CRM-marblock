@@ -1,5 +1,5 @@
 // supabase/functions/pdf/reportes.ts
-// Templates PDF para los informes (ranking deudores, resumen ventas). Puerto directo de
+// Templates PDF para los informes (ranking deudores, resumen ventas, tesorería, libro IVA ventas). Puerto directo de
 // backend/src/utils/pdf/reportes.js.
 // deno-lint-ignore-file no-explicit-any
 import PDFDocument from 'npm:pdfkit@0.15.0'
@@ -394,6 +394,94 @@ export async function generarMayorTesoreria(data: any, empresa: any, filtros: an
        .text(`Entradas: ${$ar(totE)}   ·   Salidas: ${$ar(totS)}`, M + 8, y + 9)
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12)
        .text(`Diferencia: ${$ar(totE - totS)}`, M + 8, y + 8, { width: ancho - 16, align: 'right' })
+
+    dibujarFooter(doc, empresa)
+    doc.end()
+  })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIBRO IVA VENTAS (M12) — A4 apaisado: facturas y NC/ND del período, NC en negativo
+// ─────────────────────────────────────────────────────────────────────────────
+export async function generarLibroIvaVentas(data: any, empresa: any, filtros: any = {}): Promise<Uint8Array> {
+  return await new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0, bufferPages: true })
+    const buffers: any[] = []
+    doc.on('data', (b: any) => buffers.push(b))
+    doc.on('end',  () => resolve(Buffer.concat(buffers)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 45
+    const ancho = W - M * 2
+    const { comprobantes = [], resumen = [], totales = {} } = data
+
+    let y = dibujarHeader(doc, empresa, 'LIBRO IVA VENTAS', '', new Date().toISOString().split('T')[0])
+
+    doc.rect(M, y + 6, ancho, 22).fill(COLORES.azul_claro).stroke('#93c5fd')
+    doc.fillColor(COLORES.azul_medio).font('Helvetica-Bold').fontSize(9)
+       .text(`Período: ${fFecha(filtros.desde)} al ${fFecha(filtros.hasta)}  ·  Las notas de crédito restan`,
+             M + 8, y + 13, { width: ancho - 16, align: 'center' })
+    y += 34
+
+    const cols = [
+      { label: 'Fecha',        w: 50,  align: 'left'  },
+      { label: 'Comprobante',  w: 105, align: 'left'  },
+      { label: 'Cliente',      w: ancho - 50 - 105 - 75 - 65 - 85 - 80 - 65 - 90, align: 'left' },
+      { label: 'CUIT',         w: 75,  align: 'left'  },
+      { label: 'Cond. IVA',    w: 65,  align: 'left'  },
+      { label: 'Neto',         w: 85,  align: 'right' },
+      { label: 'IVA',          w: 80,  align: 'right' },
+      { label: 'Percep.',      w: 65,  align: 'right' },
+      { label: 'Total',        w: 90,  align: 'right' },
+    ]
+    y = dibujarCabeceraTabla(doc, y, cols)
+
+    comprobantes.forEach((c: any, i: number) => {
+      y = dibujarFilaItem(doc, y, [
+        fFecha(c.fecha),
+        `${c.comprobante} ${c.letra || ''} ${c.numero || ''}`.replace(/\s+/g, ' ').trim(),
+        c.anulada ? `${c.razon_social || '—'} (ANULADA)` : (c.razon_social || '—'),
+        c.cuit || '—',
+        c.condicion_iva || '—',
+        $ar(c.neto_gravado),
+        $ar(c.iva_monto),
+        $ar(c.percepciones_monto),
+        $ar(c.total),
+      ], cols, i % 2 === 1)
+      if (y > doc.page.height - 90) { doc.addPage(); y = 40; y = dibujarCabeceraTabla(doc, y, cols) }
+    })
+
+    // Resumen por comprobante y letra: cabecera (22) + una fila por tipo (20) + barra de totales
+    // (30). Pasa a otra hoja sólo si no entra antes del pie (que está a 38 del borde).
+    y += 14
+    if (y + 22 + 20 * resumen.length + 30 > doc.page.height - 45) { doc.addPage(); y = 40 }
+    const colsRes = [
+      { label: 'Comprobante', w: ancho - 60 - 120 - 120 - 100 - 120, align: 'left'  },
+      { label: 'Cantidad',    w: 60,  align: 'right' },
+      { label: 'Neto',        w: 120, align: 'right' },
+      { label: 'IVA',         w: 120, align: 'right' },
+      { label: 'Percep.',     w: 100, align: 'right' },
+      { label: 'Total',       w: 120, align: 'right' },
+    ]
+    y = dibujarCabeceraTabla(doc, y, colsRes)
+    resumen.forEach((r: any, i: number) => {
+      y = dibujarFilaItem(doc, y, [
+        `${r.comprobante} ${r.letra || ''}`.trim(),
+        String(r.cantidad),
+        $ar(r.neto_gravado),
+        $ar(r.iva_monto),
+        $ar(r.percepciones_monto),
+        $ar(r.total),
+      ], colsRes, i % 2 === 1)
+    })
+
+    y += 4
+    doc.rect(M, y, ancho, 26).fill(COLORES.azul_oscuro)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(9)
+       .text(`${totales.cantidad ?? comprobantes.length} comprobantes  ·  Neto: ${$ar(totales.neto_gravado)}  ·  IVA: ${$ar(totales.iva_monto)}`, M + 8, y + 9)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12)
+       .text(`Total: ${$ar(totales.total)}`, M + 8, y + 8, { width: ancho - 16, align: 'right' })
 
     dibujarFooter(doc, empresa)
     doc.end()

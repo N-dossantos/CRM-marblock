@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { InformesAPI, ProveedoresAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Loading } from '../../components/UI'
+import { exportarCtaCte } from '../../utils/excel'
 
 const TIPO_STYLE = {
   FACTURA:       { bg: '#fef3c7', color: '#92400e', label: 'Factura' },
@@ -108,6 +109,13 @@ export default function ComprasCtaCte() {
                   <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
                     {data.saldo_total > 0 ? '⬆ Le debemos' : data.saldo_total < 0 ? '⬇ Saldo a favor' : '✓ Cuenta balanceada'}
                   </div>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginTop: 10, background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}
+                    onClick={() => exportarCtaCte(data, data.proveedor, 'Proveedor')}
+                  >
+                    📊 Excel
+                  </button>
                 </div>
               </div>
 

@@ -4,6 +4,7 @@ import { InformesAPI, ClientesAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Loading } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
+import { exportarCtaCte } from '../../utils/excel'
 
 const TIPO_STYLE = {
   FACTURA:    { bg: '#fef3c7', color: '#92400e', label: 'Factura' },
@@ -127,6 +128,13 @@ export default function CtaCte() {
                     }}
                   >
                     📄 Generar PDF
+                  </button>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginTop: 10, marginLeft: 6, background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}
+                    onClick={() => exportarCtaCte(data, data.cliente, 'Cliente')}
+                  >
+                    📊 Excel
                   </button>
                 </div>
               </div>
