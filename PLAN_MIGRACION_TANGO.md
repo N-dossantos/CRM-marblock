@@ -171,7 +171,7 @@ aparecieron recién al armar los `.sql` y chocar contra el schema del destino:
 | **D5** | ⏳ **se confirma serie por serie el día del cutover** · Contadores al salir en vivo (H2–H4) | Último número **por fecha** de cada serie (ver tabla abajo), confirmado contra la fuente real: ARCA (`FECompUltimoAutorizado` o *Mis Comprobantes*) para facturas y notas, y el talonario físico para remitos. | Confirmar serie por serie el mismo día del cutover. |
 | **D6** | ⏳ **pendiente: Nico abre en Tango un cheque de cada código** · Estados de cheques de terceros | `SBA14.ESTADO` tiene sólo tres códigos: `A` (4.976), `X` (21) y `C` (10). El destino usa `en_cartera / depositado / entregado / rechazado_banco`. El estado se deriva de `FECHA_SAL` / `TIPO_SAL` (salida), `FECHA_RECH` (rechazo) y el último `MOVIMIENTO_CHEQUE_TERCERO`. | Que Nico abra en Tango un cheque de cada código y confirme qué significa. |
 | **D7** | ✅ **decidida 2026-10-06: (a)**, historia completa · Alcance de Tesorería y Contabilidad | **(a)** Historia completa: 7.150 movimientos y 17.460 asientos. **(b)** Sólo saldos de apertura a la fecha de corte. | **(a)**: es coherente con "historia completa" (decisión del 2026-07-28) y el volumen es chico. |
-| **D8** | ⏳ **fecha por definir** (el principio queda fijo) · Fecha de corte | Congelar Tango, hacer un `.bak` nuevo, correr el pipeline y cargar, todo el mismo día. | Elegir un día de poco movimiento: el pipeline completo tarda minutos. |
+| **D8** | ✅ **decidida 2026-10-13: sábado 17/10/2026**, con los datos de Tango hasta el cierre del viernes 16/10 · Fecha de corte | Congelar Tango al terminar el viernes 16, hacer el `.bak` nuevo el sábado 17, correr el pipeline y cargar ese mismo día. | Sábado: no hay movimiento, y el lunes 19 se arranca en el CRM. |
 | **D9** | Percepciones de compras (H13) — ✅ **decidida 2026-10-06: (a)**, ver `PLAN_MAESTRO.md` §3.9 | **(a)** Tabla nueva `percepciones_compra` (`factura_compra_id` XOR `nota_compra_id`, `tipo` = `iva` / `iibb` / `ganancias` / `imp_internos`, `jurisdiccion`, `base_imponible`, `alicuota`, `monto`) + `percepciones_monto` en `facturas_compra` y `notas_compra`, con `total = neto + IVA + percepciones`; `crear_/actualizar_factura_compra` y `crear_nota_compra` reciben `p_percepciones`; el formulario de compra las carga; el Libro IVA Compras suma columnas de percepción IVA e IIBB. **(b)** Meter la percepción de IVA como alícuota 3 % / 10 % en `factura_compra_iva_detalle`. **(c)** Cargar el `total` de Tango sin desglose. | **(a).** (b) mezcla crédito fiscal con pagos a cuenta y deja el Libro IVA mal; (c) rompe `total = neto + IVA` y el saldo con cada proveedor. **No es sólo un tema de la migración:** hoy no se puede cargar en el CRM una factura de Loma Negra con su total correcto. Es un desarrollo de Compras con sub-plan propio. La tabla `percepciones` de Ventas no se reutiliza: modela percepciones practicadas y tiene FK a `facturas` / `notas`. |
 
 **Ya decididas, sólo hay que reconfirmarlas** (`supabase/tango/README.md`, "Decisiones clave"):
@@ -1139,11 +1139,20 @@ ser igual a `GVA14.SALDO_CC`. Es el control que mejor detecta errores de imputac
   > O/P, 13 de REC) traen `MONTO` negativo y `movimientos_tesoreria` exige `monto >= 0`. Se invierte
   > el signo y se carga el valor absoluto, que deja igual `monto_con_signo` y los saldos contra
   > `SBA01.SALDO_ACT`.
-- [ ] **Paso 4:** Entrar a la app, abrir 3 clientes (uno con descuento de 18 %, uno con recibos que
+- [x] **Paso 4:** Entrar a la app, abrir 3 clientes (uno con descuento de 18 %, uno con recibos que
   cancelan varias facturas y uno con NC), comparar la cuenta corriente con Tango y emitir un comprobante
   de prueba en un cliente descartable. Sumar una NC "a cuenta" de las 23 de H22: tiene que aparecer en
   la lista y en el saldo del cliente.
-- [ ] **Paso 5:** Vaciar (`./05_cargar.sh --vaciar`) hasta el cutover.
+
+  > **Hecho por Nico a mano (2026-10-13), sin errores.** Lo que anotó navegando quedó en "Mejoras
+  > detectadas en el smoke" (M1–M12, al final del plan).
+- [x] **Paso 5:** Vaciar (`./05_cargar.sh --vaciar`) hasta el cutover.
+
+  > **Hecho por Nico (2026-10-13).** Verificado por MCP: 0 filas en clientes, proveedores, facturas,
+  > recibos, remitos, cheques, facturas de compra, tesorería, asientos y plan de cuentas; se conservan
+  > los 25 productos sembrados, `audit_log` (10 filas) y `contadores` (el UPSERT del día D los pisa).
+  > Antes de vaciar se borró de la Mac el `MARBLOCK_SA.bak` del 25/09; `csv/` y `sql/` quedan, así que
+  > `./05_cargar.sh` todavía puede recargar la foto del 25/09 si hiciera falta.
 
 > **Lo que falta para poder correr los pasos 2 a 5:** sólo el URI directo de la base en un archivo
 > gitignoreado (las migraciones ya están aplicadas, Tarea 3 paso 2) —
@@ -1159,10 +1168,12 @@ se lee un `.bak` y se carga Supabase.
 
 - [x] Las migraciones del 2026-10-06 **aplicadas** en producción (Tarea 3 paso 2).
 - [ ] El dry-run de la Tarea 10 cerrado con `POST_LOAD_VERIFY` sin `⚠`.
-- [ ] La base **vacía** (`./05_cargar.sh --vaciar`): el `TRUNCATE` está dentro de la transacción de
+- [x] La base **vacía** (`./05_cargar.sh --vaciar`, 2026-10-13): el `TRUNCATE` está dentro de la transacción de
       carga, así que esto es por prolijidad, no por necesidad.
-- [ ] Usuarios de staff creados y *"Allow new users to sign up"* deshabilitado (`PLAN_MAESTRO.md` §3.4).
-- [ ] D6 cerrada (los tres códigos de estado de cheque) y D8 con fecha.
+- [x] Usuarios de staff creados y *"Allow new users to sign up"* deshabilitado (`PLAN_MAESTRO.md` §3.4).
+      Hecho por Nico; verificado el 2026-10-13 (`/auth/v1/settings` → `disable_signup: true`, 2 usuarios).
+- [ ] D6 cerrada (los tres códigos de estado de cheque) y D8 con fecha. *(D8 fijada: sábado 17/10/2026,
+      datos hasta el viernes 16/10. Falta D6.)*
 
 **El día D:**
 
@@ -1306,6 +1317,8 @@ Las marcadas **(bloquea go-live)** afectan la operación diaria del día D.
 | M9 | Ventas → Nota de crédito / débito | No se puede buscar la factura a imputar; no se ven sus ítems | El selector es un desplegable con todas las facturas (corta en 1.000) y el formulario arranca vacío | Buscador de factura por número / cliente / CUIT. Con la factura elegida se listan sus ítems con casilla: los marcados pasan a la nota con **su precio, su descuento de ítem y el descuento general de la factura** (combinado en el descuento del ítem, salvo pallets vacíos y transporte, que no lo llevan); la cantidad queda editable | `Notas/index.jsx`, `Notas/NotaForm.jsx` |
 | M10 | Todos los formularios | ESC no hace nada | — | **ESC cancela y cierra** el formulario o comprobante abierto, igual que "Cancelar". Con modales apilados (PDF sobre una factura) cierra sólo el de arriba; si la lista del buscador de clientes está abierta, el primer ESC cierra la lista | `hooks/useEscape.js`, `Modal` (UI), `PDFModal` |
 | M11 | Facturas, Remitos, Recibos, Facturas de compra, Órdenes de pago | Las listas tardan | Traían todo de una: facturas 4.596 filas / ~9 MB, remitos 6.835 / ~10 MB, facturas de compra 6.191 / ~8 MB (~0,8 s sólo en la base para facturas) | **Paginado en el servidor de a 50**: las `*_list` reciben `p_limit` / `p_offset`, eligen la página antes de armar el JSON de ítems y devuelven `total_filas` (y `total_importe` en recibos / órdenes de pago, para que los totales del filtro sigan siendo del filtro completo). Pie con "1–50 de 4.596" y anterior/siguiente; cambiar un filtro vuelve a la página 1. Sin `p_limit` las RPC devuelven todo como antes (consultas por cliente, PDF, remitos pendientes). Facturas: 775 ms → 43 ms en la base | migraciones `20261009130000_…` y `20261009130001_…`, `hooks/useListaPaginada.js`, `Paginador` (UI), las 5 vistas |
+| M12 | Informes, Cuenta corriente | Hace falta exportar a **.xlsx**: el Mayor de tesorería se descarga para otros usos (p. ej. mandarlo por WhatsApp) y los libros IVA Compras y Ventas, que se sacan por mes, el contador los necesita en un archivo que abra Excel o Sheets. Revisar qué otros informes conviene sumar | Sólo había PDF. Además, al revisarlo: (a) **no existía el Libro IVA Ventas**; (b) el **Libro IVA Compras no incluía las NC/ND de proveedores** (478 en la carga de Tango: NC por $78,7 M y ND por $22,3 M), así que el libro quedaba incompleto | Botón **📊 Exportar Excel** en: Mayor tesorería, los dos libros IVA, el resto de tesorería (subdiario, saldos, movimientos por operación, cheques, comprobantes, histórico), los libros contables (diario, mayor, sumas y saldos) y las cuentas corrientes de clientes y proveedores. Las fechas van como fecha y los importes como número con formato `#,##0.00`, para que se puedan sumar y filtrar; el encabezado de la tabla queda fijo y al pie va una fila de totales. La librería (`write-excel-file`) se carga recién al exportar: es un chunk aparte de 71 kB. El Libro IVA Compras lleva el neto y el IVA **por alícuota** en columnas, más los exentos, las percepciones y hojas aparte de percepciones y retenciones. **Libro IVA Ventas nuevo** (RPC `informe_libro_iva_ventas`): solapa en Informes → Ventas, con resumen por comprobante, Excel y PDF apaisado. **IVA Compras con NC/ND**. En los dos libros las NC van con signo negativo | migración `20261013120000_libros_iva.sql`, `utils/excel.js`, `Informes/exportar.js`, `Informes/index.jsx`, `CtaCte/index.jsx`, `ComprasCtaCte/index.jsx`, `api/index.js`, PDF `reportes.ts` + `index.ts` (ruta `libro-iva-ventas`) |
+
 
 **Cómo se verifica cada uno (con la data cargada):**
 
@@ -1321,6 +1334,7 @@ Las marcadas **(bloquea go-live)** afectan la operación diaria del día D.
 
 - M8: un cliente con movimientos: saldo con `hasta` = saldo de la fila de esa fecha en la vista sin filtro; "Limpiar" vuelve al saldo actual.
 - M9: NC buscando la factura por número, marcando 1 ítem: el neto de la nota = cantidad × precio con los descuentos de la factura.
+- M12: Informes → Libro IVA Ventas de un mes: la suma del total da las facturas del mes menos las NC más las ND. El PDF y el Excel dicen lo mismo. En el Libro IVA Compras aparecen las NC/ND de proveedores (las NC en negativo). Con el Excel de cada informe: se abre en Excel o Sheets, las fechas se pueden ordenar, los importes se pueden sumar y la fila de totales coincide con la pantalla. Lo mismo en la cuenta corriente de un cliente y de un proveedor.
 
 **Fuera del navegador — hecho el 2026-10-09:** la migración `20261009120000_informes_orden_y_saldos`
 quedó **aplicada** y la Edge Function `pdf` **redeployada (v5, `verify_jwt=true`)**. Verificado
@@ -1340,6 +1354,36 @@ una transacción revertida: automático 00001-00004289; manual 00001-00004300 su
 manual 00001-00004295 (hueco) no lo baja; el siguiente automático da 00001-00004301; duplicado y
 formato inválido rechazados. En la base del dry-run se aplicó el UPDATE de `producto_id` de M6 (el
 ETL ya lo trae para la carga del día D: `python3 -m etl` regenera `20_ventas.sql` con los tres
-UPDATE; el resto de los `.sql` no cambia). Falta repetir en el navegador las verificaciones de M6,
-M7, M10 y M11 de arriba.
+UPDATE; el resto de los `.sql` no cambia).
+
+**En el navegador — hecho el 2026-10-10:** verificados M6, M7 (los dos recibos de prueba "PRUEBA M7…"
+de $1 a Consumidor Final, 00001-00004289 y 00001-00004295, se van con el vaciado), M10 y M11.
+**Descuento del cliente en "→ Factura" (M6) — verificado el 2026-10-13.** No había remitos
+pendientes de clientes con descuento, así que se puso temporalmente 10 % a Trans. Vesprini SA
+(cliente del remito pendiente 00001-00010348; tenía 0). Por "→ Factura" y por Nueva factura con el
+remito marcado: descuento general 10 %, bloque a $1.237,13, pallets a $4.000, Factura A; el
+descuento ($111.341,70) se aplica sólo al bloque, no a los pallets. Total $1.241.551,11. Se cerró
+**sin guardar** y el cliente se restauró con su descuento y su `updated_at` originales. No se creó
+ningún comprobante: mismas 4.596 facturas y los contadores `factura_a` 2321 y `remito` 10366 sin
+cambios.
+
+**Tercera vuelta (M12) — hecho el 2026-10-13:** migración `20261013120000_libros_iva` **aplicada**.
+Verificado contra la data cargada: Libro IVA Ventas 2025 = FAC A + FAC B $555.774.077,61 − NC
+$29.869.981,87, igual a `facturas` / `notas`; IVA Compras 2025 = facturas $413.089.613,62 − NC
+$31.847.623,06 + ND $9.997.470,00 = $391.239.460,56, con 359 renglones (325 facturas + 34 notas);
+`anon` no ejecuta ninguna de las dos. Edge Function `pdf` **redeployada (v7, `verify_jwt=true`)**
+con la ruta `libro-iva-ventas`. Los Excel se generaron en Node con datos reales (IVA Compras e IVA
+Ventas de mar-2025, Mayor tesorería, Libro Diario, cta. cte.) y se revisaron con openpyxl: fechas
+como fecha, importes como número, totales correctos.
+
+**M12 en el navegador — hecho el 2026-10-13** (mar-2025):
+- Libro IVA Ventas: 15 FAC A por $47.692.963,36 en pantalla, Excel y PDF.
+- Libro IVA Compras: aparecen la ND A de Loma Negra y las NC A en negativo.
+- Mayor y Saldos de tesorería, Sumas y Saldos (debe = haber = $138.024.634,86) y la cta. cte. de
+  Curto Martins al 30/06/2025 ($5.361.110,29): se exportan y los Excel bajados coinciden con la
+  pantalla.
+- Sin errores en la consola.
+
+El resumen del PDF pasaba a una segunda hoja aunque entraba en la primera; se corrigió y se
+redeployó `pdf` (**v8**).
 

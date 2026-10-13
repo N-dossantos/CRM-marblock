@@ -47,7 +47,7 @@
 > 📌 Nota de versionado: hasta el 2026-08-20 este archivo estaba **gitignoreado**; ese día se
 > comentó la línea en `.gitignore` (`#PLAN_MAESTRO.md`), así que **ahora sí entra en git**.
 >
-> Última actualización: **2026-10-10** (smoke de los PDF y Edge Function `pdf` v6 — §3.1).
+> Última actualización: **2026-10-13** (M12: libros IVA, export a Excel y Edge Function `pdf` v8 — §3.1).
 > Anterior: **2026-10-06** (borrado de los planes viejos de `supabase/`; alta de la
 > facturación multi-remito, que sólo figuraba en `MIGRATION_PLAN.md`; y percepciones de compra, D9
 > → §3.9).
@@ -59,7 +59,7 @@
 | # | Fase | Estado |
 |---|---|---|
 | 0–6 | Migración Express → Supabase (schema, RLS, RPCs, Auth, capa de datos, Edge Function PDF) | ✅ completo — *salvo la config de Auth del dashboard* |
-| 4-bis | **Config de Auth en el dashboard** (apagar signup público + crear staff) | ⛔ **pendiente** — manual, crítico pre-go-live |
+| 4-bis | **Config de Auth en el dashboard** (apagar signup público + crear staff) | ✅ **hecho** — Nico, verificado 2026-10-13 (`disable_signup: true`, 2 usuarios de staff) |
 | 7 | **Cutover de datos (Tango → Supabase)** | 🔄 **pipeline completo, migraciones aplicadas** — falta correr el dry-run contra la base (`PLAN_MIGRACION_TANGO.md` Tareas 10–11), que necesita el connection string directo. Ya **no** está bloqueado por credenciales de Tango: se lee el `.bak` directo |
 | A | Compras + Procesos Generales (audit_log, tablas_generales) | ✅ completo |
 | B | Consultas 360° Ventas / Compras | ✅ completo |
@@ -201,7 +201,7 @@ valores calculados y hace rollback, así las tablas quedaban vacías para el cut
 
 ## 3. ⏳ Pendiente — detallado
 
-### 3.1 Edge Function `pdf` — ✅ **desplegada (v6, 2026-10-10)** y con smoke hecho
+### 3.1 Edge Function `pdf` — ✅ **desplegada (v8, 2026-10-13)** y con smoke hecho
 
 Era el bloqueo técnico #1: hasta el 2026-08-20 corría la **`version 1` (~2026-07-27)**, anterior a
 Tesorería. **Resuelto el 2026-10-09**: la función quedó en la **v5** (`ACTIVE`, `verify_jwt=true`),
@@ -209,7 +209,9 @@ redeployada junto con las mejoras del smoke del dry-run (M2 y M8 de `PLAN_MIGRAC
 El 2026-10-10 pasó a la **v6** con los arreglos del smoke (abajo), deployada por el MCP
 (`deploy_edge_function`) y comparada con `get_edge_function` contra `supabase/functions/pdf/`: los 5 archivos
 (`index.ts`, `base.ts`, `templates.ts`, `reportes.ts`, `preimpreso.ts`) son **idénticos** a los
-locales, así que en producción está todo lo que antes faltaba:
+locales, así que en producción está todo lo que antes faltaba. El 2026-10-13 pasó a la **v8**
+(`npx supabase functions deploy pdf --use-api`, sin Docker) con la ruta `libro-iva-ventas` (M12 de
+`PLAN_MIGRACION_TANGO.md`), con smoke de navegador hecho:
 - los 6 casos de tesorería del `switch` de `index.ts` (comprobantes, cheques propios y de terceros,
   saldos / subdiario / mayor de tesorería), con sus templates en `templates.ts` / `reportes.ts`;
 - el desglose de IVA por alícuota en factura y nota (`base.ts` / `templates.ts`);
@@ -283,6 +285,11 @@ mano (lo hace Nico).
 > `total_filas`; `crear_recibo` con `p_numero` opcional — cambian las firmas, se re-otorgan a
 > `authenticated` y se revocan a `anon`) y `20261009130001_listas_total_importe`. El ETL de ventas
 > completa `producto_id` en los renglones de Tango (M6).
+>
+> **2026-10-13 — M12 (libros IVA y exportar a Excel):** aplicada `20261013120000_libros_iva`
+> (`informe_libro_iva_ventas` nuevo; `informe_iva_compras` suma las NC/ND de proveedores, con las NC
+> en negativo) y redeployada la Edge Function `pdf` (**v8**, `verify_jwt=true`, ruta
+> `libro-iva-ventas`; smoke de navegador hecho). El export a .xlsx es frontend (`write-excel-file`, se carga al exportar).
 >
 > **Lo único que falta para la Tarea 10 (dry-run):** el connection string **directo** de la base
 > (usuario `postgres`, no el pooler, que no admite `SET session_replication_role`) en un archivo
