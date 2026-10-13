@@ -1,7 +1,8 @@
 // src/components/Forms/ComprobanteForm.jsx
 // Formulario reutilizable para Factura, Presupuesto y Remito
 import { useState, useEffect, useRef } from 'react'
-import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal, ClienteSearch } from '../UI'
+import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal, ClienteSearch, agregarProductos } from '../UI'
+import { ElegirProductosBtn } from '../UI/ProductoPicker'
 import { calcTotalesMulti, renglonesDeRemito } from '../../utils'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
 import toast from 'react-hot-toast'
@@ -172,8 +173,9 @@ export default function ComprobanteForm({
     })
   }
 
-  const addItem = () =>
-    setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE, ...(multiIva && { alicuota_iva_id: alic21?.id }) }] }))
+  const itemBase = () => ({ ...ITEM_BASE, ...(multiIva && { alicuota_iva_id: alic21?.id }) })
+  const addItem = () => setForm(f => ({ ...f, items: [...f.items, itemBase()] }))
+  const addProductos = (sel) => setForm(f => ({ ...f, items: agregarProductos(f.items, sel, itemBase()) }))
 
   // Aviso (no bloqueante) cuando el número tipeado se aleja del sugerido: la base impide
   // duplicados, pero no puede detectar un error de tipeo que caiga en un número libre.
@@ -433,7 +435,10 @@ export default function ComprobanteForm({
       {/* Items */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>Ítems</span>
-        <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
+          <ElegirProductosBtn productos={productos} onConfirm={addProductos} />
+        </div>
       </div>
 
       <ItemsTable

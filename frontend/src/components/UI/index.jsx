@@ -6,6 +6,7 @@ import { useEscape } from '../../hooks/useEscape'
 // Vive en su propio archivo (combobox con teclado + filtrado); se reexporta para que los
 // formularios lo importen desde '../UI' como al resto.
 export { default as ClienteSearch } from './ClienteSearch'
+export { default as RowActions } from './RowActions'
 
 // ── BADGE ────────────────────────────────────────────────────────────
 export function Badge({ estado }) {
@@ -300,6 +301,53 @@ function ProductoBuscador({ value, productos, onSelect }) {
   )
 }
 
+// ── RENGLÓN DESDE UN PRODUCTO ────────────────────────────────────────
+// Los campos que toma un renglón al elegir un producto. Lo usan el buscador de cada renglón
+// (1 pallet) y la ventana de productos (pallets/unidades que se cargaron ahí).
+export function itemDesdeProducto(p, { pallets = 1, cantidad } = {}) {
+  const upp = Number(p.unidades_por_pallet) || 1
+  return {
+    producto_id:         p.id,
+    descripcion:         p.descripcion || '',
+    precio_unitario:     p.precio_sin_iva || 0,
+    unidades_por_pallet: upp,
+    es_pallet_vacio:     !!p.es_pallet_vacio,
+    es_transporte:       !!p.es_transporte,
+    pallets,
+    cantidad:            cantidad ?? pallets * upp,
+    // Elegir el pallet vacío a mano = línea del usuario, fuera del auto-sync (productos.md §1.2:
+    // la línea es editable). Sin esto usePalletsVacios la trata como suya y la borra al instante
+    // si no hay otros pallets en la grilla (su total daría 0). Se escribe siempre, también al
+    // cambiar la fila a otro producto, para no arrastrar la marca de una elección anterior.
+    pallets_auto:        p.es_pallet_vacio ? false : undefined,
+  }
+}
+
+// Vuelca a la grilla lo confirmado en la ventana de productos (ProductoPicker):
+//   * los renglones vacíos que dejó "+ Agregar ítem" se descartan, para no quedar en blanco;
+//   * un producto que ya estaba cargado a mano suma sus pallets/unidades a ese renglón en vez de
+//     duplicarse (los renglones que vienen de un remito no se tocan: son de ese remito);
+//   * el resto entra como renglón nuevo sobre `base` (ITEM_BASE del formulario + alícuota, etc.).
+// `selecciones` = [{ producto, pallets, cantidad }].
+export function agregarProductos(items, selecciones, base = {}) {
+  const vacio = (it) => !it.producto_id && !String(it.descripcion || '').trim() && !(+it.precio_unitario)
+  const next = items.filter(it => !vacio(it))
+  for (const { producto: p, pallets, cantidad } of selecciones) {
+    const idx = next.findIndex(it => Number(it.producto_id) === p.id && !it._remito_id && !it.es_pallet_vacio)
+    if (idx !== -1) {
+      const it = next[idx]
+      next[idx] = {
+        ...it,
+        pallets:  (parseInt(it.pallets, 10) || 0) + pallets,
+        cantidad: Math.round(((+it.cantidad || 0) + cantidad) * 1000) / 1000,
+      }
+    } else {
+      next.push({ ...base, ...itemDesdeProducto(p, { pallets, cantidad }) })
+    }
+  }
+  return next
+}
+
 // ── ITEMS TABLE (editable o readonly) ───────────────────────────────
 // `cantidadDecimal`: los materiales de Compras se miden en unidades fraccionables (m³ de arena,
 // toneladas de cemento), así que la cantidad no se puede truncar a entero como los productos de
@@ -337,23 +385,7 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
 
   const selectProd = (i, p) => {
     if (!onChange) return
-    const upp = Number(p.unidades_por_pallet) || 1
-    let next = items.map((it, idx) => idx !== i ? it : {
-      ...it,
-      producto_id:         p.id,
-      descripcion:         p.descripcion || '',
-      precio_unitario:     p.precio_sin_iva || 0,
-      unidades_por_pallet: upp,
-      es_pallet_vacio:     !!p.es_pallet_vacio,
-      es_transporte:       !!p.es_transporte,
-      pallets:             1,
-      cantidad:            upp,
-      // Elegir el pallet vacío a mano = línea del usuario, fuera del auto-sync (productos.md §1.2:
-      // la línea es editable). Sin esto usePalletsVacios la trata como suya y la borra al instante
-      // si no hay otros pallets en la grilla (su total daría 0). Se escribe siempre, también al
-      // cambiar la fila a otro producto, para no arrastrar la marca de una elección anterior.
-      pallets_auto:        p.es_pallet_vacio ? false : undefined,
-    })
+    let next = items.map((it, idx) => idx !== i ? it : { ...it, ...itemDesdeProducto(p) })
     // Una sola línea de pallets vacíos: la elección manual reemplaza a la automática. Si no, quedan
     // las dos en la grilla y el comprobante factura los pallets por duplicado.
     if (p.es_pallet_vacio) {

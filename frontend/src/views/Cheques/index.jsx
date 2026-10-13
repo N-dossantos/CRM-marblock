@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChequesAPI, ClientesAPI, CuentasBancariasAPI, pdfUrl } from '../../api'
 import { $ar, fFecha, hoy, addDias, isVencido } from '../../utils'
-import { Badge, Loading, EmptyState, Modal } from '../../components/UI'
+import { Badge, Loading, EmptyState, Modal, RowActions } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
@@ -147,7 +147,7 @@ export default function Cheques() {
                 <th>Nro. cheque</th><th>Tipo</th><th>Banco</th><th>Titular</th>
                 <th>Cliente origen</th><th className="th-right">Monto</th>
                 <th>F. Emisión</th><th>Vencimiento</th>
-                <th>Destino (proveedor)</th><th>Estado</th><th style={{ width: 160 }}>Acciones</th>
+                <th>Destino (proveedor)</th><th>Estado</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -167,30 +167,18 @@ export default function Cheques() {
                   <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{ch.proveedor_destino || '—'}</td>
                   <td><Badge estado={ch.estado} /></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {/* Único acceso al PDF de un cheque de tercero con la data de Tango: esos
-                          cheques cuelgan del recibo, no de un movimiento propio de tesorería. */}
-                      <button className="btn btn-secondary btn-xs" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
-                        onClick={() => setPdf({ url: pdfUrl.cheque(ch.id), titulo: `Cheque ${ch.numero}` })}>
-                        📄 PDF
-                      </button>
-                      {ch.estado === 'en_cartera' && <>
-                        <button className="btn btn-secondary btn-xs" style={{ background: 'var(--green-50)', color: 'var(--green-700)', borderColor: 'var(--green-100)' }}
-                          onClick={() => { if (confirm('¿Marcar como depositado?')) cambiarEstado(ch.id, 'depositado') }}>
-                          ✓ Depositar
-                        </button>
-                        <button className="btn btn-secondary btn-xs" style={{ background: 'var(--purple-50)', color: '#5b21b6', borderColor: '#ede9fe' }}
-                          onClick={() => setEntregar({ cheque: ch, prov: '' })}>
-                          → Entregar
-                        </button>
-                      </>}
-                      {(ch.estado === 'depositado' || ch.estado === 'entregado') && (
-                        <button className="btn btn-danger btn-xs"
-                          onClick={() => { if (confirm('¿Marcar como rechazado por el banco?')) cambiarEstado(ch.id, 'rechazado_banco') }}>
-                          Rechazado
-                        </button>
-                      )}
-                    </div>
+                    {/* El botón PDF es el único acceso al PDF de un cheque de tercero con la data de Tango:
+                        esos cheques cuelgan del recibo, no de un movimiento propio de tesorería. */}
+                    <RowActions
+                      primary={ch.estado === 'en_cartera' && { label: 'Entregar', icon: '→', tone: 'purple', onClick: () => setEntregar({ cheque: ch, prov: '' }) }}
+                      onPdf={() => setPdf({ url: pdfUrl.cheque(ch.id), titulo: `Cheque ${ch.numero}` })}
+                      items={[
+                        { label: 'Depositar', icon: '✓', hidden: ch.estado !== 'en_cartera',
+                          onClick: () => { if (confirm('¿Marcar como depositado?')) cambiarEstado(ch.id, 'depositado') } },
+                        { label: 'Rechazado por el banco', icon: '⛔', danger: true, hidden: !(ch.estado === 'depositado' || ch.estado === 'entregado'),
+                          onClick: () => { if (confirm('¿Marcar como rechazado por el banco?')) cambiarEstado(ch.id, 'rechazado_banco') } },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

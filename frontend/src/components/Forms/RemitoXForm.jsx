@@ -5,7 +5,8 @@
 //   * el número lo tipea el usuario (talonario de papel, sin punto de venta fiscal);
 //   * no hay IVA — TotalesBoxC2 en lugar de TotalesBox, e ItemsTable sin `alicuotas`.
 import { useEffect, useState } from 'react'
-import { ItemsTable, TotalesBoxC2, Modal } from '../UI'
+import { ItemsTable, TotalesBoxC2, Modal, agregarProductos } from '../UI'
+import { ElegirProductosBtn } from '../UI/ProductoPicker'
 import { ChequesC2API } from '../../api/cuenta2'
 import { $ar, hoy, calcTotalesC2 } from '../../utils'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
@@ -98,6 +99,7 @@ export default function RemitoXForm({
   }
 
   const addItem = () => setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE }] }))
+  const addProductos = (sel) => setForm(f => ({ ...f, items: agregarProductos(f.items, sel, ITEM_BASE) }))
 
   // Arma el p_pago que espera crear_remito_cuenta2_con_pago, o null si no se pidió pago.
   // Devuelve { error } si algo no valida, para cortar antes de mandar el request.
@@ -226,7 +228,10 @@ export default function RemitoXForm({
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>
           Ítems — precios netos, sin impuestos
         </span>
-        <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
+          <ElegirProductosBtn productos={productos} cantidadDecimal={!esVenta} onConfirm={addProductos} />
+        </div>
       </div>
 
       {/* Sin `alicuotas`: ItemsTable oculta la columna de IVA cuando el array viene vacío.

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { FacturasAPI, ClientesAPI, ProductosAPI, AlicuotasIvaAPI, RemitosAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
-import { Badge, Loading, EmptyState, Paginador } from '../../components/UI'
+import { Badge, Loading, EmptyState, Paginador, RowActions } from '../../components/UI'
 import ComprobanteForm from '../../components/Forms/ComprobanteForm'
 import ReciboForm from '../../components/Forms/ReciboForm'
 import NotaForm from '../Notas/NotaForm'
@@ -111,12 +111,12 @@ export default function Facturas() {
                 <th>Número</th><th>Tipo</th><th>Fecha</th><th>Cliente</th>
                 <th>Remito</th><th className="th-right">Neto</th>
                 <th className="th-right">IVA</th><th className="th-right">Total</th>
-                <th>Estado</th><th style={{ width: 220 }}>Acciones</th>
+                <th>Estado</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? <EmptyState icon="🧾" message="Sin facturas" /> : rows.map(f => (
-                <tr key={f.id}>
+                <tr key={f.id} className="tr-click" onClick={() => setDetalle({ _doc: 'factura', ...f })}>
                   <td><span className="code" style={{ fontWeight: 700 }}>{f.numero}</span></td>
                   <td><span className={`badge badge-${f.tipo}`}>Fac {f.tipo}</span></td>
                   <td>{fFecha(f.fecha)}</td>
@@ -134,15 +134,15 @@ export default function Facturas() {
                   <td className="td-right td-bold">{$ar(f.total)}</td>
                   <td><Badge estado={f.estado} /></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      <button className="btn btn-ghost btn-xs" onClick={() => setDetalle({ _doc: 'factura', ...f })}>Ver</button>
-                      <button className="btn btn-secondary btn-xs" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }} onClick={() => setPdfModal({ url: `/api/pdf/factura/${f.id}`, titulo: `Factura ${f.numero}` })}>📄 PDF</button>
-                      {f.estado !== 'anulada' && <>
-                        <button className="btn btn-success btn-xs" onClick={() => abrirCobro(f)}>💵 Cobrar</button>
-                        <button className="btn btn-secondary btn-xs" onClick={() => setNotaFor(f)}>NC/ND</button>
-                      </>}
-                      {f.estado === 'pendiente' && <button className="btn btn-danger btn-xs" onClick={() => anular(f.id)}>Anular</button>}
-                    </div>
+                    <RowActions
+                      primary={['pendiente', 'parcial'].includes(f.estado) && { label: 'Cobrar', icon: '💵', tone: 'success', onClick: () => abrirCobro(f) }}
+                      onPdf={() => setPdfModal({ url: `/api/pdf/factura/${f.id}`, titulo: `Factura ${f.numero}` })}
+                      items={[
+                        { label: 'Ver detalle', icon: '👁', onClick: () => setDetalle({ _doc: 'factura', ...f }) },
+                        { label: 'Nota de crédito / débito', icon: '↩', onClick: () => setNotaFor(f), hidden: f.estado === 'anulada' },
+                        { label: 'Anular', icon: '⛔', danger: true, onClick: () => anular(f.id), hidden: f.estado !== 'pendiente' },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
