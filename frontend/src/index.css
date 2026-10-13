@@ -463,6 +463,7 @@ tr.tr-click { cursor: pointer; }
 .prod-pick-row.is-hi  { background: var(--gray-50); }
 .prod-pick-row.is-sel { background: var(--blue-50); }
 .prod-pick-row.is-sel td:first-child { box-shadow: inset 3px 0 0 var(--blue-600); }
+.prod-pick-atajo { margin-left: 8px; font-size: 11px; opacity: .75; }
 .prod-pick-resumen { margin-right: auto; align-self: center; font-size: 13px; color: var(--gray-500); }
 .prod-pick-resumen b { color: var(--gray-800); }
 .prod-pick-limpiar {
