@@ -105,7 +105,7 @@ export default function VentaDetalle({ doc, onClose, acciones = null }) {
             {pdfBuilder && (
               <button
                 className="btn btn-secondary btn-sm"
-                style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
                 onClick={abrirPdf}
               >
                 📄 Ver PDF

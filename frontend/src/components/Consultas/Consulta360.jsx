@@ -44,7 +44,7 @@ export default function Consulta360({
         <div className="card" style={{ padding: 14, marginBottom: 0, borderBottom: 'none', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
           <input className="search-inp" style={{ width: '100%' }} placeholder={searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', background: '#fff', border: '1px solid var(--gray-200)', borderRadius: '0 0 12px 12px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--gray-200)', borderRadius: '0 0 12px 12px' }}>
           {filtered.map(e => {
             const selected = String(selId) === String(e.id)
             const saldo = selected ? selSaldo : null
@@ -65,7 +65,7 @@ export default function Consulta360({
                 </div>
                 {saldo !== null && saldo !== undefined
                   ? (
-                    <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? '#10b981' : 'var(--gray-400)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)' }}>
                       {$ar(saldo)} {saldo > 0 ? saldoLabels.pos : saldo < 0 ? saldoLabels.neg : saldoLabels.zero}
                     </div>
                   )

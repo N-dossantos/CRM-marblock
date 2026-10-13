@@ -139,7 +139,7 @@ export default function Cuenta2Cheques() {
                       {acciones.includes('transferir') && (
                         <button
                           className="btn btn-secondary btn-xs"
-                          style={{ background: '#ffedd5', color: '#9a3412', borderColor: '#fed7aa' }}
+                          style={{ background: 'var(--orange-50)', color: 'var(--orange-700)', borderColor: 'var(--orange-100)' }}
                           onClick={() => abrirTransferencia(ch)}
                         >
                           → Transferir a Cuenta 1

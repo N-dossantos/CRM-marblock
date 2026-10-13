@@ -15,9 +15,9 @@ const TIPOS = ['Activo', 'Pasivo', 'Patrimonio', 'Ingreso', 'Egreso', 'Orden']
 const TIPO_COLOR = {
   Activo:     'var(--blue-600)',
   Pasivo:     'var(--red-500)',
-  Patrimonio: '#7c3aed',
+  Patrimonio: 'var(--purple-600)',
   Ingreso:    'var(--green-600)',
-  Egreso:     '#d97706',
+  Egreso:     'var(--amber-600)',
   Orden:      'var(--gray-500)',
 }
 

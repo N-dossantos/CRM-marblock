@@ -16,10 +16,10 @@ import EntidadC2Form from '../../components/Forms/EntidadC2Form'
 import toast from 'react-hot-toast'
 
 const TIPO_STYLE = {
-  'REMITO X': { bg: '#fef3c7', color: '#92400e', label: 'Remito X' },
-  COBRO:      { bg: '#d1fae5', color: '#065f46', label: 'Cobro' },
-  PAGO:       { bg: '#d1fae5', color: '#065f46', label: 'Pago' },
-  AJUSTE:     { bg: '#e0e7ff', color: '#3730a3', label: 'Ajuste' },
+  'REMITO X': { bg: 'var(--amber-100)', color: 'var(--amber-700)', label: 'Remito X' },
+  COBRO:      { bg: 'var(--green-100)', color: 'var(--green-700)', label: 'Cobro' },
+  PAGO:       { bg: 'var(--green-100)', color: 'var(--green-700)', label: 'Pago' },
+  AJUSTE:     { bg: 'var(--indigo-100)', color: 'var(--indigo-700)', label: 'Ajuste' },
   'SALDO ANTERIOR': { bg: 'var(--gray-100)', color: 'var(--gray-700)', label: 'Saldo anterior' },
 }
 
@@ -286,7 +286,7 @@ function Entidades({ tipoSector }) {
                   <td className="td-bold">{e.nombre}</td>
                   <td>{e.telefono || '—'}</td>
                   <td className="td-right">{+e.descuento_porcentaje > 0 ? `${e.descuento_porcentaje}%` : '—'}</td>
-                  <td className="td-right td-bold" style={{ color: +e.saldo > 0 ? 'var(--red-500)' : +e.saldo < 0 ? '#10b981' : 'var(--gray-400)' }}>
+                  <td className="td-right td-bold" style={{ color: +e.saldo > 0 ? 'var(--red-500)' : +e.saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)' }}>
                     {$ar(e.saldo)}
                   </td>
                   <td>{e.activo === false ? <span className="badge badge-anulada">Baja</span> : <span className="badge badge-aceptado">Activo</span>}</td>
@@ -422,7 +422,7 @@ function CtaCteC2({ tipoSector }) {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', background: '#fff', border: '1px solid var(--gray-200)', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderRadius: '0 0 12px 12px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--gray-200)', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderRadius: '0 0 12px 12px' }}>
           {filtradas.map(e => (
             <div
               key={e.id}
@@ -439,7 +439,7 @@ function CtaCteC2({ tipoSector }) {
               <div style={{ fontWeight: selId === e.id ? 700 : 500, fontSize: 13, color: 'var(--gray-800)' }}>
                 {e.nombre.length > 28 ? e.nombre.slice(0, 28) + '…' : e.nombre}
               </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: +e.saldo > 0 ? 'var(--red-500)' : +e.saldo < 0 ? '#10b981' : 'var(--gray-400)', marginTop: 2 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: +e.saldo > 0 ? 'var(--red-500)' : +e.saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
                 {$ar(e.saldo)} {+e.saldo > 0 ? (esVenta ? '▲ Debe' : '▲ Le debemos') : +e.saldo < 0 ? '▼ A favor' : '✓ Sin saldo'}
               </div>
             </div>
@@ -471,7 +471,7 @@ function CtaCteC2({ tipoSector }) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? '#10b981' : 'var(--gray-400)', lineHeight: 1 }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(saldo)}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
@@ -552,10 +552,10 @@ function CtaCteC2({ tipoSector }) {
                         <td className="td-right" style={{ color: parseFloat(m.debe) > 0 ? 'var(--red-500)' : 'var(--gray-300)', fontWeight: parseFloat(m.debe) > 0 ? 600 : 400 }}>
                           {parseFloat(m.debe) > 0 ? $ar(m.debe) : '—'}
                         </td>
-                        <td className="td-right" style={{ color: parseFloat(m.haber) > 0 ? '#10b981' : 'var(--gray-300)', fontWeight: parseFloat(m.haber) > 0 ? 600 : 400 }}>
+                        <td className="td-right" style={{ color: parseFloat(m.haber) > 0 ? 'var(--green-600)' : 'var(--gray-300)', fontWeight: parseFloat(m.haber) > 0 ? 600 : 400 }}>
                           {parseFloat(m.haber) > 0 ? $ar(m.haber) : '—'}
                         </td>
-                        <td className="td-right" style={{ fontWeight: 700, color: parseFloat(m.saldo) > 0 ? 'var(--red-500)' : parseFloat(m.saldo) < 0 ? '#10b981' : 'var(--gray-600)' }}>
+                        <td className="td-right" style={{ fontWeight: 700, color: parseFloat(m.saldo) > 0 ? 'var(--red-500)' : parseFloat(m.saldo) < 0 ? 'var(--green-600)' : 'var(--gray-600)' }}>
                           {$ar(m.saldo)}
                         </td>
                         <td style={{ textAlign: 'right' }}>

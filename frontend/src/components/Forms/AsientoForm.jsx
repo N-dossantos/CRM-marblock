@@ -91,7 +91,7 @@ export default function AsientoForm({ cuentas = [], onClose, onSaved }) {
       </div>
 
       {cuentas.length === 0 && (
-        <div style={{ marginTop: 14, fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: '8px 12px' }}>
+        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--amber-700)', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8, padding: '8px 12px' }}>
           ⚠ No hay cuentas imputables cargadas. Cargá el plan de cuentas antes de asentar.
         </div>
       )}
@@ -145,8 +145,8 @@ export default function AsientoForm({ cuentas = [], onClose, onSaved }) {
       {/* Preview de balanceo — el servidor lo vuelve a validar igual */}
       <div style={{
         marginTop: 16, padding: '12px 16px', borderRadius: 10,
-        background: balancea ? '#ecfdf5' : '#fef2f2',
-        border: `1px solid ${balancea ? '#a7f3d0' : '#fecaca'}`,
+        background: balancea ? 'var(--green-50)' : 'var(--red-50)',
+        border: `1px solid ${balancea ? 'var(--green-100)' : 'var(--red-100)'}`,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16,
       }}>
         <div style={{ display: 'flex', gap: 24 }}>
@@ -161,10 +161,10 @@ export default function AsientoForm({ cuentas = [], onClose, onSaved }) {
         </div>
         <div style={{ textAlign: 'right' }}>
           {balancea
-            ? <span style={{ fontWeight: 700, color: '#065f46' }}>✓ Asiento balanceado</span>
+            ? <span style={{ fontWeight: 700, color: 'var(--green-700)' }}>✓ Asiento balanceado</span>
             : <>
-                <div style={{ fontWeight: 700, color: '#991b1b' }}>No balancea</div>
-                <div style={{ fontSize: 12, color: '#991b1b' }}>Diferencia: {$ar(diferencia)}</div>
+                <div style={{ fontWeight: 700, color: 'var(--red-700)' }}>No balancea</div>
+                <div style={{ fontSize: 12, color: 'var(--red-700)' }}>Diferencia: {$ar(diferencia)}</div>
               </>
           }
         </div>

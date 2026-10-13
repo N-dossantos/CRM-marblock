@@ -188,14 +188,14 @@ export default function Informes() {
   const botonExcel = EXCEL[tab] && data && (
     <button
       className="btn btn-secondary btn-sm"
-      style={{ marginTop: 2, background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}
+      style={{ marginTop: 2, background: 'var(--green-50)', color: 'var(--green-700)', borderColor: 'var(--green-100)' }}
       onClick={exportarExcel}
     >
       📊 Exportar Excel
     </button>
   )
 
-  const COLORS = ['#1d4ed8','#10b981','#f97316','#7c3aed','#ef4444','#0891b2','#d97706','#059669']
+  const COLORS = ['var(--blue-600)','var(--green-600)','var(--orange-500)','var(--purple-600)','var(--red-500)','var(--cyan-600)','var(--amber-600)','var(--green-600)']
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 20, alignItems: 'start' }}>
@@ -306,7 +306,7 @@ export default function Informes() {
           {tab === 'ventas' && data && (
             <button
               className="btn btn-secondary btn-sm"
-              style={{ marginTop: 2, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+              style={{ marginTop: 2, background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
               onClick={() => {
                 const p = new URLSearchParams({ desde, hasta })
                 if (filtroCli) p.set('cliente_id', filtroCli)
@@ -319,7 +319,7 @@ export default function Informes() {
           {tab === 'subdiario_tes' && data && cuentaTes && (
             <button
               className="btn btn-secondary btn-sm"
-              style={{ marginTop: 2, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+              style={{ marginTop: 2, background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
               onClick={() => setPdfModal({ url: pdfUrl.subdiarioTesoreria(Number(cuentaTes), desde, hasta), titulo: 'Subdiario por cuenta' })}
             >
               📄 Exportar PDF
@@ -328,7 +328,7 @@ export default function Informes() {
           {tab === 'mayor_tes' && data && (
             <button
               className="btn btn-secondary btn-sm"
-              style={{ marginTop: 2, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+              style={{ marginTop: 2, background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
               onClick={() => setPdfModal({ url: pdfUrl.mayorTesoreria(desde, hasta), titulo: `Mayor de Tesorería ${desde} / ${hasta}` })}
             >
               📄 Exportar PDF
@@ -337,7 +337,7 @@ export default function Informes() {
           {tab === 'iva_ventas' && data && (
             <button
               className="btn btn-secondary btn-sm"
-              style={{ marginTop: 2, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+              style={{ marginTop: 2, background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
               onClick={() => setPdfModal({ url: pdfUrl.libroIvaVentas(res.filtros.desde, res.filtros.hasta), titulo: `Libro IVA Ventas ${res.filtros.desde} / ${res.filtros.hasta}` })}
             >
               📄 Exportar PDF
@@ -358,7 +358,7 @@ export default function Informes() {
                   { label: 'Facturas emitidas',  val: data.totales.cantidad_facturas, color: 'var(--blue-600)' },
                   { label: 'Neto gravado',        val: $ar(data.totales.neto_gravado || 0), color: 'var(--gray-600)' },
                   { label: 'IVA 21%',             val: $ar(data.totales.iva_total || 0), color: 'var(--gray-600)' },
-                  { label: 'Total facturado',     val: $ar(data.totales.total_facturado || 0), color: '#10b981' },
+                  { label: 'Total facturado',     val: $ar(data.totales.total_facturado || 0), color: 'var(--green-600)' },
                   { label: 'Total cobrado',       val: $ar(data.totales.total_cobrado || 0), color: 'var(--green-700)' },
                   { label: 'Total pendiente',     val: $ar(data.totales.total_pendiente || 0), color: 'var(--red-500)' },
                   { label: 'Descuentos otorgados',val: $ar(data.totales.descuento_total || 0), color: 'var(--amber-600)' },
@@ -378,9 +378,9 @@ export default function Informes() {
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={data.por_mes} margin={{ top: 4, right: 16, bottom: 4, left: 60 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
-                      <XAxis dataKey="mes" tick={{ fontSize: 12 }} />
-                      <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={v => [$ar(v), 'Total']} labelStyle={{ fontWeight: 700 }} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 12, fill: 'var(--gray-500)' }} />
+                      <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: 'var(--gray-500)' }} />
+                      <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--gray-200)', borderRadius: 8, color: 'var(--gray-800)' }} cursor={{ fill: 'var(--gray-100)' }} formatter={v => [$ar(v), 'Total']} labelStyle={{ fontWeight: 700 }} />
                       <Bar dataKey="total" fill="var(--blue-600)" radius={[4,4,0,0]}>
                         {data.por_mes.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Bar>
@@ -454,10 +454,10 @@ export default function Informes() {
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={data.slice(0, 10)} layout="vertical" margin={{ top: 4, right: 60, bottom: 4, left: 180 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
-                      <XAxis type="number" tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                      <YAxis type="category" dataKey="razon_social" tick={{ fontSize: 11 }} width={175}
+                      <XAxis type="number" tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: 'var(--gray-500)' }} />
+                      <YAxis type="category" dataKey="razon_social" tick={{ fontSize: 11, fill: 'var(--gray-500)' }} width={175}
                         tickFormatter={v => v.length > 24 ? v.slice(0, 24) + '…' : v} />
-                      <Tooltip formatter={v => [$ar(v), 'Total facturado']} />
+                      <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--gray-200)', borderRadius: 8, color: 'var(--gray-800)' }} cursor={{ fill: 'var(--gray-100)' }} formatter={v => [$ar(v), 'Total facturado']} />
                       <Bar dataKey="total_facturado" fill="var(--blue-600)" radius={[0,4,4,0]}>
                         {data.slice(0,10).map((_,i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Bar>
@@ -509,7 +509,7 @@ export default function Informes() {
                   <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 10, padding: '14px 18px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontWeight: 700, color: 'var(--red-600)', fontSize: 15 }}>Total adeudado por clientes</div>
-                      <div style={{ fontSize: 12, color: 'var(--red-400)', marginTop: 2 }}>{data.length} cliente(s) con saldo pendiente</div>
+                      <div style={{ fontSize: 12, color: 'var(--red-600)', marginTop: 2 }}>{data.length} cliente(s) con saldo pendiente</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--red-600)' }}>
@@ -517,7 +517,7 @@ export default function Informes() {
                       </div>
                       <button
                         className="btn btn-secondary btn-sm"
-                        style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                        style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
                         onClick={() => setPdfModal({ url: '/api/pdf/ranking-deudores', titulo: 'Ranking de Deudores' })}
                       >
                         📄 Exportar PDF
@@ -631,7 +631,7 @@ export default function Informes() {
                   { label: 'Comprobantes',  val: data.totales.cantidad, color: 'var(--blue-600)' },
                   { label: 'Neto gravado',  val: $ar(data.totales.neto_gravado || 0), color: 'var(--gray-600)' },
                   { label: 'IVA débito',    val: $ar(data.totales.iva_monto || 0), color: 'var(--gray-600)' },
-                  { label: 'Total',         val: $ar(data.totales.total || 0), color: '#10b981' },
+                  { label: 'Total',         val: $ar(data.totales.total || 0), color: 'var(--green-600)' },
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
@@ -706,7 +706,7 @@ export default function Informes() {
                   { label: 'Comprobantes',   val: data.comprobantes.length, color: 'var(--blue-600)' },
                   { label: 'Neto gravado',    val: $ar(data.totales.neto_gravado || 0), color: 'var(--gray-600)' },
                   { label: 'IVA total',       val: $ar(data.totales.iva_monto || 0), color: 'var(--gray-600)' },
-                  { label: 'Total compras',   val: $ar(data.totales.total || 0), color: '#f97316' },
+                  { label: 'Total compras',   val: $ar(data.totales.total || 0), color: 'var(--orange-500)' },
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
@@ -836,13 +836,13 @@ export default function Informes() {
           {/* SALDOS TESORERÍA */}
           {tab === 'saldos_tes' && data.agrupaciones && (
             <div>
-              <div style={{ background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: 10, padding: '14px 18px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ background: 'var(--blue-50)', border: '1px solid var(--blue-100)', borderRadius: 10, padding: '14px 18px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 700, color: 'var(--blue-600)', fontSize: 15 }}>Saldo total de tesorería</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--blue-600)' }}>{$ar(data.total_general || 0)}</div>
                   <button
                     className="btn btn-secondary btn-sm"
-                    style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                    style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
                     onClick={() => setPdfModal({ url: pdfUrl.saldosTesoreria(), titulo: 'Saldos de Tesorería' })}
                   >
                     📄 Exportar PDF

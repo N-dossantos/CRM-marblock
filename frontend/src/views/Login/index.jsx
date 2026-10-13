@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../lib/auth';
+import ThemeToggle from '../../components/UI/ThemeToggle';
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -27,6 +28,7 @@ export default function Login() {
 
   return (
     <div className="login-screen">
+      <div className="login-theme-toggle"><ThemeToggle /></div>
       <form className="login-card" onSubmit={handleSubmit}>
         <div className="login-brand">
           <h1>⚡ CRM Marblock</h1>

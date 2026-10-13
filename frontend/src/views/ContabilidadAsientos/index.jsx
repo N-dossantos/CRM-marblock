@@ -108,7 +108,7 @@ export default function ContabilidadAsientos() {
                   </tr>
                   {abierto === a.id && (
                     <tr>
-                      <td colSpan={7} style={{ background: 'var(--gray-50, #f9fafb)', padding: '10px 16px' }}>
+                      <td colSpan={7} style={{ background: 'var(--gray-50)', padding: '10px 16px' }}>
                         <table style={{ width: '100%' }}>
                           <thead>
                             <tr>

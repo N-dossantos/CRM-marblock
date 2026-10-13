@@ -18,7 +18,7 @@ const ESTADO_OPTS = [
 
 const ESTADO_BADGE = {
   emitido:   { bg: 'var(--blue-100)',  fg: 'var(--blue-600)' },
-  entregado: { bg: '#ede9fe',          fg: '#5b21b6' },
+  entregado: { bg: 'var(--purple-100)',          fg: 'var(--purple-700)' },
   pagado:    { bg: 'var(--green-100)', fg: 'var(--green-700)' },
   rechazado: { bg: 'var(--red-100)',   fg: 'var(--red-600)' },
   anulado:   { bg: 'var(--gray-100)',  fg: 'var(--gray-500)' },
@@ -111,7 +111,7 @@ export default function TesoreriaChequesPropios() {
                 return (
                   <tr key={ch.id} style={{ opacity: ch.estado === 'anulado' ? 0.5 : 1 }}>
                     <td><span className="code" style={{ fontWeight: 700 }}>{ch.numero}</span></td>
-                    <td><span style={{ fontSize: 11, background: ch.tipo === 'echeq' ? '#ede9fe' : 'var(--gray-100)', color: ch.tipo === 'echeq' ? '#5b21b6' : 'var(--gray-600)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</span></td>
+                    <td><span style={{ fontSize: 11, background: ch.tipo === 'echeq' ? 'var(--purple-100)' : 'var(--gray-100)', color: ch.tipo === 'echeq' ? 'var(--purple-700)' : 'var(--gray-600)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</span></td>
                     <td style={{ fontSize: 12 }}>{ch.cuenta_descripcion}</td>
                     <td style={{ fontSize: 12 }}>{ch.proveedor_razon_social || ch.beneficiario || '—'}</td>
                     <td className="td-right td-bold">{$ar(ch.monto)}</td>

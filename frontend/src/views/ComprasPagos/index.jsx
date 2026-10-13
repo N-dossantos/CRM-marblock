@@ -11,7 +11,7 @@ import PagoProveedorForm from '../../components/Forms/PagoProveedorForm'
 import toast from 'react-hot-toast'
 
 const TIPO_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', cheque_propio: 'Cheque propio', cheque_tercero: 'Cheque cartera' }
-const TIPO_COLOR = { efectivo: '#10b981', transferencia: '#1d4ed8', cheque_propio: '#7c3aed', cheque_tercero: '#f97316' }
+const TIPO_COLOR = { efectivo: 'var(--green-600)', transferencia: 'var(--blue-600)', cheque_propio: 'var(--purple-600)', cheque_tercero: 'var(--orange-500)' }
 
 export default function ComprasPagos() {
   const [proveedores, setProveedores] = useState([])
@@ -48,9 +48,9 @@ export default function ComprasPagos() {
 
       {rows.length > 0 && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-          <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid #f97316', flex: 1, minWidth: 180 }}>
+          <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--orange-500)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Total pagado (filtro actual)</div>
-            <div className="kpi-value" style={{ color: '#f97316', fontSize: 20 }}>{$ar(totalImporte)}</div>
+            <div className="kpi-value" style={{ color: 'var(--orange-500)', fontSize: 20 }}>{$ar(totalImporte)}</div>
           </div>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--blue-600)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Cantidad de pagos</div>
@@ -92,7 +92,7 @@ export default function ComprasPagos() {
                         ))}
                       </div>
                     </td>
-                    <td className="td-right" style={{ color: '#f97316', fontWeight: 700, fontSize: 14 }}>{$ar(r.total)}</td>
+                    <td className="td-right" style={{ color: 'var(--orange-500)', fontWeight: 700, fontSize: 14 }}>{$ar(r.total)}</td>
                     <td><button className="btn btn-ghost btn-xs" onClick={() => openDetalle(r.id)}>Ver</button></td>
                   </tr>
                 ))
@@ -161,7 +161,7 @@ export default function ComprasPagos() {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', borderTop: '2px solid var(--gray-200)', marginTop: 8 }}>
             <span style={{ fontWeight: 700, fontSize: 15 }}>Total pagado:</span>
-            <span style={{ fontSize: 20, fontWeight: 800, color: '#f97316' }}>{$ar(detalle.total)}</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--orange-500)' }}>{$ar(detalle.total)}</span>
           </div>
         </Modal>
       )}

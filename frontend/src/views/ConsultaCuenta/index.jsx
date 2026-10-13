@@ -18,14 +18,14 @@ import PDFModal from '../../components/PDFModal'
 const CLASE_LABEL = { banco: 'Banco', caja: 'Caja', valores: 'Valores' }
 
 const ESTADO_CHEQUE = {
-  en_cartera: { bg: '#dbeafe', color: '#1e40af', label: 'En cartera' },
-  depositado: { bg: '#d1fae5', color: '#065f46', label: 'Depositado' },
-  entregado:  { bg: '#e0e7ff', color: '#3730a3', label: 'Entregado' },
-  emitido:    { bg: '#fef3c7', color: '#92400e', label: 'Emitido' },
-  pagado:     { bg: '#d1fae5', color: '#065f46', label: 'Pagado' },
-  rechazado:  { bg: '#fee2e2', color: '#991b1b', label: 'Rechazado' },
-  rechazado_banco: { bg: '#fee2e2', color: '#991b1b', label: 'Rechazado' },
-  anulado:    { bg: '#f1f5f9', color: '#64748b', label: 'Anulado' },
+  en_cartera: { bg: 'var(--blue-100)', color: 'var(--blue-700)', label: 'En cartera' },
+  depositado: { bg: 'var(--green-100)', color: 'var(--green-700)', label: 'Depositado' },
+  entregado:  { bg: 'var(--indigo-100)', color: 'var(--indigo-700)', label: 'Entregado' },
+  emitido:    { bg: 'var(--amber-100)', color: 'var(--amber-700)', label: 'Emitido' },
+  pagado:     { bg: 'var(--green-100)', color: 'var(--green-700)', label: 'Pagado' },
+  rechazado:  { bg: 'var(--red-100)', color: 'var(--red-700)', label: 'Rechazado' },
+  rechazado_banco: { bg: 'var(--red-100)', color: 'var(--red-700)', label: 'Rechazado' },
+  anulado:    { bg: 'var(--gray-100)', color: 'var(--gray-500)', label: 'Anulado' },
 }
 
 const chip = (bg, color, label) => (
@@ -102,7 +102,7 @@ export default function ConsultaCuenta() {
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
-          <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1, color: data.sub.saldo_final < 0 ? 'var(--red-500)' : '#10b981' }}>
+          <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1, color: data.sub.saldo_final < 0 ? 'var(--red-500)' : 'var(--green-600)' }}>
             {$ar(data.sub.saldo_final)}
           </div>
           <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
@@ -131,7 +131,7 @@ export default function ConsultaCuenta() {
                 <td><span className="code">{m.numero || `#${m.id}`}</span></td>
                 <td style={{ fontSize: 12 }}>{m.tipo_descripcion}</td>
                 <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
-                <td className="td-right" style={{ color: m.signo === 1 ? '#10b981' : 'var(--gray-300)' }}>{m.signo === 1 ? $ar(m.monto) : '—'}</td>
+                <td className="td-right" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--gray-300)' }}>{m.signo === 1 ? $ar(m.monto) : '—'}</td>
                 <td className="td-right" style={{ color: m.signo === -1 ? 'var(--red-500)' : 'var(--gray-300)' }}>{m.signo === -1 ? $ar(m.monto) : '—'}</td>
                 <td className="td-right" style={{ fontWeight: 700, color: +m.saldo_corrido < 0 ? 'var(--red-500)' : 'var(--gray-700)' }}>{$ar(m.saldo_corrido)}</td>
                 <td>{btnVer(() => abrirMov(m))}</td>
@@ -157,7 +157,7 @@ export default function ConsultaCuenta() {
                 <td>{fFecha(m.fecha)}</td>
                 <td><span className="code">{m.numero || `#${m.id}`}</span></td>
                 <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
-                <td className="td-right td-bold" style={{ color: m.signo === 1 ? '#10b981' : 'var(--red-500)' }}>{m.signo === -1 ? '− ' : ''}{$ar(m.monto)}</td>
+                <td className="td-right td-bold" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--red-500)' }}>{m.signo === -1 ? '− ' : ''}{$ar(m.monto)}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
                   {btnVer(() => abrirMov(m))}
                   {m.referencia_id != null && m.referencia_tipo === 'cheques' && (
@@ -214,9 +214,9 @@ export default function ConsultaCuenta() {
               <tr key={m.id} style={{ opacity: m.anulado ? 0.5 : 1 }}>
                 <td>{fFecha(m.fecha)}</td>
                 <td><span className="code">{m.numero || `#${m.id}`}</span></td>
-                <td>{m.signo === 1 ? chip('#d1fae5', '#065f46', '▲ Recibida') : chip('#fee2e2', '#991b1b', '▼ Enviada')}</td>
+                <td>{m.signo === 1 ? chip('var(--green-100)', 'var(--green-700)', '▲ Recibida') : chip('var(--red-100)', 'var(--red-700)', '▼ Enviada')}</td>
                 <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
-                <td className="td-right td-bold" style={{ color: m.signo === 1 ? '#10b981' : 'var(--red-500)' }}>{m.signo === -1 ? '− ' : ''}{$ar(m.monto)}</td>
+                <td className="td-right td-bold" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--red-500)' }}>{m.signo === -1 ? '− ' : ''}{$ar(m.monto)}</td>
                 <td>{btnVer(() => abrirMov(m))}</td>
               </tr>
             ))}
@@ -242,7 +242,7 @@ export default function ConsultaCuenta() {
                 <td><span className="code">{m.numero || `#${m.id}`}</span></td>
                 <td style={{ fontSize: 12 }}>{m.tipo_descripcion}</td>
                 <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
-                <td className="td-right" style={{ color: m.signo === 1 ? '#10b981' : 'var(--gray-300)' }}>{m.signo === 1 ? $ar(m.monto) : '—'}</td>
+                <td className="td-right" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--gray-300)' }}>{m.signo === 1 ? $ar(m.monto) : '—'}</td>
                 <td className="td-right" style={{ color: m.signo === -1 ? 'var(--red-500)' : 'var(--gray-300)' }}>{m.signo === -1 ? $ar(m.monto) : '—'}</td>
                 <td>
                   {m.anulado
@@ -273,7 +273,7 @@ export default function ConsultaCuenta() {
                 <td>{fFecha(c.desde)}</td>
                 <td>{fFecha(c.hasta)}</td>
                 <td className="td-right td-bold">{$ar(c.saldo_extracto)}</td>
-                <td>{c.estado === 'cerrada' ? chip('#d1fae5', '#065f46', 'Cerrada') : chip('#fef3c7', '#92400e', 'Abierta')}</td>
+                <td>{c.estado === 'cerrada' ? chip('var(--green-100)', 'var(--green-700)', 'Cerrada') : chip('var(--amber-100)', 'var(--amber-700)', 'Abierta')}</td>
               </tr>
             ))}
         </tbody>

@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { fechaLarga } from '../../utils'
 import { useAuth } from '../../lib/auth'
+import ThemeToggle from '../UI/ThemeToggle'
 
 const NAV = [
   { section: null,       items: [{ to: '/', icon: '📊', label: 'Dashboard' }] },
@@ -158,6 +159,7 @@ export default function Layout({ children }) {
         <header className="topbar">
           <span className="topbar-title">{title}</span>
           <div className="topbar-right">
+            <ThemeToggle />
             <span className="topbar-date">{fechaLarga()}</span>
             {user?.email && <span className="topbar-user">{user.email}</span>}
             <button type="button" className="btn btn-secondary btn-sm" onClick={handleLogout}>

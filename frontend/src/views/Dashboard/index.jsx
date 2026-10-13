@@ -29,8 +29,8 @@ export default function Dashboard() {
       label: 'Total a cobrar',
       val: $ar(kpis.total_por_cobrar),
       accent: 'var(--accent-emerald)',
-      bgLight: '#ecfdf5',
-      iconColor: '#059669',
+      bgLight: 'var(--green-50)',
+      iconColor: 'var(--green-600)',
       sub: 'Facturas pendientes de cobro',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -44,8 +44,8 @@ export default function Dashboard() {
       label: 'Clientes activos',
       val: kpis.total_clientes,
       accent: 'var(--accent-azure)',
-      bgLight: '#eff6ff',
-      iconColor: '#2563eb',
+      bgLight: 'var(--blue-50)',
+      iconColor: 'var(--blue-600)',
       sub: 'Cuentas comerciales registradas',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -61,8 +61,8 @@ export default function Dashboard() {
       label: 'Remitos pendientes',
       val: kpis.remitos_pendientes,
       accent: 'var(--accent-amber)',
-      bgLight: '#fffbeb',
-      iconColor: '#d97706',
+      bgLight: 'var(--amber-50)',
+      iconColor: 'var(--amber-600)',
       sub: 'En tránsito sin facturar',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -78,8 +78,8 @@ export default function Dashboard() {
       label: 'Presupuestos activos',
       val: kpis.presupuestos_activos,
       accent: 'var(--accent-violet)',
-      bgLight: '#f5f3ff',
-      iconColor: '#7c3aed',
+      bgLight: 'var(--purple-50)',
+      iconColor: 'var(--purple-600)',
       sub: 'Propuestas vigentes / en seguimiento',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -248,9 +248,9 @@ export default function Dashboard() {
       {kpis.cheques_vencidos > 0 && (
         <div
           style={{
-            background: '#fef2f2',
-            border: '1px solid #fee2e2',
-            borderLeft: '4px solid #ef4444',
+            background: 'var(--red-50)',
+            border: '1px solid var(--red-100)',
+            borderLeft: '4px solid var(--red-500)',
             borderRadius: 8,
             padding: '14px 18px',
             marginBottom: 20,
@@ -267,8 +267,8 @@ export default function Dashboard() {
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
-                background: '#fee2e2',
-                color: '#dc2626',
+                background: 'var(--red-100)',
+                color: 'var(--red-600)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -282,10 +282,10 @@ export default function Dashboard() {
               </svg>
             </span>
             <div>
-              <div style={{ fontWeight: 700, color: '#991b1b', fontSize: 13 }}>
+              <div style={{ fontWeight: 700, color: 'var(--red-700)', fontSize: 13 }}>
                 Atención: Cartera con cheques vencidos
               </div>
-              <div style={{ color: '#b91c1c', fontSize: 12, marginTop: 2 }}>
+              <div style={{ color: 'var(--red-700)', fontSize: 12, marginTop: 2 }}>
                 Hay <strong>{kpis.cheques_vencidos}</strong> cheque(s) en cartera con fecha de vencimiento expirada pendientes de gestión.
               </div>
             </div>
@@ -425,7 +425,7 @@ export default function Dashboard() {
                           className="deudor-bar-fill"
                           style={{
                             width: `${ratio}%`,
-                            background: i === 0 ? '#ef4444' : '#f97316'
+                            background: i === 0 ? 'var(--red-500)' : 'var(--orange-500)'
                           }}
                         />
                       </div>
@@ -451,7 +451,7 @@ export default function Dashboard() {
         <div className="card" style={{ marginBottom: 20, padding: '18px 20px' }}>
           <div className="card-header-flex">
             <div className="card-header-title">
-              <span style={{ color: '#d97706' }}>
+              <span style={{ color: 'var(--amber-600)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: 6 }}>
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                   <line x1="16" y1="2" x2="16" y2="6" />
@@ -475,18 +475,18 @@ export default function Dashboard() {
             {cheques_por_vencer.map(ch => (
               <div key={ch.numero} className="cheque-chip">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 700, fontSize: 15, color: '#92400e', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--amber-700)', fontVariantNumeric: 'tabular-nums' }}>
                     {$ar(ch.monto)}
                   </span>
                   <span className="badge badge-pendiente" style={{ fontSize: 10 }}>
                     Vence {fFecha(ch.fecha_vcto)}
                   </span>
                 </div>
-                <div style={{ fontWeight: 600, color: '#78350f', fontSize: 12, marginTop: 4 }}>
+                <div style={{ fontWeight: 600, color: 'var(--amber-700)', fontSize: 12, marginTop: 4 }}>
                   {ch.banco} <span style={{ opacity: 0.7 }}>#{ch.numero}</span>
                 </div>
                 {ch.cliente_razon_social && (
-                  <div style={{ fontSize: 11, color: '#b45309', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: 11, color: 'var(--amber-700)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     👤 {ch.cliente_razon_social}
                   </div>
                 )}
