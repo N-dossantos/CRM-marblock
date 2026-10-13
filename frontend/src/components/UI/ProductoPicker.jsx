@@ -22,6 +22,8 @@ const tipoDe = (p) => {
 
 const round3 = (n) => Math.round(n * 1000) / 1000
 
+const ATAJO_CONFIRMAR = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘↵' : 'Ctrl+↵'
+
 // Botón "Elegir productos" + la ventana + el atajo F2. Es lo único que montan los formularios.
 export function ElegirProductosBtn({ productos = [], cantidadDecimal = false, onConfirm }) {
   const [open, setOpen] = useState(false)
@@ -75,6 +77,9 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
   const searchRef = useRef(null)
   const listRef   = useRef(null)
   const inputRefs = useRef({})
+  // Recorriendo la lista sin escribir (↑↓ o un chip): ahí Enter en el buscador vacío carga la fila
+  // marcada en vez de confirmar.
+  const recorriendoRef = useRef(false)
 
   useEffect(() => { searchRef.current?.focus() }, [])
 
@@ -140,7 +145,12 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
     setTimeout(() => { const el = inputRefs.current[p.id]; el?.focus(); el?.select() }, 0)
   }
 
-  const volverAlBuscador = () => { searchRef.current?.focus(); searchRef.current?.select() }
+  // Vuelve con el buscador vacío: el próximo código se tipea de cero y, si no hay otro, Enter agrega.
+  const volverAlBuscador = () => {
+    recorriendoRef.current = false
+    setQuery('')
+    searchRef.current?.focus()
+  }
 
   const confirmar = () => {
     if (!elegidos.length) return
@@ -157,10 +167,13 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
       e.preventDefault()
       const n = filas.length
       if (!n) return
+      recorriendoRef.current = true
       setHi(h => (e.key === 'ArrowDown' ? (h + 1) % n : (h - 1 + n) % n))
     } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault()
-      if (filas[hi]) enfocarFila(filas[hi])
+      // Código → Enter → pallets → Enter → … → Enter con el buscador vacío: agrega lo elegido.
+      if (!query.trim() && elegidos.length && !recorriendoRef.current) confirmar()
+      else if (filas[hi]) enfocarFila(filas[hi])
     }
   }
 
@@ -180,8 +193,10 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
             </>}
       </span>
       <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-      <button className="btn btn-primary" disabled={!elegidos.length} onClick={confirmar} title="Ctrl+Enter">
+      <button className="btn btn-primary" disabled={!elegidos.length} onClick={confirmar}
+        title="Enter con el buscador vacío, o Ctrl/⌘+Enter desde cualquier campo">
         Agregar {elegidos.length || ''} {elegidos.length === 1 ? 'producto' : 'productos'}
+        <span className="prod-pick-atajo">{ATAJO_CONFIRMAR}</span>
       </button>
     </>
   )
@@ -195,8 +210,10 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
           ref={searchRef}
           className="inp"
           value={query}
-          placeholder="Código o descripción…  (↑↓ para moverte, Enter para cargar)"
-          onChange={(e) => setQuery(e.target.value)}
+          placeholder={elegidos.length
+            ? `Otro código…  o Enter para agregar ${elegidos.length === 1 ? 'el producto' : `los ${elegidos.length} productos`}`
+            : 'Código o descripción…  (↑↓ para moverte, Enter para cargar)'}
+          onChange={(e) => { recorriendoRef.current = false; setQuery(e.target.value) }}
           onKeyDown={onKeyDownBuscador}
         />
 
@@ -206,7 +223,7 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
               <button
                 key={t || '_todos'}
                 className={`prod-pick-chip${tipo === t ? ' is-on' : ''}`}
-                onClick={() => { setTipo(t); searchRef.current?.focus() }}
+                onClick={() => { recorriendoRef.current = true; setTipo(t); searchRef.current?.focus() }}
               >
                 {t || 'Todos'}
               </button>

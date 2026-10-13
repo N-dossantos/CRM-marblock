@@ -88,7 +88,7 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: '#fff',
+        background: 'var(--surface)',
         borderRadius: 12,
         width: '100%',
         maxWidth: 860,
@@ -180,9 +180,9 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '9px 20px',
-            background: '#fef3c7',
-            borderBottom: '1px solid #fde68a',
-            color: '#92400e',
+            background: 'var(--amber-100)',
+            borderBottom: '1px solid var(--amber-100)',
+            color: 'var(--amber-700)',
             fontSize: 12.5,
             flexShrink: 0,
           }}>

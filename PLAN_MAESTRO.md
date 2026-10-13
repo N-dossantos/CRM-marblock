@@ -286,7 +286,8 @@ cuando reciben `null` (Edge Function `pdf`, desplegada el mismo día).
 > `MARBLOCK_SA.bak` directo (sin SQL Server, sin credencial, sin red) y las Tareas 1 a 9 están hechas:
 > lector, exportador a CSV (`[OK]` de `02_verificar_export.py`, 250.678 filas), ETL de los cuatro
 > módulos con 64 tests en verde, y los `.sql` de carga generados en `supabase/tango/sql/`. Decididas
-> D1–D4, D7 y D9; pendientes D5 (se confirma serie por serie el día del cutover), D6 y D8.
+> D1–D4, D6 (13/10), D7, D8 (sáb 17/10) y D9; pendiente sólo D5 (se confirma serie por serie el día
+> del cutover).
 >
 > **Las cinco migraciones `20261006120000` … `20261006140002` quedaron aplicadas** el 2026-10-06
 > (más `20261006150000`, un REVOKE que salió del chequeo posterior). Verificado: §6 de

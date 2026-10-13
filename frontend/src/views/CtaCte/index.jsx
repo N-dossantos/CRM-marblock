@@ -7,10 +7,10 @@ import PDFModal from '../../components/PDFModal'
 import { exportarCtaCte } from '../../utils/excel'
 
 const TIPO_STYLE = {
-  FACTURA:    { bg: '#fef3c7', color: '#92400e', label: 'Factura' },
-  RECIBO:     { bg: '#d1fae5', color: '#065f46', label: 'Recibo' },
-  'NOTA CRED.': { bg: '#e0e7ff', color: '#3730a3', label: 'NC' },
-  'NOTA DEB.':  { bg: '#fce7f3', color: '#9d174d', label: 'ND' },
+  FACTURA:    { bg: 'var(--amber-100)', color: 'var(--amber-700)', label: 'Factura' },
+  RECIBO:     { bg: 'var(--green-100)', color: 'var(--green-700)', label: 'Recibo' },
+  'NOTA CRED.': { bg: 'var(--indigo-100)', color: 'var(--indigo-700)', label: 'NC' },
+  'NOTA DEB.':  { bg: 'var(--pink-100)', color: 'var(--pink-700)', label: 'ND' },
   'SALDO ANTERIOR': { bg: 'var(--gray-100)', color: 'var(--gray-700)', label: 'Saldo anterior' },
 }
 
@@ -56,7 +56,7 @@ export default function CtaCte() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', background: '#fff', border: '1px solid var(--gray-200)', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderRadius: '0 0 12px 12px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--gray-200)', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderRadius: '0 0 12px 12px' }}>
           {clisFiltrados.map(c => {
             const saldo = data?.cliente?.id === c.id ? data.saldo_total : null
             return (
@@ -76,7 +76,7 @@ export default function CtaCte() {
                   {c.razon_social.length > 28 ? c.razon_social.slice(0, 28) + '…' : c.razon_social}
                 </div>
                 {saldo !== null && (
-                  <div style={{ fontSize: 12, fontWeight: 700, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? '#10b981' : 'var(--gray-400)', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
                     {$ar(saldo)} {saldo > 0 ? '▲ Debe' : saldo < 0 ? '▼ A favor' : '✓ Sin saldo'}
                   </div>
                 )}
@@ -110,7 +110,7 @@ export default function CtaCte() {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? '#10b981' : 'var(--gray-400)', lineHeight: 1 }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(data.saldo_total)}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
@@ -118,7 +118,7 @@ export default function CtaCte() {
                   </div>
                   <button
                     className="btn btn-secondary btn-sm"
-                    style={{ marginTop: 10, background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                    style={{ marginTop: 10, background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
                     onClick={() => {
                       const params = new URLSearchParams()
                       if (desde) params.set('desde', desde)
@@ -131,7 +131,7 @@ export default function CtaCte() {
                   </button>
                   <button
                     className="btn btn-secondary btn-sm"
-                    style={{ marginTop: 10, marginLeft: 6, background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}
+                    style={{ marginTop: 10, marginLeft: 6, background: 'var(--green-50)', color: 'var(--green-700)', borderColor: 'var(--green-100)' }}
                     onClick={() => exportarCtaCte(data, data.cliente, 'Cliente')}
                   >
                     📊 Excel
@@ -180,10 +180,10 @@ export default function CtaCte() {
                         <td className="td-right" style={{ color: parseFloat(m.debe) > 0 ? 'var(--red-500)' : 'var(--gray-300)', fontWeight: parseFloat(m.debe) > 0 ? 600 : 400 }}>
                           {parseFloat(m.debe) > 0 ? $ar(m.debe) : '—'}
                         </td>
-                        <td className="td-right" style={{ color: parseFloat(m.haber) > 0 ? '#10b981' : 'var(--gray-300)', fontWeight: parseFloat(m.haber) > 0 ? 600 : 400 }}>
+                        <td className="td-right" style={{ color: parseFloat(m.haber) > 0 ? 'var(--green-600)' : 'var(--gray-300)', fontWeight: parseFloat(m.haber) > 0 ? 600 : 400 }}>
                           {parseFloat(m.haber) > 0 ? $ar(m.haber) : '—'}
                         </td>
-                        <td className="td-right" style={{ fontWeight: 700, color: parseFloat(m.saldo) > 0 ? 'var(--red-500)' : parseFloat(m.saldo) < 0 ? '#10b981' : 'var(--gray-600)' }}>
+                        <td className="td-right" style={{ fontWeight: 700, color: parseFloat(m.saldo) > 0 ? 'var(--red-500)' : parseFloat(m.saldo) < 0 ? 'var(--green-600)' : 'var(--gray-600)' }}>
                           {$ar(m.saldo)}
                         </td>
                       </tr>

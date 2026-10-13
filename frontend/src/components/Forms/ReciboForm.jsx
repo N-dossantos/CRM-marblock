@@ -226,7 +226,7 @@ function MedioCard({ medio, index, cuentas, onChange, onCuenta, onRemove }) {
               <option value="">{medio.tipo === 'efectivo' ? '— Sin impacto en tesorería —' : '— Seleccionar —'}</option>
               {cuentas.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
             </select>
-            <div style={{ fontSize: 11, color: medio.cuenta_bancaria_id ? '#10b981' : 'var(--gray-500)', marginTop: 3 }}>
+            <div style={{ fontSize: 11, color: medio.cuenta_bancaria_id ? 'var(--green-600)' : 'var(--gray-500)', marginTop: 3 }}>
               {medio.cuenta_bancaria_id ? '✓ Registra el cobro en tesorería' : 'Sin cuenta: no impacta el saldo de tesorería'}
             </div>
           </div>

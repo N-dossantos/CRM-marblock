@@ -49,7 +49,7 @@ export default function MovimientoDetalle({ mov, onClose }) {
         footer={
           <button
             className="btn btn-secondary btn-sm"
-            style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+            style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
             onClick={abrirPdf}
           >
             📄 Ver PDF
@@ -71,11 +71,11 @@ export default function MovimientoDetalle({ mov, onClose }) {
         </div>
 
         {/* Importe destacado */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--gray-50, #f8fafc)', border: '1px solid var(--gray-200)', borderRadius: 10, padding: '14px 18px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 10, padding: '14px 18px', marginBottom: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
             {esEntrada ? '▲ Entrada' : '▼ Salida'}
           </div>
-          <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: esEntrada ? '#10b981' : 'var(--red-500)' }}>
+          <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: esEntrada ? 'var(--green-600)' : 'var(--red-500)' }}>
             {esEntrada ? '' : '− '}{$ar(mov.monto)}
           </div>
         </div>

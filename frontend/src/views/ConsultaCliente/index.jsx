@@ -14,10 +14,10 @@ import Consulta360 from '../../components/Consultas/Consulta360'
 import VentaDetalle from '../../components/Consultas/VentaDetalle'
 
 const MOV_STYLE = {
-  FACTURA:      { bg: '#fef3c7', color: '#92400e', label: 'Factura' },
-  RECIBO:       { bg: '#d1fae5', color: '#065f46', label: 'Recibo' },
-  'NOTA CRED.': { bg: '#e0e7ff', color: '#3730a3', label: 'NC' },
-  'NOTA DEB.':  { bg: '#fce7f3', color: '#9d174d', label: 'ND' },
+  FACTURA:      { bg: 'var(--amber-100)', color: 'var(--amber-700)', label: 'Factura' },
+  RECIBO:       { bg: 'var(--green-100)', color: 'var(--green-700)', label: 'Recibo' },
+  'NOTA CRED.': { bg: 'var(--indigo-100)', color: 'var(--indigo-700)', label: 'NC' },
+  'NOTA DEB.':  { bg: 'var(--pink-100)', color: 'var(--pink-700)', label: 'ND' },
 }
 
 const btnVer = (onClick) => (
@@ -71,7 +71,7 @@ export default function ConsultaCliente() {
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
-          <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1, color: data.cta.saldo_total > 0 ? 'var(--red-500)' : data.cta.saldo_total < 0 ? '#10b981' : 'var(--gray-400)' }}>
+          <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1, color: data.cta.saldo_total > 0 ? 'var(--red-500)' : data.cta.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)' }}>
             {$ar(data.cta.saldo_total)}
           </div>
           <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
@@ -101,8 +101,8 @@ export default function ConsultaCliente() {
                   <td><span className="code">{m.comprobante}</span></td>
                   <td><span style={{ background: s.bg, color: s.color, padding: '2px 9px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{s.label}</span></td>
                   <td className="td-right" style={{ color: +m.debe > 0 ? 'var(--red-500)' : 'var(--gray-300)' }}>{+m.debe > 0 ? $ar(m.debe) : '—'}</td>
-                  <td className="td-right" style={{ color: +m.haber > 0 ? '#10b981' : 'var(--gray-300)' }}>{+m.haber > 0 ? $ar(m.haber) : '—'}</td>
-                  <td className="td-right" style={{ fontWeight: 700, color: +m.saldo > 0 ? 'var(--red-500)' : +m.saldo < 0 ? '#10b981' : 'var(--gray-600)' }}>{$ar(m.saldo)}</td>
+                  <td className="td-right" style={{ color: +m.haber > 0 ? 'var(--green-600)' : 'var(--gray-300)' }}>{+m.haber > 0 ? $ar(m.haber) : '—'}</td>
+                  <td className="td-right" style={{ fontWeight: 700, color: +m.saldo > 0 ? 'var(--red-500)' : +m.saldo < 0 ? 'var(--green-600)' : 'var(--gray-600)' }}>{$ar(m.saldo)}</td>
                 </tr>
               )
             })}

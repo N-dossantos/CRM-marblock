@@ -9,7 +9,7 @@ import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
 const TIPO_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', cheque: 'Cheque', echeq: 'E-Cheq' }
-const TIPO_COLOR = { efectivo: '#10b981', transferencia: '#1d4ed8', cheque: '#7c3aed', echeq: '#f97316' }
+const TIPO_COLOR = { efectivo: 'var(--green-600)', transferencia: 'var(--blue-600)', cheque: 'var(--purple-600)', echeq: 'var(--orange-500)' }
 
 export default function Recibos() {
   const [clientes, setClientes] = useState([])
@@ -49,9 +49,9 @@ export default function Recibos() {
       {/* Resumen rápido */}
       {rows.length > 0 && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-          <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid #10b981', flex: 1, minWidth: 180 }}>
+          <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--green-600)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Total cobrado (filtro actual)</div>
-            <div className="kpi-value" style={{ color: '#10b981', fontSize: 20 }}>{$ar(totalImporte)}</div>
+            <div className="kpi-value" style={{ color: 'var(--green-600)', fontSize: 20 }}>{$ar(totalImporte)}</div>
           </div>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--blue-600)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Cantidad de recibos</div>
@@ -93,10 +93,10 @@ export default function Recibos() {
                         ))}
                       </div>
                     </td>
-                    <td className="td-right" style={{ color: '#10b981', fontWeight: 700, fontSize: 14 }}>{$ar(r.total)}</td>
+                    <td className="td-right" style={{ color: 'var(--green-600)', fontWeight: 700, fontSize: 14 }}>{$ar(r.total)}</td>
                     <td><div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-ghost btn-xs" onClick={() => openDetalle(r.id)}>Ver</button>
-                      <button className="btn btn-secondary btn-xs" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }} onClick={() => setPdfModal({ url: `/api/pdf/recibo/${r.id}`, titulo: `Recibo ${r.numero}` })}>📄 PDF</button>
+                      <button className="btn btn-secondary btn-xs" style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }} onClick={() => setPdfModal({ url: `/api/pdf/recibo/${r.id}`, titulo: `Recibo ${r.numero}` })}>📄 PDF</button>
                     </div></td>
                   </tr>
                 ))
@@ -122,7 +122,7 @@ export default function Recibos() {
             <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
               <button
                 className="btn btn-secondary btn-sm"
-                style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
                 onClick={() => { setDetalle(null); setPdfModal({ url: `/api/pdf/recibo/${detalle.id}`, titulo: `Recibo ${detalle.numero}` }) }}
               >
                 📄 Ver / Imprimir PDF
@@ -170,7 +170,7 @@ export default function Recibos() {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', borderTop: '2px solid var(--gray-200)', marginTop: 8 }}>
             <span style={{ fontWeight: 700, fontSize: 15 }}>Total cobrado:</span>
-            <span style={{ fontSize: 20, fontWeight: 800, color: '#10b981' }}>{$ar(detalle.total)}</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--green-600)' }}>{$ar(detalle.total)}</span>
           </div>
         </Modal>
       )}

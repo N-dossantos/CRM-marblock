@@ -9,11 +9,11 @@ import { Loading } from '../../components/UI'
 import { exportarCtaCte } from '../../utils/excel'
 
 const TIPO_STYLE = {
-  FACTURA:       { bg: '#fef3c7', color: '#92400e', label: 'Factura' },
-  PAGO:          { bg: '#d1fae5', color: '#065f46', label: 'Pago' },
-  'NOTA CRED.':  { bg: '#e0e7ff', color: '#3730a3', label: 'NC' },
-  'NOTA DEB.':   { bg: '#fce7f3', color: '#9d174d', label: 'ND' },
-  'RETENCIÓN':   { bg: '#f1f5f9', color: '#334155', label: 'Retención' },
+  FACTURA:       { bg: 'var(--amber-100)', color: 'var(--amber-700)', label: 'Factura' },
+  PAGO:          { bg: 'var(--green-100)', color: 'var(--green-700)', label: 'Pago' },
+  'NOTA CRED.':  { bg: 'var(--indigo-100)', color: 'var(--indigo-700)', label: 'NC' },
+  'NOTA DEB.':   { bg: 'var(--pink-100)', color: 'var(--pink-700)', label: 'ND' },
+  'RETENCIÓN':   { bg: 'var(--gray-100)', color: 'var(--gray-700)', label: 'Retención' },
   'SALDO ANTERIOR': { bg: 'var(--gray-100)', color: 'var(--gray-700)', label: 'Saldo anterior' },
 }
 
@@ -52,7 +52,7 @@ export default function ComprasCtaCte() {
         <div className="card" style={{ padding: '14px', marginBottom: 0, borderBottom: 'none', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
           <input className="search-inp" style={{ width: '100%' }} placeholder="Buscar proveedor…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', background: '#fff', border: '1px solid var(--gray-200)', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderRadius: '0 0 12px 12px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--gray-200)', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderRadius: '0 0 12px 12px' }}>
           {provsFiltrados.map(p => {
             const saldo = data?.proveedor?.id === p.id ? data.saldo_total : null
             return (
@@ -70,7 +70,7 @@ export default function ComprasCtaCte() {
                   {p.razon_social.length > 28 ? p.razon_social.slice(0, 28) + '…' : p.razon_social}
                 </div>
                 {saldo !== null && (
-                  <div style={{ fontSize: 12, fontWeight: 700, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? '#10b981' : 'var(--gray-400)', marginTop: 2 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
                     {$ar(saldo)} {saldo > 0 ? '▲ Le debemos' : saldo < 0 ? '▼ A favor' : '✓ Sin saldo'}
                   </div>
                 )}
@@ -103,7 +103,7 @@ export default function ComprasCtaCte() {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? '#10b981' : 'var(--gray-400)', lineHeight: 1 }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(data.saldo_total)}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
@@ -111,7 +111,7 @@ export default function ComprasCtaCte() {
                   </div>
                   <button
                     className="btn btn-secondary btn-sm"
-                    style={{ marginTop: 10, background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}
+                    style={{ marginTop: 10, background: 'var(--green-50)', color: 'var(--green-700)', borderColor: 'var(--green-100)' }}
                     onClick={() => exportarCtaCte(data, data.proveedor, 'Proveedor')}
                   >
                     📊 Excel
@@ -150,10 +150,10 @@ export default function ComprasCtaCte() {
                         <td className="td-right" style={{ color: parseFloat(m.debe) > 0 ? 'var(--red-500)' : 'var(--gray-300)', fontWeight: parseFloat(m.debe) > 0 ? 600 : 400 }}>
                           {parseFloat(m.debe) > 0 ? $ar(m.debe) : '—'}
                         </td>
-                        <td className="td-right" style={{ color: parseFloat(m.haber) > 0 ? '#10b981' : 'var(--gray-300)', fontWeight: parseFloat(m.haber) > 0 ? 600 : 400 }}>
+                        <td className="td-right" style={{ color: parseFloat(m.haber) > 0 ? 'var(--green-600)' : 'var(--gray-300)', fontWeight: parseFloat(m.haber) > 0 ? 600 : 400 }}>
                           {parseFloat(m.haber) > 0 ? $ar(m.haber) : '—'}
                         </td>
-                        <td className="td-right" style={{ fontWeight: 700, color: parseFloat(m.saldo) > 0 ? 'var(--red-500)' : parseFloat(m.saldo) < 0 ? '#10b981' : 'var(--gray-600)' }}>
+                        <td className="td-right" style={{ fontWeight: 700, color: parseFloat(m.saldo) > 0 ? 'var(--red-500)' : parseFloat(m.saldo) < 0 ? 'var(--green-600)' : 'var(--gray-600)' }}>
                           {$ar(m.saldo)}
                         </td>
                       </tr>

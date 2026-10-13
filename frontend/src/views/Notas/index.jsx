@@ -115,7 +115,7 @@ export default function Notas() {
                     <td className="td-right td-bold">{$ar(n.total)}</td>
                     <td><div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-ghost btn-xs" onClick={() => openDetalle(n.id)}>Ver</button>
-                      <button className="btn btn-secondary btn-xs" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }} onClick={() => setPdfModal({ url: `/api/pdf/nota/${n.id}`, titulo: `${n.tipo === 'NC' ? 'Nota de Crédito' : 'Nota de Débito'} ${n.numero}` })}>📄 PDF</button>
+                      <button className="btn btn-secondary btn-xs" style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }} onClick={() => setPdfModal({ url: `/api/pdf/nota/${n.id}`, titulo: `${n.tipo === 'NC' ? 'Nota de Crédito' : 'Nota de Débito'} ${n.numero}` })}>📄 PDF</button>
                     </div></td>
                   </tr>
                 ))
@@ -173,7 +173,7 @@ export default function Notas() {
             <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
               <button
                 className="btn btn-secondary btn-sm"
-                style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }}
+                style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
                 onClick={() => { setDetalle(null); setPdfModal({ url: `/api/pdf/nota/${detalle.id}`, titulo: `${detalle.tipo === 'NC' ? 'Nota de Crédito' : 'Nota de Débito'} ${detalle.numero}` }) }}
               >
                 📄 Ver / Imprimir PDF

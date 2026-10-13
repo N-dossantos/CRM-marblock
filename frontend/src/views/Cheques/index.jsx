@@ -99,7 +99,7 @@ export default function Cheques() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 18 }}>
         {[
           { label: 'Cheques en cartera', val: enCartera.length, color: 'var(--blue-600)', sub: 'unidades' },
-          { label: 'Total en cartera',   val: $ar(totalCartera), color: '#10b981', sub: 'monto total' },
+          { label: 'Total en cartera',   val: $ar(totalCartera), color: 'var(--green-600)', sub: 'monto total' },
           { label: 'Vencidos en cartera', val: vencidos, color: vencidos > 0 ? 'var(--red-500)' : 'var(--gray-400)', sub: vencidos > 0 ? '⚠ Requieren atención' : 'Sin vencidos' },
         ].map(k => (
           <div key={k.label} className="card" style={{ padding: '14px 18px', borderLeft: `4px solid ${k.color}` }}>
@@ -154,7 +154,7 @@ export default function Cheques() {
               {visibles.length === 0 ? <EmptyState icon="🏦" message="Sin cheques para ese filtro" /> : visibles.map(ch => (
                 <tr key={ch.id}>
                   <td><span className="code" style={{ fontWeight: 700 }}>{ch.numero}</span></td>
-                  <td><span style={{ fontSize: 11, background: ch.tipo === 'echeq' ? '#ede9fe' : 'var(--gray-100)', color: ch.tipo === 'echeq' ? '#5b21b6' : 'var(--gray-600)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</span></td>
+                  <td><span style={{ fontSize: 11, background: ch.tipo === 'echeq' ? 'var(--purple-100)' : 'var(--gray-100)', color: ch.tipo === 'echeq' ? 'var(--purple-700)' : 'var(--gray-600)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</span></td>
                   <td style={{ fontSize: 12 }}>{ch.banco}</td>
                   <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{ch.titular || <span style={{ color: 'var(--gray-300)' }}>—</span>}</td>
                   <td style={{ fontSize: 12 }}>{ch.cliente_razon_social || '—'}</td>
