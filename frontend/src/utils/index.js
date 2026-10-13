@@ -15,6 +15,23 @@ export const fFecha = (s) => {
 // Fecha de hoy en formato YYYY-MM-DD
 export const hoy = () => new Date().toISOString().split('T')[0]
 
+// Teléfono argentino tal como se tipea ("011 15-2345-6789", "+54 9 11 2345 6789", "11 2345-6789 / 4698…")
+// → número para wa.me (549 + área + abonado, 13 dígitos). null si no se puede armar: falta el
+// código de área o no es un celular válido. Toma el primer número si hay varios separados por "/".
+export const telefonoWhatsApp = (tel) => {
+  let d = String(tel || '').split(/[/,;]| y /)[0].replace(/\D/g, '')
+  if (d.startsWith('549') && d.length === 13) return d
+  if (d.startsWith('54')) d = d.slice(2)
+  if (d.startsWith('9') && d.length === 11) d = d.slice(1)
+  if (d.startsWith('0')) d = d.slice(1)
+  // "15" después del código de área (2 a 4 dígitos): área + 15 + abonado = 12 dígitos.
+  if (d.length === 12) {
+    const L = [2, 3, 4].find(l => d.slice(l, l + 2) === '15')
+    if (L) d = d.slice(0, L) + d.slice(L + 2)
+  }
+  return d.length === 10 ? `549${d}` : null
+}
+
 // Agregar días a una fecha
 export const addDias = (dateStr, n) => {
   const d = new Date(dateStr + 'T12:00:00')
