@@ -174,6 +174,24 @@ valores calculados y hace rollback, así las tablas quedaban vacías para el cut
   - **Fase 5 — Cartera de cheques C2 + migración a C1.** ✅ `/cuenta2/cheques` con transferencia.
   - **Fase 6 — Pruebas y verificación.** ⏳ **no confirmada** → §3.6.
   *(Los checkboxes de `cuenta2.md` §4 quedaron sin tildar aunque el código está; ver §3.6.)*
+  - **Carga de las planillas (2026-10-13).** Las cuentas corrientes C2 vivían en Google Sheets; se
+    bajan como `.xlsx` a `supabase/cuenta2/` (gitignoreada: datos reales) y las carga
+    `supabase/carga_cuenta2/cargar_planillas.py` (`--probar` = ROLLBACK, `--cargar` = COMMIT; controla
+    el saldo de cada entidad contra la planilla). No depende del cutover: **`05_cargar.sh` conserva
+    Cuenta 2** (no la trunca y suelta/restaura sus dos FKs hacia `cheques` y `materiales`; frena si
+    hay cheques C2 transferidos a C1). Ensayado con la carga completa de Tango en una transacción.
+    Primera planilla (`cuenta corriente clientes L-M-N.xlsx`, 8 clientes) **cargada en prod** por
+    Nico; saldos verificados contra la planilla.
+  - **Cta. cte. C2 con período (2026-10-13, `20261013140856`).** Mismo arreglo que M8 en Cuenta 1:
+    fila SALDO ANTERIOR, saldo corrido desde ahí y `desde`/`hasta` por separado. Diferencia:
+    `saldo_total` es siempre el saldo actual (pedido de Nico: el filtro no cambia el saldo). `pdf`
+    redeployada con el rótulo "Saldo anterior". ✅ Verificado por Nico en la app.
+  - **Cta. cte. C2: WhatsApp y Remito X (2026-10-13).** Botones "+ Nuevo Remito X" (entidad y
+    descuento prellenados) y, en ventas, "💬 WhatsApp": descarga el PDF (con el filtro aplicado) y
+    abre `wa.me/<tel>` con un mensaje corto; el archivo se arrastra a mano al chat (wa.me no adjunta
+    archivos). Se probó y se descartó subirlo a Storage con link firmado: Nico no quiere mandar links
+    a los clientes (bucket y migración revertidos). Teléfono → número con `telefonoWhatsApp()`
+    (`utils`). El PDF C2 rotula CLIENTE o PROVEEDOR según el sector. ✅ Verificado por Nico.
 - **Productos por pallets** — catálogo de 25 productos sembrado, columnas `pallets` /
   `unidades_por_pallet` en `productos` y en los `*_items`, combobox de productos, línea automática de
   pallet vacío, exclusión de "Pallet de Madera Vacío" / "Transporte" del descuento general
@@ -236,7 +254,7 @@ anterior.
 | 3 | Saldos, subdiario y mayor de tesorería desde `Informes/` | ✅ importes iguales a la pantalla; el mayor cierra con el subdiario |
 | 4 | Factura con dos alícuotas (00002-00001686, la única que hay) | ✅ desglosa 10,5 % y 21 % |
 | 5 | Remito preimpreso (`?preimpreso=1`, 2 hojas) y calibración | ✅ en pantalla — **falta la prueba sobre papel** (§3.6) |
-| 6 | Resumen de Cuenta 2 | ⏸ sin datos: no hay clientes de Cuenta 2 cargados |
+| 6 | Resumen de Cuenta 2 | ✅ 2026-10-13, con los clientes C2 reales (rótulo CLIENTE, saldo anterior) |
 
 El smoke encontró y se arregló en la **v6** (2026-10-10, verificada idéntica a la carpeta local):
 - **El tipo, número y fecha del comprobante no se veían en ningún PDF.** `base.ts` usaba colores
@@ -252,9 +270,11 @@ El smoke encontró y se arregló en la **v6** (2026-10-10, verificada idéntica 
 - El PDF del cheque de tercero no tenía acceso desde la UI con la data de Tango (esos cheques cuelgan
   del recibo, no de un movimiento): botón 📄 PDF en la Cartera de cheques.
 
-**Pendiente para el go-live:** `config_empresa` no tiene razón social, CUIT, dirección, condición de
-IVA, IIBB ni inicio de actividades — todos los PDF dicen "Mi Empresa S.A." / "CUIT: —". Se carga a
-mano (lo hace Nico).
+**`config_empresa` cargada (2026-10-13):** razón social, CUIT, dirección, condición de IVA, IIBB e
+inicio de actividades de Marblock S.A. (los mismos valores que `supabase/seed.sql`). Salen en el
+encabezado y el pie de todos los PDF **menos los de Cuenta 2**: `cta-cte-cuenta2` llama a
+`generarCtaCteCuenta2(data, null)` y `dibujarHeader`/`dibujarFooter` omiten los datos de la empresa
+cuando reciben `null` (Edge Function `pdf`, desplegada el mismo día).
 
 > El frontend **no** requiere acción manual: Vercel (`crm-marblock`) despliega solo al pushear a `main`.
 
