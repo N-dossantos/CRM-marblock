@@ -79,9 +79,12 @@ def elegir_factura(imputaciones):
 
 
 def estado_cheque(r):
-    """D6 (inferida de los datos; Nico debe confirmarla abriendo un cheque de cada codigo en Tango):
-    A = activo -> TIPO_SAL 'P' (orden de pago a proveedor) = entregado, 'D' (deposito) = depositado;
-    C = ingresado y todavia en cartera; X = revertido (ULT_T_COMP = 'REV'): no se carga (None)."""
+    """D6 (confirmada por Nico en Tango el 2026-10-13):
+    A = aplicado, ya salio de la cartera -> TIPO_SAL 'P' (orden de pago a proveedor) = entregado,
+        'D' (deposito) = depositado;
+    C = en cartera;
+    X = anulado: entro con un recibo que despues se anulo (el recibo es ANU en GVA12 y la anulacion
+        dejo ULT_T_COMP = 'REV'). Como el recibo anulado no se migra, el cheque tampoco (None)."""
     if r["ESTADO"] == "X":
         return None
     if fecha(r["FECHA_RECH"]):

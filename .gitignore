@@ -7,6 +7,12 @@
 *.env
 frontend/.env
 
+# Certificados y claves de ARCA (PLAN_ARCA.md §2) — viven fuera del repo, nunca a GitHub
+*.key
+*.crt
+*.csr
+*.pem
+
 # Node.js & Dependencies
 node_modules/
 frontend/node_modules/
