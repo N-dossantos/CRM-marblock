@@ -11,12 +11,24 @@ compra, si no, venta). Dos formatos:
 
   * Cuenta corriente (fecha | remito | debo | pagos | saldo):
       - remito con importe en "debo"      -> Remito X con un renglón "importe según planilla"
+      - sólo letras en "debo" ("Torres")  -> Remito X "S/N" a esa obra; un pago en la misma fila
+                                             es un COBRO
       - "pg" / "pago" / "pg transf." ...  -> COBRO (venta) o PAGO (compra); medio transferencia o
                                              cheque si el texto lo dice, si no efectivo
+      - "acopio lista N" en "pagos"       -> COBRO (plata adelantada)
       - "materiales" en "pagos"           -> AJUSTE al haber ("Pago con materiales")
-      - "iva fac N" / "cheque rech." ...  -> AJUSTE al debe
+      - hormigón / piedra / arena / m3    -> AJUSTE al haber ("Pago con ..."): pago en especie
+      - pallets / publicidad / arreglo    -> AJUSTE al haber con el texto de la planilla
+      - "iva fac N" / "cheque N" ...      -> AJUSTE al debe (un cheque en "debo" es un rechazado)
+      - "factura N ..." / "boleta ..."    -> AJUSTE al debe con el texto de la planilla
       - saldo escrito a mano sin importes -> AJUSTE de saldo inicial (sin fecha: el día anterior al
-                                             primer movimiento)
+                                             primer movimiento). Una fila "saldo" con importe en
+                                             "debo" también: manda la columna saldo (se avisa si
+                                             no coinciden)
+      - saldo a mano en el medio, con una leyenda ("Difer pallets") -> AJUSTE por la diferencia
+      - movimiento sin fecha              -> la fecha de la fila anterior (se avisa)
+    Las hojas "Hoja2", "Hoja5"... sin datos se saltean. Si hay dos columnas "fecha" (otra tabla a la
+    derecha, como en "Armando"), vale la primera.
   * Cantidades por producto (fecha | remito | <producto> ... , con una fila de precios abajo, como
     "Metal grande"): un Remito X por fila con sus productos del catálogo (PRODUCTOS_POR_COLUMNA).
 
@@ -72,7 +84,16 @@ PRODUCTOS_POR_COLUMNA = {
     "SPLITMEDIO": (18, "Bloque Medio de 19x19x39 Split"),
     "SPLITESQ/DINTEL": (16, "Bloque de 19x19x39 Split Esquinero / Dintel"),
     "PALLETS": (28, "Pallet de Madera Vacío"),
+    "B15": (10, "Bloque Liso de 14x19x39 Portante"),  # "B15" a secas (Delfica) es el portante
+    "BU15": (12, "Bloque Dintel de 14x19x39 Liso"),
+    "B10": (14, "Bloque Liso de 9x19x39"),
 }
+
+# Textos de la columna "pagos" que son pago en especie (Armando paga con hormigón, Fenix con piedra
+# y arena) y los que son un crédito que se carga con el texto de la planilla tal cual.
+EN_ESPECIE = re.compile(r"hormig|piedra|arena|\dm3\b|\bm3\b")
+CREDITO_TAL_CUAL = ("pallet", "publicidad", "arreglo")
+CARGO_TAL_CUAL = ("factura", "boleta")
 
 
 class ErrorPlanilla(Exception):
@@ -97,6 +118,12 @@ def es_formula(v):
 
 def norm_col(s):
     return re.sub(r"[\s.]", "", str(s)).upper()
+
+
+def frase(texto):
+    """'acopio      241m3' → 'Acopio 241m3'."""
+    t = re.sub(r"\s+", " ", texto.strip())
+    return t[:1].upper() + t[1:]
 
 
 def numero_remito(v):
@@ -151,13 +178,21 @@ def buscar_titulos(ws):
 
 
 def leer_hoja(ws_f, ws_v, archivo):
-    """Devuelve la entidad con sus remitos y movimientos, o levanta ErrorPlanilla."""
+    """Devuelve la entidad con sus remitos y movimientos (None si es una "HojaN" vacía), o levanta
+    ErrorPlanilla."""
     hoja = f"{archivo} / {ws_f.title}"
     fila_tit, titulos = buscar_titulos(ws_f)
+    # La columna saldo de una hoja vacía puede tener la fórmula copiada hasta abajo: no cuenta.
+    if re.fullmatch(r"hoja\s*\d+", ws_f.title.strip(), re.I) and all(
+            ws_f.cell(r, c).value is None for r in range(fila_tit + 1, ws_f.max_row + 1)
+            for c, v in titulos.items() if v != "saldo"):
+        return None
     nombre, descuento, notas = encabezado(ws_f, fila_tit)
     ent = {"hoja": hoja, "nombre": nombre or ws_f.title.strip(), "descuento": descuento,
            "notas": "\n".join(notas) or None, "remitos": [], "movs": [], "avisos": []}
-    col = {v: c for c, v in titulos.items()}
+    col = {}
+    for c, v in titulos.items():  # en orden de columna: si un título se repite, vale el primero
+        col.setdefault(v, c)
     if "saldo" in col:
         leer_cta_cte(ws_f, ws_v, fila_tit, col, ent)
     else:
@@ -174,30 +209,62 @@ def leer_cta_cte(ws_f, ws_v, fila_tit, col, ent):
 
     filas = []          # (fila, fecha, debe, haber, saldo_planilla) en orden de la hoja
     inicial = None      # (fila, fecha, monto) del saldo inicial escrito a mano
+    ultima_fecha = None
+    obras = set()
     for r in range(fila_tit + 1, ws_f.max_row + 1):
         donde = f"{ent['hoja']} fila {r}"
+        saldo_f, saldo_v = ws_f.cell(r, c_saldo).value, ws_v.cell(r, c_saldo).value
+        a_mano = not es_formula(saldo_f) and isinstance(saldo_f, (int, float)) and saldo_f != 0
+        # Una leyenda en debo/pagos al lado de un saldo a mano ("Difer pallets") explica el ajuste.
+        leyendas = [v.strip() for v in (ws_f.cell(r, c_debe).value, ws_f.cell(r, c_haber).value)
+                    if isinstance(v, str) and v.strip() and not es_formula(v)]
         try:
             fecha = corregir_fecha(ws_f.cell(r, c_fecha).value, ent["avisos"], donde)
             ref = ws_f.cell(r, c_ref).value
-            debe, haber = dec(ws_f.cell(r, c_debe).value), dec(ws_f.cell(r, c_haber).value)
+            if leyendas and a_mano:
+                debe = haber = None
+            else:
+                debe, haber = dec(ws_f.cell(r, c_debe).value), dec(ws_f.cell(r, c_haber).value)
         except ErrorPlanilla as e:
             raise ErrorPlanilla(f"{donde}: {e}")
-        saldo_f, saldo_v = ws_f.cell(r, c_saldo).value, ws_v.cell(r, c_saldo).value
         texto = str(ref).strip() if ref is not None else ""
+        low = texto.lower()
 
+        # Fila "saldo" con importe en debo: la planilla encadena desde la columna saldo, que manda.
+        if low == "saldo" and a_mano and haber is None:
+            if inicial is not None or filas:
+                raise ErrorPlanilla(f"{donde}: fila 'saldo' en el medio de la cuenta")
+            monto = Decimal(str(round(saldo_f, 2)))
+            if debe is not None and debe != monto:
+                ent["avisos"].append(f"{donde}: fila 'saldo' con {debe} en debo y {monto} en saldo → "
+                                     f"se toma {monto}")
+            inicial = (r, fecha, monto)
+            continue
         if debe is None and haber is None:
-            if not es_formula(saldo_f) and isinstance(saldo_f, (int, float)) and saldo_f != 0:
-                if inicial is not None or filas:
+            if a_mano and (inicial is not None or filas):
+                if not leyendas:
                     raise ErrorPlanilla(f"{donde}: saldo escrito a mano en el medio de la cuenta")
+                previo = (inicial[2] if inicial else CERO) + sum(d - h for _, d, h, _ in filas)
+                dif = Decimal(str(round(saldo_f, 2))) - previo
+                fecha = fecha or ultima_fecha
+                ent["movs"].append(ajuste(fecha, max(dif, CERO), max(-dif, CERO), frase(leyendas[0])))
+                ent["avisos"].append(f"{donde}: saldo a mano ({saldo_f}) con '{leyendas[0]}' → AJUSTE "
+                                     f"de {dif} al {fecha:%d/%m/%Y}")
+                filas.append((r, max(dif, CERO), max(-dif, CERO), saldo_v))
+            elif a_mano:
                 inicial = (r, fecha, Decimal(str(round(saldo_f, 2))))
-            elif texto and texto.lower() != "saldo":
+            elif texto and low != "saldo":
                 raise ErrorPlanilla(f"{donde}: '{texto}' sin importe")
             continue
         if fecha is None:
-            raise ErrorPlanilla(f"{donde}: movimiento sin fecha")
+            if ultima_fecha is None:
+                raise ErrorPlanilla(f"{donde}: movimiento sin fecha")
+            fecha = ultima_fecha
+            ent["avisos"].append(f"{donde}: '{texto}' sin fecha → {fecha:%d/%m/%Y} (la de la fila anterior)")
+        ultima_fecha = fecha
 
         nro = numero_remito(ref) if ref is not None else None
-        low = texto.lower()
+        obra = None
         if debe:
             if nro:
                 ent["remitos"].append({"numero": nro, "fecha": fecha, "total": debe, "items": None})
@@ -205,8 +272,17 @@ def leer_cta_cte(ws_f, ws_v, fila_tit, col, ent):
                 m = re.search(r"\d+", texto)
                 concepto = f"IVA factura {m.group(0)}" if m else texto
                 ent["movs"].append(ajuste(fecha, debe, CERO, concepto))
-            elif "cheque" in low and "rech" in low:
-                ent["movs"].append(ajuste(fecha, debe, CERO, "Cheque rechazado"))
+            elif "cheque" in low:  # un cheque que suma al debe es uno rechazado
+                m = re.search(r"\d+", texto)
+                concepto = "Cheque rechazado" + (f" {m.group(0)}" if m else "")
+                ent["movs"].append(ajuste(fecha, debe, CERO, concepto))
+            elif low.startswith(CARGO_TAL_CUAL):
+                ent["movs"].append(ajuste(fecha, debe, CERO, frase(texto)))
+            elif re.fullmatch(r"[a-záéíóúüñ ]+", low):  # sin número: un remito a la obra "Torres"
+                obra = " ".join(texto.split()).title()
+                obras.add(obra)
+                ent["remitos"].append({"numero": "S/N", "fecha": fecha, "total": debe, "items": None,
+                                       "detalle": f"Obra {obra}: importe según planilla (sin detalle de productos)"})
             else:
                 raise ErrorPlanilla(f"{donde}: no sé qué es '{texto}' en 'debo'")
         if haber:
@@ -214,11 +290,21 @@ def leer_cta_cte(ws_f, ws_v, fila_tit, col, ent):
                 m = re.search(r"\d+", texto)
                 concepto = "Pago con materiales" + (f" ({m.group(0)})" if m else "")
                 ent["movs"].append(ajuste(fecha, CERO, haber, concepto))
-            elif nro or low in ("pg", "pago") or re.match(r"(pg|pago)\b", low):
-                ent["movs"].append(cobro(fecha, haber, texto if not nro else "pago"))
+            elif EN_ESPECIE.search(low):
+                concepto = frase(texto) if low.startswith("acopio") else "Pago con " + " ".join(low.split())
+                ent["movs"].append(ajuste(fecha, CERO, haber, concepto))
+            elif any(p in low for p in CREDITO_TAL_CUAL):
+                ent["movs"].append(ajuste(fecha, CERO, haber, frase(texto)))
+            elif low.startswith("acopio"):
+                ent["movs"].append(cobro(fecha, haber, frase(texto)))
+            elif nro or obra or low in ("pg", "pago") or re.match(r"(pg|pago)\b", low):
+                ent["movs"].append(cobro(fecha, haber, texto if not (nro or obra) else "pago"))
             else:
                 raise ErrorPlanilla(f"{donde}: no sé qué es '{texto}' en 'pagos'")
         filas.append((r, debe or CERO, haber or CERO, saldo_v))
+    if obras:
+        n = sum(1 for x in ent["remitos"] if x["numero"] == "S/N")
+        ent["avisos"].append(f"{ent['hoja']}: {n} remitos sin número, a las obras {', '.join(sorted(obras))}")
 
     # Saldo inicial sin fecha: el día anterior al primer movimiento.
     if inicial:
@@ -374,7 +460,8 @@ def sql_entidad(ent, sector, reemplazar):
                  " subtotal, descuento_monto, total, observaciones)")
         L.append(f"  VALUES ({q(sector)}, v_ent, {q(rem['numero'])}, {q(rem['fecha'])}, 0, {q(rem['total'])}, 0,"
                  f" {q(rem['total'])}, {obs}) RETURNING id INTO v_rem;")
-        items = rem["items"] or [{"producto_id": None, "descripcion": "Importe según planilla (sin detalle de productos)",
+        items = rem["items"] or [{"producto_id": None,
+                                  "descripcion": rem.get("detalle", "Importe según planilla (sin detalle de productos)"),
                                   "cantidad": Decimal("1"), "precio": rem["total"], "subtotal": rem["total"]}]
         valores = ",\n    ".join(
             f"(v_rem, {q(i['producto_id'])}, {q(i['descripcion'])}, {q(i['cantidad'])}, {q(i['precio'])}, 0,"
@@ -434,6 +521,8 @@ def main():
         for ws in wb_f.worksheets:
             try:
                 ent = leer_hoja(ws, wb_v[ws.title], arch.name)
+                if ent is None:
+                    continue
                 ent["sector"] = sector
                 entidades.append(ent)
             except ErrorPlanilla as e:
