@@ -1,8 +1,9 @@
 // src/components/Forms/ComprobanteForm.jsx
 // Formulario reutilizable para Factura, Presupuesto y Remito
-import { useState } from 'react'
-import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal, ClienteSearch } from '../UI'
-import { calcTotalesMulti } from '../../utils'
+import { useState, useEffect, useRef } from 'react'
+import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal, ClienteSearch, agregarProductos } from '../UI'
+import { ElegirProductosBtn } from '../UI/ProductoPicker'
+import { calcTotalesMulti, renglonesDeRemito } from '../../utils'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
 import toast from 'react-hot-toast'
 
@@ -13,6 +14,13 @@ const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitar
 // "la mercadería viaja por cuenta y riesgo del comprador" (y=230 mm). Tiene que coincidir con
 // MAPA.items.renglones en supabase/functions/pdf/preimpreso.ts.
 const RENGLONES_TALONARIO = 19
+
+// Letra de factura según la condición de IVA del receptor: A a Responsables Inscriptos y, desde
+// 2021, también a Monotributistas (con la leyenda "Receptor del comprobante – Responsable
+// Monotributo"); B a Consumidor Final y Exento. El CUIT genérico de consumidor final nunca va en A.
+const CUIT_CONSUMIDOR_FINAL = '00-00000000-0'
+const tipoFacturaPara = (cl) =>
+  cl && ['Resp. Inscripto', 'Monotributista'].includes(cl.condicion_iva) && cl.cuit !== CUIT_CONSUMIDOR_FINAL ? 'A' : 'B'
 
 export default function ComprobanteForm({
   title,
@@ -72,6 +80,58 @@ export default function ComprobanteForm({
     multiIva ? { alicuota_iva_id: alic21?.id } : null,
   )
 
+  // Los renglones que llegan de un remito o un presupuesto no traen alícuota (esos comprobantes no
+  // discriminan IVA). El servidor y los totales ya los toman al 21%, pero el selector de la fila
+  // mostraba la primera opción ("0%"): se completa el 21% explícito para que diga lo que se guarda.
+  useEffect(() => {
+    if (!multiIva || !alic21) return
+    if (form.items.every(it => it.alicuota_iva_id)) return
+    setForm(f => ({ ...f, items: f.items.map(it => it.alicuota_iva_id ? it : { ...it, alicuota_iva_id: alic21.id }) }))
+  }, [multiIva, alic21, form.items])
+
+  // Remito → factura: el remito se emite sin precio (es para el camión), así que cada renglón que
+  // llega de un remito con precio 0 toma el precio de lista del producto. Cubre las dos entradas:
+  // el checkbox de remitos pendientes y el botón "→ Factura" del listado de remitos (que llega por
+  // `initial`, a veces antes de que carguen los productos — por eso es un efecto y no va en el
+  // toggle). `_precio_auto` marca el renglón ya resuelto: si el operador después lo pone en 0 a
+  // propósito, no se lo vuelve a pisar.
+  useEffect(() => {
+    if (tipo !== 'factura' || !productos.length) return
+    setForm(f => {
+      let cambio = false
+      const items = f.items.map(it => {
+        if (!it._remito_id || it._precio_auto || +it.precio_unitario > 0) return it
+        const p = productos.find(p => p.id === +it.producto_id)
+        if (!p) return it
+        cambio = true
+        return { ...it, precio_unitario: +p.precio_sin_iva || 0, _precio_auto: true }
+      })
+      return cambio ? { ...f, items } : f
+    })
+  }, [tipo, productos, form.items])
+
+  // Factura nueva que llega con el cliente ya elegido (botón "→ Factura" de un remito): no pasa
+  // por onCliChange, así que el descuento del cliente se aplica acá, una sola vez.
+  const dtoClienteAplicado = useRef(initial.descuento_general != null || !!initial.id)
+  useEffect(() => {
+    if (dtoClienteAplicado.current || tipo !== 'factura' || !form.cliente_id) return
+    const cl = clientes.find(c => c.id === +form.cliente_id)
+    if (!cl) return
+    dtoClienteAplicado.current = true
+    if (cl.descuento_porcentaje != null) setForm(f => ({ ...f, descuento_general: +cl.descuento_porcentaje }))
+  }, [tipo, clientes, form.cliente_id])
+
+  // Misma idea para la letra: si la factura nueva llega con el cliente ya elegido (desde un remito
+  // o un presupuesto), se propone A o B según su condición de IVA, una sola vez.
+  const tipoClienteAplicado = useRef(!esFacturaNueva || !!initial.tipo)
+  useEffect(() => {
+    if (tipoClienteAplicado.current || !form.cliente_id) return
+    const cl = clientes.find(c => c.id === +form.cliente_id)
+    if (!cl) return
+    tipoClienteAplicado.current = true
+    setForm(f => ({ ...f, tipo_fac: tipoFacturaPara(cl) }))
+  }, [clientes, form.cliente_id])
+
   // Auto-aplicar descuento del cliente al seleccionarlo
   const onCliChange = (cliId) => {
     const cl = clientes.find(c => c.id === +cliId)
@@ -83,10 +143,13 @@ export default function ComprobanteForm({
       remito_ids: [],
       items: f.items.filter(it => !it._remito_id),
       descuento_general: cl?.descuento_porcentaje ?? f.descuento_general,
+      ...(esFacturaNueva && cl && { tipo_fac: tipoFacturaPara(cl) }),
       // El teléfono del remito se prellena con el del cliente pero queda editable: el de la
       // obra suele ser otro (capataz/obrador) y es el que sirve si hay que llamar en la entrega.
       ...(esRemito && !f.telefono_entrega && cl?.telefono ? { telefono_entrega: cl.telefono } : {}),
     }))
+    dtoClienteAplicado.current = true
+    tipoClienteAplicado.current = true
     onClienteChange?.(cliId)
   }
 
@@ -103,19 +166,16 @@ export default function ComprobanteForm({
         remito_ids: marcado ? f.remito_ids.filter(x => x !== id) : [...f.remito_ids, id],
         items: marcado
           ? f.items.filter(it => it._remito_id !== id)
-          : [...f.items, ...(rem?.items || [])
-              // La línea de pallets vacíos de cada remito se descarta a propósito:
-              // usePalletsVacios mantiene UNA sola sincronizada con el total y su findIndex sólo
-              // ve la primera, así que una segunda quedaría huérfana sumando de más. Sin ninguna,
-              // el hook la regenera consolidada sobre el total de los remitos juntos.
-              .filter(it => !it.es_pallet_vacio)
-              .map(it => ({ ...it, _remito_id: id }))],
+          // La línea de pallets vacíos de cada remito se descarta si el hook la puede regenerar
+          // consolidada (ver renglonesDeRemito): una por remito quedaría huérfana sumando de más.
+          : [...f.items, ...renglonesDeRemito(rem)],
       }
     })
   }
 
-  const addItem = () =>
-    setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE, ...(multiIva && { alicuota_iva_id: alic21?.id }) }] }))
+  const itemBase = () => ({ ...ITEM_BASE, ...(multiIva && { alicuota_iva_id: alic21?.id }) })
+  const addItem = () => setForm(f => ({ ...f, items: [...f.items, itemBase()] }))
+  const addProductos = (sel) => setForm(f => ({ ...f, items: agregarProductos(f.items, sel, itemBase()) }))
 
   // Aviso (no bloqueante) cuando el número tipeado se aleja del sugerido: la base impide
   // duplicados, pero no puede detectar un error de tipeo que caiga en un número libre.
@@ -129,6 +189,10 @@ export default function ComprobanteForm({
     const dif = parseInt(m[2], 10) - numeroSugerido.numero
     return Math.abs(dif) > UMBRAL_DESVIO ? dif : null
   })()
+
+  // Letra distinta de la que corresponde al cliente: avisa, no bloquea (el operador decide).
+  const clienteSel = tipo === 'factura' ? clientes.find(c => c.id === +form.cliente_id) : null
+  const letraDesvio = esFacturaNueva && clienteSel && form.tipo_fac !== tipoFacturaPara(clienteSel)
 
   const save = async (forzar = false) => {
     if (!form.cliente_id)   { toast.error('Seleccione un cliente'); return }
@@ -145,8 +209,9 @@ export default function ComprobanteForm({
     const payload = {
       cliente_id:        +form.cliente_id,
       descuento_general: +form.descuento_general || 0,
-      // `_remito_id` es sólo para saber qué renglón vino de qué remito dentro del formulario.
-      items:             form.items.map(({ _remito_id, ...it }) => it),
+      // `_remito_id` / `_precio_auto` son marcas de UI (qué renglón vino de qué remito, y si ya
+      // tomó el precio de lista): no van al servidor.
+      items:             form.items.map(({ _remito_id, _precio_auto, ...it }) => it),
       observaciones:     form.observaciones,
       ...(esRemitoNuevo && { numero: form.numero.trim() }),
       ...(esRemito && {
@@ -168,6 +233,13 @@ export default function ComprobanteForm({
       setLoading(false)
     }
   }
+
+  // Renglones de remito sin producto del catálogo (artículos de Tango que el CRM no tiene: bloques
+  // huecos, rodados…): no hay precio de lista que tomar y quedan en 0 hasta que el operador elija
+  // el producto o cargue el precio.
+  const sinPrecio = tipo === 'factura'
+    ? form.items.filter(it => it._remito_id && !it.producto_id && !(+it.precio_unitario > 0)).length
+    : 0
 
   const totMulti = multiIva ? calcTotalesMulti(form.items, form.descuento_general, alicuotasById) : null
 
@@ -242,6 +314,17 @@ export default function ComprobanteForm({
             El número está <strong>{Math.abs(desvio)} hoja(s) {desvio > 0 ? 'adelante' : 'atrás'}</strong> del
             sugerido (<span style={{ fontFamily: 'monospace' }}>{numeroSugerido.numero_formateado}</span>).
             Verificá que coincida con la hoja que pusiste en la impresora.
+          </div>
+        </div>
+      )}
+
+      {letraDesvio && (
+        <div className="warn-box" style={{ marginBottom: 14 }}>
+          <span>⚠️</span>
+          <div>
+            {form.tipo_fac === 'A'
+              ? <>El cliente es <strong>{clienteSel.cuit === CUIT_CONSUMIDOR_FINAL ? 'consumidor final genérico (sin CUIT)' : clienteSel.condicion_iva}</strong>: le corresponde <strong>Factura B</strong>. Una Factura A necesita un receptor Responsable Inscripto o Monotributista con CUIT.</>
+              : <>El cliente es <strong>{clienteSel.condicion_iva}</strong>: le corresponde <strong>Factura A</strong>. Con una Factura B no puede computar el IVA.</>}
           </div>
         </div>
       )}
@@ -322,6 +405,16 @@ export default function ComprobanteForm({
         </div>
       )}
 
+      {sinPrecio > 0 && (
+        <div className="warn-box" style={{ marginBottom: 14 }}>
+          <span>⚠️</span>
+          <div>
+            {sinPrecio === 1 ? 'Un renglón' : `${sinPrecio} renglones`} del remito no {sinPrecio === 1 ? 'tiene' : 'tienen'} producto
+            del catálogo y {sinPrecio === 1 ? 'quedó' : 'quedaron'} sin precio: elegí el producto o cargá el precio a mano.
+          </div>
+        </div>
+      )}
+
       {/* Descuento general */}
       <div className="form-row3" style={{ marginBottom: 14 }}>
         <div className="field">
@@ -342,7 +435,10 @@ export default function ComprobanteForm({
       {/* Items */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>Ítems</span>
-        <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
+          <ElegirProductosBtn productos={productos} onConfirm={addProductos} />
+        </div>
       </div>
 
       <ItemsTable

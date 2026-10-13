@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { RemitosCompraAPI, ProveedoresAPI, MaterialesAPI } from '../../api'
 import { fFecha } from '../../utils'
-import { Badge, Loading, EmptyState } from '../../components/UI'
+import { Badge, Loading, EmptyState, RowActions } from '../../components/UI'
 import CompraComprobanteForm from '../../components/Forms/CompraComprobanteForm'
 import toast from 'react-hot-toast'
 
@@ -73,12 +73,12 @@ export default function ComprasRemitos() {
             <thead>
               <tr>
                 <th>Número</th><th>Fecha</th><th>Proveedor</th><th>Ítems</th>
-                <th>Factura vinculada</th><th>Estado</th><th style={{ width: 200 }}>Acciones</th>
+                <th>Factura vinculada</th><th>Estado</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? <EmptyState icon="🚚" message="Sin remitos de compra" /> : rows.map(r => (
-                <tr key={r.id}>
+                <tr key={r.id} className="tr-click" onClick={() => setForm({ data: r, isNew: false })}>
                   <td><span className="code">{r.numero}</span></td>
                   <td>{fFecha(r.fecha)}</td>
                   <td className="td-bold">{r.razon_social}</td>
@@ -90,13 +90,13 @@ export default function ComprasRemitos() {
                   </td>
                   <td><Badge estado={r.estado} /></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-ghost btn-xs" onClick={() => setForm({ data: r, isNew: false })}>Ver</button>
-                      {r.estado === 'pendiente' && <>
-                        <button className="btn btn-secondary btn-xs" style={{ background: 'var(--blue-50)', color: 'var(--blue-700)', borderColor: 'var(--blue-100)' }} onClick={() => irAFacturar(r)}>→ Factura</button>
-                        <button className="btn btn-danger btn-xs" onClick={() => anular(r.id)}>Anular</button>
-                      </>}
-                    </div>
+                    <RowActions
+                      primary={r.estado === 'pendiente' && { label: 'Facturar', icon: '→', onClick: () => irAFacturar(r) }}
+                      items={[
+                        { label: 'Ver', icon: '👁', onClick: () => setForm({ data: r, isNew: false }) },
+                        { label: 'Anular', icon: '⛔', danger: true, onClick: () => anular(r.id), hidden: r.estado !== 'pendiente' },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}

@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { InformesAPI, ProveedoresAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Loading } from '../../components/UI'
+import { exportarCtaCte } from '../../utils/excel'
 
 const TIPO_STYLE = {
   FACTURA:       { bg: '#fef3c7', color: '#92400e', label: 'Factura' },
@@ -13,6 +14,7 @@ const TIPO_STYLE = {
   'NOTA CRED.':  { bg: '#e0e7ff', color: '#3730a3', label: 'NC' },
   'NOTA DEB.':   { bg: '#fce7f3', color: '#9d174d', label: 'ND' },
   'RETENCIÓN':   { bg: '#f1f5f9', color: '#334155', label: 'Retención' },
+  'SALDO ANTERIOR': { bg: 'var(--gray-100)', color: 'var(--gray-700)', label: 'Saldo anterior' },
 }
 
 export default function ComprasCtaCte() {
@@ -26,12 +28,14 @@ export default function ComprasCtaCte() {
 
   useEffect(() => { ProveedoresAPI.list().then(setProveedores) }, [])
 
-  const cargar = () => {
+  // `fechas` permite consultar con otras fechas que las del estado ("Limpiar" las vacía y consulta
+  // en el mismo click: el estado nuevo recién se ve en el próximo render).
+  const cargar = (fechas = { desde, hasta }) => {
     if (!selProv) return
     setLoading(true)
     const params = {}
-    if (desde) params.desde = desde
-    if (hasta) params.hasta = hasta
+    if (fechas.desde) params.desde = fechas.desde
+    if (fechas.hasta) params.hasta = fechas.hasta
     InformesAPI.ctaCteProveedor(selProv, params).then(setData).finally(() => setLoading(false))
   }
 
@@ -98,13 +102,20 @@ export default function ComprasCtaCte() {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? '#10b981' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(data.saldo_total)}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
                     {data.saldo_total > 0 ? '⬆ Le debemos' : data.saldo_total < 0 ? '⬇ Saldo a favor' : '✓ Cuenta balanceada'}
                   </div>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ marginTop: 10, background: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}
+                    onClick={() => exportarCtaCte(data, data.proveedor, 'Proveedor')}
+                  >
+                    📊 Excel
+                  </button>
                 </div>
               </div>
 
@@ -113,8 +124,8 @@ export default function ComprasCtaCte() {
                 <input type="date" className="inp" style={{ width: 150 }} value={desde} onChange={e => setDesde(e.target.value)} />
                 <span style={{ color: 'var(--gray-400)' }}>al</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={hasta} onChange={e => setHasta(e.target.value)} />
-                <button className="btn btn-secondary btn-sm" onClick={cargar}>Aplicar</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => { setDesde(''); setHasta(''); setTimeout(cargar, 0) }}>Limpiar</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => cargar()}>Aplicar</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setDesde(''); setHasta(''); cargar({}) }}>Limpiar</button>
               </div>
             </div>
 

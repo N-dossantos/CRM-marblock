@@ -1,17 +1,17 @@
 -- =============================================================
 -- CRM Ventas — seed de configuración (SOLO instalación limpia / desarrollo)
 -- En producción NO se corre esto: la config real (empresa, contadores, cuentas)
--- llega desde la importación de datos en vivo (ver supabase/DATA_MIGRATION.md).
+-- llega desde la importación de datos en vivo (ver PLAN_MIGRACION_TANGO.md).
 -- Todos los INSERT usan ON CONFLICT DO NOTHING → seguro de re-ejecutar.
 -- =============================================================
 
 INSERT INTO config_empresa (clave, valor) VALUES
-  ('razon_social',         'Tu Empresa S.A.'),
-  ('cuit',                 '30-00000000-0'),
-  ('direccion',            'Calle Falsa 123, Buenos Aires'),
+  ('razon_social',         'Marblock S.A.'),
+  ('cuit',                 '30-70966065-5'),
+  ('direccion',            'Autopista Ezeiza Cañuelas Km 45 - Carlos Spegazzini, Buenos Aires'),
   ('condicion_iva',        'Responsable Inscripto'),
-  ('ingresos_brutos',      '000-000000-0'),
-  ('inicio_actividades',   '01/01/2020'),
+  ('ingresos_brutos',      '902-853901-5'),
+  ('inicio_actividades',   '12/10/2007'),
   ('iva_alicuota',         '21.00')
 ON CONFLICT (clave) DO NOTHING;
 

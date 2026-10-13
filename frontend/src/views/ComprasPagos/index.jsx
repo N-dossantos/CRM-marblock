@@ -2,10 +2,11 @@
 // Pagos a proveedor (Fase A). Espejo de views/Recibos en sentido contrario: dinero que SALE.
 // "+ Nuevo pago" abre PagoProveedorForm (medios multi-modales + imputación a facturas +
 // retenciones). Sin PDF por ahora.
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { PagosProveedorAPI, ProveedoresAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
-import { Loading, EmptyState, Modal } from '../../components/UI'
+import { Loading, EmptyState, Modal, Paginador } from '../../components/UI'
 import PagoProveedorForm from '../../components/Forms/PagoProveedorForm'
 import toast from 'react-hot-toast'
 
@@ -13,20 +14,14 @@ const TIPO_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', chequ
 const TIPO_COLOR = { efectivo: '#10b981', transferencia: '#1d4ed8', cheque_propio: '#7c3aed', cheque_tercero: '#f97316' }
 
 export default function ComprasPagos() {
-  const [rows, setRows]           = useState([])
-  const [loading, setLoading]     = useState(true)
   const [proveedores, setProveedores] = useState([])
   const [search, setSearch]       = useState('')
   const [filtroProv, setFiltroProv] = useState('')
   const [nuevo, setNuevo]         = useState(false)
   const [detalle, setDetalle]     = useState(null)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    PagosProveedorAPI.list({ q: search, proveedor_id: filtroProv || undefined }).then(setRows).finally(() => setLoading(false))
-  }, [search, filtroProv])
-
-  useEffect(() => { load() }, [load])
+  const { rows, total, totalImporte, loading, pagina, setPagina, recargar: load } =
+    useListaPaginada(PagosProveedorAPI.list, { q: search, proveedor_id: filtroProv || undefined })
   useEffect(() => { ProveedoresAPI.list().then(setProveedores) }, [])
 
   const save = async (payload) => {
@@ -37,7 +32,6 @@ export default function ComprasPagos() {
 
   const openDetalle = (id) => PagosProveedorAPI.get(id).then(setDetalle)
 
-  const totalGeneral = rows.reduce((a, r) => a + parseFloat(r.total || 0), 0)
 
   return (
     <div>
@@ -56,11 +50,11 @@ export default function ComprasPagos() {
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid #f97316', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Total pagado (filtro actual)</div>
-            <div className="kpi-value" style={{ color: '#f97316', fontSize: 20 }}>{$ar(totalGeneral)}</div>
+            <div className="kpi-value" style={{ color: '#f97316', fontSize: 20 }}>{$ar(totalImporte)}</div>
           </div>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--blue-600)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Cantidad de pagos</div>
-            <div className="kpi-value" style={{ color: 'var(--blue-600)', fontSize: 20 }}>{rows.length}</div>
+            <div className="kpi-value" style={{ color: 'var(--blue-600)', fontSize: 20 }}>{total.toLocaleString('es-AR')}</div>
           </div>
         </div>
       )}
@@ -106,6 +100,7 @@ export default function ComprasPagos() {
             </tbody>
           </table>
         )}
+        <Paginador pagina={pagina} total={total} porPagina={POR_PAGINA} onChange={setPagina} disabled={loading} />
       </div>
 
       {nuevo && (

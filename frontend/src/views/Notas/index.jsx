@@ -31,6 +31,7 @@ export default function Notas() {
 
   const abrirNueva = async () => {
     // Permite seleccionar la factura desde este panel también
+    setBusqFac('')
     setNueva({ selFacId: null, facturaObj: null })
   }
 
@@ -40,20 +41,25 @@ export default function Notas() {
     setNueva(n => ({ ...n, selFacId: facId, facturaObj: fac }))
   }
 
+  // Buscador de la factura a imputar. Con la historia de Tango son ~4.500 facturas: un desplegable
+  // con todas no se puede usar (y PostgREST corta en 1.000). Sin texto se ofrecen las de los
+  // últimos 60 días; con texto se busca en el servidor por número, cliente o CUIT.
   const [facturas, setFacturas] = useState([])
+  const [busqFac, setBusqFac]   = useState('')
+  const [buscandoFac, setBuscandoFac] = useState(false)
   useEffect(() => {
-    if (nueva !== null) {
-      FacturasAPI.list({ estado: 'pendiente' }).then(f1 =>
-        FacturasAPI.list({ estado: 'cobrada' }).then(f2 =>
-          FacturasAPI.list({ estado: 'parcial' }).then(f3 => {
-            const merged = [...f1, ...f2, ...f3]
-            const unique = merged.filter((v,i,a) => a.findIndex(x => x.id === v.id) === i)
-            setFacturas(unique)
-          })
-        )
-      )
-    }
-  }, [nueva !== null])
+    if (nueva === null || nueva.facturaObj) return
+    const q = busqFac.trim()
+    let vigente = true
+    const t = setTimeout(() => {
+      setBuscandoFac(true)
+      const hace60 = new Date(); hace60.setDate(hace60.getDate() - 60)
+      FacturasAPI.list(q.length >= 2 ? { q } : { desde: hace60.toISOString().split('T')[0] })
+        .then(fs => { if (vigente) setFacturas(fs.filter(f => f.estado !== 'anulada').slice(0, 50)) })
+        .finally(() => { if (vigente) setBuscandoFac(false) })
+    }, q ? 300 : 0)
+    return () => { vigente = false; clearTimeout(t) }
+  }, [nueva !== null, nueva?.facturaObj, busqFac])
 
   const save = async (payload) => {
     await NotasAPI.create(payload)
@@ -121,18 +127,31 @@ export default function Notas() {
 
       {/* Modal selector de factura → abre el form */}
       {nueva && !nueva.facturaObj && (
-        <Modal title="Seleccionar factura de referencia" size="md" onClose={() => setNueva(null)}>
+        <Modal title="Seleccionar factura de referencia" size="lg" onClose={() => setNueva(null)}>
           <div className="field">
-            <label className="lbl">Factura *</label>
-            <select className="sel" value={nueva.selFacId || ''} onChange={e => onFacSelect(e.target.value)}>
-              <option value="">— Seleccionar factura —</option>
-              {facturas.map(f => (
-                <option key={f.id} value={f.id}>{f.numero} — {f.razon_social} — {$ar(f.total)} — {fFecha(f.fecha)}</option>
-              ))}
-            </select>
+            <label className="lbl">Buscar factura *</label>
+            <input className="search-inp" style={{ width: '100%' }} autoFocus
+              placeholder="Número (ej. 00002-00002150), cliente o CUIT…"
+              value={busqFac} onChange={e => setBusqFac(e.target.value)} />
+          </div>
+          <div style={{ border: '1px solid var(--gray-200)', borderRadius: 8, maxHeight: 380, overflowY: 'auto' }}>
+            {buscandoFac ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--gray-400)' }}>Buscando…</div>
+            ) : facturas.length === 0 ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--gray-400)' }}>Sin facturas para esa búsqueda</div>
+            ) : facturas.map(f => (
+              <button key={f.id} type="button" onClick={() => onFacSelect(f.id)}
+                style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%', padding: '9px 14px', border: 0, borderBottom: '1px solid var(--gray-100)', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+                <span className="code">{f.numero}</span>
+                <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>{fFecha(f.fecha)}</span>
+                <span style={{ flex: 1, fontWeight: 600 }}>{f.razon_social}</span>
+                <Badge estado={f.estado} />
+                <span style={{ fontWeight: 700, minWidth: 110, textAlign: 'right' }}>{$ar(f.total)}</span>
+              </button>
+            ))}
           </div>
           <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 8 }}>
-            Se muestran facturas en estado pendiente, cobrada parcial y cobrada.
+            {busqFac.trim().length >= 2 ? 'Hasta 50 resultados, las más recientes primero.' : 'Facturas de los últimos 60 días. Escribí para buscar en toda la historia.'}
           </p>
         </Modal>
       )}

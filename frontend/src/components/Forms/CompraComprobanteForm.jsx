@@ -3,9 +3,11 @@
 // Diferencias clave frente a ComprobanteForm (Ventas):
 //   * punto_venta / número son DEL PROVEEDOR → campos editables, no autogenerados;
 //   * los ítems referencian `material_id` (no producto_id) y, en factura, llevan alícuota IVA;
-//   * IVA multi-alícuota (preview con calcTotalesMulti; el servidor recalcula).
+//   * IVA multi-alícuota (preview con calcTotalesMulti; el servidor recalcula);
+//   * la factura puede traer percepciones sufridas (§3.9): el monto es el del papel del
+//     proveedor y se suma al total, no se recalcula.
 import { useState, useEffect } from 'react'
-import { Modal, TotalesBoxMulti } from '../UI'
+import { Modal, TotalesBoxMulti, PercepcionesTable } from '../UI'
 import { calcTotalesMulti, calcSubtotalItem, $ar, hoy } from '../../utils'
 import { RemitosCompraAPI } from '../../api'
 import toast from 'react-hot-toast'
@@ -37,6 +39,14 @@ export default function CompraComprobanteForm({
     descuento_general: initial.descuento_general || 0,
     remito_compra_id:  initial.remito_compra_id || '',
     observaciones:     initial.observaciones || '',
+    // Las percepciones vienen de facturas_compra_list (jsonb) al editar; vacías al crear.
+    percepciones: (initial.percepciones || []).map(p => ({
+      tipo:           p.tipo || 'iva',
+      jurisdiccion:   p.jurisdiccion || '',
+      base_imponible: +p.base_imponible || 0,
+      alicuota:       +p.alicuota || 0,
+      monto:          +p.monto || 0,
+    })),
     items: (initial.items || []).map(it => ({
       material_id:     it.material_id || '',
       descripcion:     it.descripcion || '',
@@ -133,6 +143,9 @@ export default function CompraComprobanteForm({
       remito_compra_id:  form.remito_compra_id ? +form.remito_compra_id : null,
       observaciones:     form.observaciones || null,
       items,
+      // actualizar_factura_compra borra el detalle y lo reinserta desde este input, así que
+      // null y [] son lo mismo: quedarse sin percepciones. Mandamos null por payload más limpio.
+      percepciones:      form.percepciones.length ? form.percepciones : null,
     } : {
       proveedor_id:  +form.proveedor_id,
       punto_venta:   form.punto_venta.trim(),
@@ -291,7 +304,15 @@ export default function CompraComprobanteForm({
         <input className="inp" value={form.observaciones || ''} onChange={e => setF({ observaciones: e.target.value })} />
       </div>
 
-      {esFactura && <TotalesBoxMulti totales={tot} />}
+      {esFactura && (
+        <PercepcionesTable
+          percepciones={form.percepciones}
+          neto={tot.neto_gravado}
+          onChange={(percepciones) => setF({ percepciones })}
+        />
+      )}
+
+      {esFactura && <TotalesBoxMulti totales={tot} percepciones={form.percepciones} />}
     </Modal>
   )
 }

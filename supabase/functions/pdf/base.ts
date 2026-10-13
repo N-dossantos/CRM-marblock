@@ -34,6 +34,15 @@ export const fFecha = (s: any) => {
   return d.toLocaleDateString('es-AR')
 }
 
+// Texto blanco semitransparente sobre una franja oscura. Reemplaza a fillColor('rgba(…)'), que
+// pdfkit no soporta; save/restore vuelve la opacidad a 1 para lo que sigue.
+export function textoTenue(doc: any, opacidad: number, dibujar: () => void) {
+  doc.save()
+  doc.fillColor(COLORES.blanco, opacidad)
+  dibujar()
+  doc.restore()
+}
+
 // Dibuja el encabezado común de la empresa
 export function dibujarHeader(doc: any, empresa: any, tipoDoc: string, numero: string, fecha: any) {
   const W = doc.page.width
@@ -48,28 +57,37 @@ export function dibujarHeader(doc: any, empresa: any, tipoDoc: string, numero: s
      .fontSize(16)
      .text(empresa.razon_social || 'Mi Empresa S.A.', M, 18, { width: 300 })
 
-  doc.fillColor('rgba(255,255,255,0.6)')
+  // pdfkit no entiende colores 'rgba(...)': los ignora y sigue con el color anterior (así el recuadro
+  // salía blanco opaco y el tipo/número/fecha, blanco sobre blanco). La transparencia va como
+  // opacidad, entre save/restore porque pdfkit la deja fija para todo lo que se dibuje después.
+  textoTenue(doc, 0.6, () => doc
      .font('Helvetica')
      .fontSize(8.5)
      .text(`CUIT: ${empresa.cuit || '—'}  ·  ${empresa.condicion_iva || 'Resp. Inscripto'}`, M, 38)
-     .text(empresa.direccion || '', M, 50)
+     .text(empresa.direccion || '', M, 50))
 
   // Tipo y número de comprobante (derecha)
   const tipoAncho = 160
   const tipoX = W - M - tipoAncho
 
-  doc.rect(tipoX, 8, tipoAncho, 64).fill('rgba(255,255,255,0.12)').stroke('rgba(255,255,255,0.2)')
+  doc.save()
+  doc.rect(tipoX, 8, tipoAncho, 64).fillOpacity(0.12).strokeOpacity(0.2).fillAndStroke(COLORES.blanco, COLORES.blanco)
+  doc.restore()
 
+  // El título va en una sola línea: uno largo ("COMPROBANTE TESORERÍA") se partía en dos y tapaba
+  // el número. Se achica la letra hasta que entre.
+  doc.font('Helvetica-Bold')
+  let tamTitulo = 13
+  while (tamTitulo > 8 && doc.fontSize(tamTitulo).widthOfString(tipoDoc) > tipoAncho - 12) tamTitulo -= 0.5
   doc.fillColor(COLORES.blanco)
-     .font('Helvetica-Bold')
-     .fontSize(13)
-     .text(tipoDoc, tipoX, 16, { width: tipoAncho, align: 'center' })
+     .fontSize(tamTitulo)
+     .text(tipoDoc, tipoX, 16, { width: tipoAncho, align: 'center', lineBreak: false })
 
-  doc.fillColor('rgba(255,255,255,0.75)')
+  textoTenue(doc, 0.75, () => doc
      .font('Helvetica')
      .fontSize(9)
      .text(numero, tipoX, 34, { width: tipoAncho, align: 'center' })
-     .text(`Fecha: ${fFecha(fecha)}`, tipoX, 47, { width: tipoAncho, align: 'center' })
+     .text(`Fecha: ${fFecha(fecha)}`, tipoX, 47, { width: tipoAncho, align: 'center' }))
 
   return 88 // Y donde continúa el contenido
 }
@@ -138,7 +156,13 @@ export function dibujarCabeceraTabla(doc: any, y: number, cols: any[]) {
 export function dibujarFilaItem(doc: any, y: number, values: any[], cols: any[], sombreado = false) {
   const W  = doc.page.width
   const M  = 45
-  const h  = 20
+
+  doc.font('Helvetica').fontSize(8.5)
+  const textos = cols.map((_: any, i: number) => values[i] !== undefined ? String(values[i]) : '')
+  // La fila crece con el texto que no entra en una línea (un nombre o concepto largo se parte en
+  // dos): con alto fijo de 20 la segunda línea se dibujaba encima de la fila siguiente.
+  const altoTexto = Math.max(...textos.map((t: string, i: number) => doc.heightOfString(t, { width: cols[i].w - 8 })))
+  const h  = Math.max(20, Math.ceil(altoTexto) + 10)
 
   if (sombreado) doc.rect(M, y, W - M * 2, h).fill('#f1f5f9').stroke(COLORES.gris_borde)
   else           doc.rect(M, y, W - M * 2, h).stroke(COLORES.gris_borde)
@@ -148,8 +172,7 @@ export function dibujarFilaItem(doc: any, y: number, values: any[], cols: any[],
   let x = M
   for (let i = 0; i < cols.length; i++) {
     const col = cols[i]
-    const val = values[i] !== undefined ? String(values[i]) : ''
-    doc.text(val, x + 4, y + 6, { width: col.w - 8, align: col.align || 'left' })
+    doc.text(textos[i], x + 4, y + 6, { width: col.w - 8, align: col.align || 'left' })
     x += col.w
   }
 
@@ -181,6 +204,17 @@ export function dibujarTotales(doc: any, y: number, totales: any) {
   } else if (totales.iva_monto !== undefined) {
     const pct = totales.detalle?.[0]?.porcentaje ?? totales.iva_alicuota ?? 21
     fila(`IVA ${pct}%:`, $ar(totales.iva_monto))
+  }
+
+  // Percepciones: una línea por impuesto + jurisdicción, como las liquida AFIP/ARBA.
+  // Suman al total (total = neto + IVA + percepciones), no son un descuento.
+  if (Array.isArray(totales.percepciones)) {
+    const NOMBRE: Record<string, string> = { iibb: 'IIBB', iva: 'IVA', ganancias: 'Ganancias' }
+    for (const p of totales.percepciones) {
+      const nombre = NOMBRE[p.tipo_percepcion] ?? p.tipo_percepcion
+      const donde  = p.jurisdiccion ? ` ${p.jurisdiccion}` : ''
+      fila(`Perc. ${nombre}${donde} ${parseFloat(p.alicuota)}%:`, $ar(p.monto))
+    }
   }
 
   // Línea separadora

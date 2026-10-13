@@ -2,6 +2,7 @@
 // Modal universal para ver / descargar / imprimir cualquier comprobante PDF
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useEscape } from '../../hooks/useEscape'
 
 // Los PDF los genera la Edge Function `pdf` de Supabase (Fase 6). Las vistas siguen pasando la
 // misma `url` estilo Express ("/api/pdf/factura/12"): acá le quitamos el prefijo y la mapeamos a
@@ -21,6 +22,7 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
   const [blobUrl, setBlobUrl]   = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
   const iframeRef               = useRef(null)
+  useEscape(onClose)
 
   useEffect(() => {
     let objectUrl = null

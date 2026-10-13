@@ -7,7 +7,7 @@ import { Buffer } from 'node:buffer'
 import {
   COLORES, $ar, fFecha,
   dibujarHeader, dibujarCliente, dibujarCabeceraTabla,
-  dibujarFilaItem, dibujarTotales, dibujarFooter, calcularDetalleAlicuotas,
+  dibujarFilaItem, dibujarTotales, dibujarFooter, calcularDetalleAlicuotas, textoTenue,
 } from './base.ts'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,6 +80,7 @@ export async function generarFactura(factura: any, empresa: any): Promise<Uint8A
       iva_monto:        parseFloat(factura.iva_monto),
       iva_alicuota:     parseFloat(factura.iva_alicuota),
       detalle:          calcularDetalleAlicuotas(items, factura.descuento_general),
+      percepciones:     factura.percepciones || [],
       total:            parseFloat(factura.total),
     }
     y = dibujarTotales(doc, y, totales)
@@ -293,6 +294,7 @@ export async function generarNota(nota: any, empresa: any): Promise<Uint8Array> 
       neto_gravado: parseFloat(nota.neto_gravado),
       iva_monto:    parseFloat(nota.iva_monto),
       detalle:      calcularDetalleAlicuotas(nota.items || [], 0),
+      percepciones: nota.percepciones || [],
       total:        parseFloat(nota.total),
     }
     y = dibujarTotales(doc, y, totales)
@@ -429,7 +431,7 @@ export async function generarCtaCte(data: any, empresa: any, filtros: any = {}):
     // Saldo (derecha)
     const saldoColor = saldo_total > 0 ? COLORES.rojo : saldo_total < 0 ? COLORES.verde : COLORES.gris_texto
     doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5)
-       .text('SALDO ACTUAL', W - M - 170, y + 14)
+       .text(data.hasta ? `SALDO AL ${fFecha(data.hasta)}` : 'SALDO ACTUAL', W - M - 170, y + 14)
     doc.fillColor(saldoColor).font('Helvetica-Bold').fontSize(16)
        .text($ar(saldo_total), W - M - 170, y + 25, { width: 160, align: 'right' })
     doc.fillColor(saldoColor).font('Helvetica').fontSize(8)
@@ -459,6 +461,7 @@ export async function generarCtaCte(data: any, empresa: any, filtros: any = {}):
     const TIPO_LABELS_CTA: Record<string, string> = {
       FACTURA: 'Factura', RECIBO: 'Recibo',
       'NOTA CRED.': 'N. Crédito', 'NOTA DEB.': 'N. Débito',
+      'SALDO ANTERIOR': 'Saldo anterior',
     }
 
     let saldoAcum = 0
@@ -647,8 +650,8 @@ export async function generarComprobanteTesoreria(mov: any, empresa: any): Promi
     // Importe destacado con signo
     const color = esEntrada ? COLORES.verde : COLORES.rojo
     doc.rect(M, y, ancho, 46).fill(COLORES.azul_oscuro)
-    doc.fillColor('rgba(255,255,255,0.75)').font('Helvetica-Bold').fontSize(9)
-       .text(esEntrada ? 'ENTRADA (CRÉDITO)' : 'SALIDA (DÉBITO)', M + 14, y + 10)
+    textoTenue(doc, 0.75, () => doc.font('Helvetica-Bold').fontSize(9)
+       .text(esEntrada ? 'ENTRADA (CRÉDITO)' : 'SALIDA (DÉBITO)', M + 14, y + 10))
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(20)
        .text(`${esEntrada ? '' : '− '}${$ar(mov.monto)}`, M + 14, y + 22, { width: ancho - 28, align: 'right' })
     // Franja de color según signo
@@ -727,7 +730,7 @@ export async function generarCheque(cheque: any, empresa: any, clase: 'propio' |
 
     // Importe
     doc.rect(M, y, ancho, 46).fill(COLORES.azul_oscuro)
-    doc.fillColor('rgba(255,255,255,0.75)').font('Helvetica-Bold').fontSize(9).text('IMPORTE', M + 14, y + 10)
+    textoTenue(doc, 0.75, () => doc.font('Helvetica-Bold').fontSize(9).text('IMPORTE', M + 14, y + 10))
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(20).text($ar(cheque.monto), M + 14, y + 22, { width: ancho - 28, align: 'right' })
     y += 60
 

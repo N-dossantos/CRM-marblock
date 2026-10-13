@@ -2,18 +2,17 @@
 // Facturas de COMPRA (Fase A). Espeja views/Facturas pero: proveedor (no cliente),
 // numeración del proveedor, IVA multi-alícuota, "Pagar" abre PagoProveedorForm y
 // "NC/ND" abre NotaCompraForm. Sin PDF: los comprobantes de compra son del proveedor.
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { FacturasCompraAPI, ProveedoresAPI, MaterialesAPI, AlicuotasIvaAPI, PagosProveedorAPI, NotasCompraAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
-import { Badge, Loading, EmptyState } from '../../components/UI'
+import { Badge, Loading, EmptyState, Paginador, RowActions } from '../../components/UI'
 import CompraComprobanteForm from '../../components/Forms/CompraComprobanteForm'
 import PagoProveedorForm from '../../components/Forms/PagoProveedorForm'
 import NotaCompraForm from '../../components/Forms/NotaCompraForm'
 import toast from 'react-hot-toast'
 
 export default function ComprasFacturas() {
-  const [rows, setRows]           = useState([])
-  const [loading, setLoading]     = useState(true)
   const [proveedores, setProveedores] = useState([])
   const [materiales, setMateriales]   = useState([])
   const [alicuotas, setAlicuotas]     = useState([])
@@ -23,12 +22,8 @@ export default function ComprasFacturas() {
   const [pagoFor, setPagoFor]     = useState(null)  // { provId, facIds, totalSugerido }
   const [notaFor, setNotaFor]     = useState(null)  // factura
 
-  const load = useCallback(() => {
-    setLoading(true)
-    FacturasCompraAPI.list({ q: search, estado: filtroEst }).then(setRows).finally(() => setLoading(false))
-  }, [search, filtroEst])
-
-  useEffect(() => { load() }, [load])
+  const { rows, total, loading, pagina, setPagina, recargar: load } =
+    useListaPaginada(FacturasCompraAPI.list, { q: search, estado: filtroEst })
   useEffect(() => {
     ProveedoresAPI.list().then(setProveedores)
     MaterialesAPI.list({ activo: true }).then(setMateriales)
@@ -85,12 +80,12 @@ export default function ComprasFacturas() {
                 <th>Número</th><th>Tipo</th><th>Fecha</th><th>Proveedor</th>
                 <th>Remito</th><th className="th-right">Neto</th>
                 <th className="th-right">IVA</th><th className="th-right">Total</th>
-                <th>Estado</th><th style={{ width: 220 }}>Acciones</th>
+                <th>Estado</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? <EmptyState icon="🧾" message="Sin facturas de compra" /> : rows.map(f => (
-                <tr key={f.id}>
+                <tr key={f.id} className="tr-click" onClick={() => setFacForm({ data: f, isNew: false })}>
                   <td><span className="code" style={{ fontWeight: 700 }}>{f.numero}</span></td>
                   <td><span className={`badge badge-${f.tipo}`}>Fac {f.tipo}</span></td>
                   <td>{fFecha(f.fecha)}</td>
@@ -108,22 +103,21 @@ export default function ComprasFacturas() {
                   <td className="td-right td-bold">{$ar(f.total)}</td>
                   <td><Badge estado={f.estado} /></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      <button className="btn btn-ghost btn-xs" onClick={() => setFacForm({ data: f, isNew: false })}>Ver</button>
-                      {f.estado !== 'anulada' && f.estado !== 'pagada' && (
-                        <button className="btn btn-success btn-xs" onClick={() => setPagoFor({ provId: f.proveedor_id, facIds: [f.id], totalSugerido: f.total })}>💸 Pagar</button>
-                      )}
-                      {f.estado !== 'anulada' && (
-                        <button className="btn btn-secondary btn-xs" onClick={() => setNotaFor(f)}>NC/ND</button>
-                      )}
-                      {f.estado === 'pendiente' && <button className="btn btn-danger btn-xs" onClick={() => anular(f.id)}>Anular</button>}
-                    </div>
+                    <RowActions
+                      primary={f.estado !== 'anulada' && f.estado !== 'pagada' && { label: 'Pagar', icon: '💸', tone: 'success', onClick: () => setPagoFor({ provId: f.proveedor_id, facIds: [f.id], totalSugerido: f.total }) }}
+                      items={[
+                        { label: 'Ver', icon: '👁', onClick: () => setFacForm({ data: f, isNew: false }) },
+                        { label: 'Nota de crédito / débito', icon: '↩', onClick: () => setNotaFor(f), hidden: f.estado === 'anulada' },
+                        { label: 'Anular', icon: '⛔', danger: true, onClick: () => anular(f.id), hidden: f.estado !== 'pendiente' },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        <Paginador pagina={pagina} total={total} porPagina={POR_PAGINA} onChange={setPagina} disabled={loading} />
       </div>
 
       {facForm && (

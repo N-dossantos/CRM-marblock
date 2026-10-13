@@ -1,35 +1,32 @@
 // src/views/Facturas/index.jsx
 import { useState, useEffect, useCallback } from 'react'
+import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { FacturasAPI, ClientesAPI, ProductosAPI, AlicuotasIvaAPI, RemitosAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
-import { Badge, Loading, EmptyState } from '../../components/UI'
+import { Badge, Loading, EmptyState, Paginador, RowActions } from '../../components/UI'
 import ComprobanteForm from '../../components/Forms/ComprobanteForm'
 import ReciboForm from '../../components/Forms/ReciboForm'
 import NotaForm from '../Notas/NotaForm'
+import VentaDetalle from '../../components/Consultas/VentaDetalle'
 import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
 export default function Facturas() {
-  const [rows, setRows]         = useState([])
-  const [loading, setLoading]   = useState(true)
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
   const [alicuotas, setAlicuotas] = useState([])
   const [search, setSearch]     = useState('')
   const [filtroEst, setFiltroEst] = useState('')
-  const [facForm, setFacForm]   = useState(null)
+  const [facForm, setFacForm]   = useState(null)   // sólo para emitir: una factura emitida no se edita
+  const [detalle, setDetalle]   = useState(null)   // factura emitida, en sólo lectura
   const [reciboFor, setReciboFor] = useState(null)
   const [notaFor, setNotaFor]   = useState(null)
   const [pdfModal, setPdfModal] = useState(null) // { url, titulo }
   const [remPend, setRemPend]   = useState([])   // remitos pendientes del cliente elegido
   const [remLoading, setRemLoading] = useState(false)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    FacturasAPI.list({ q: search, estado: filtroEst }).then(setRows).finally(() => setLoading(false))
-  }, [search, filtroEst])
-
-  useEffect(() => { load() }, [load])
+  const { rows, total, loading, pagina, setPagina, recargar: load } =
+    useListaPaginada(FacturasAPI.list, { q: search, estado: filtroEst })
   useEffect(() => {
     ClientesAPI.list().then(setClientes)
     ProductosAPI.list({ activo: true }).then(setProductos)
@@ -70,19 +67,19 @@ export default function Facturas() {
 
   const cerrarForm = () => { setFacForm(null); setRemPend([]) }
 
+  // Una factura emitida ya tiene número y está en manos del cliente (y con ARCA, CAE): no se
+  // modifica. Se corrige con NC/ND, o se anula y se emite otra.
   const save = async (payload) => {
-    try {
-      if (facForm.isNew) await FacturasAPI.create(payload)
-      else               await FacturasAPI.update(facForm.data.id, payload)
-      toast.success('Factura guardada')
-      cerrarForm(); load()
-    } catch (err) { throw err }
+    await FacturasAPI.create(payload)
+    toast.success('Factura guardada')
+    cerrarForm(); load()
   }
 
   const anular = async (id) => {
     if (!confirm('¿Anular esta factura? Esta acción no se puede deshacer.')) return
     await FacturasAPI.anular(id)
     toast.success('Factura anulada')
+    setDetalle(null)
     load()
   }
 
@@ -114,12 +111,12 @@ export default function Facturas() {
                 <th>Número</th><th>Tipo</th><th>Fecha</th><th>Cliente</th>
                 <th>Remito</th><th className="th-right">Neto</th>
                 <th className="th-right">IVA</th><th className="th-right">Total</th>
-                <th>Estado</th><th style={{ width: 220 }}>Acciones</th>
+                <th>Estado</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? <EmptyState icon="🧾" message="Sin facturas" /> : rows.map(f => (
-                <tr key={f.id}>
+                <tr key={f.id} className="tr-click" onClick={() => setDetalle({ _doc: 'factura', ...f })}>
                   <td><span className="code" style={{ fontWeight: 700 }}>{f.numero}</span></td>
                   <td><span className={`badge badge-${f.tipo}`}>Fac {f.tipo}</span></td>
                   <td>{fFecha(f.fecha)}</td>
@@ -137,26 +134,27 @@ export default function Facturas() {
                   <td className="td-right td-bold">{$ar(f.total)}</td>
                   <td><Badge estado={f.estado} /></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      <button className="btn btn-ghost btn-xs" onClick={() => setFacForm({ data: f, isNew: false })}>Ver</button>
-                      <button className="btn btn-secondary btn-xs" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }} onClick={() => setPdfModal({ url: `/api/pdf/factura/${f.id}`, titulo: `Factura ${f.numero}` })}>📄 PDF</button>
-                      {f.estado !== 'anulada' && <>
-                        <button className="btn btn-success btn-xs" onClick={() => abrirCobro(f)}>💵 Cobrar</button>
-                        <button className="btn btn-secondary btn-xs" onClick={() => setNotaFor(f)}>NC/ND</button>
-                      </>}
-                      {f.estado === 'pendiente' && <button className="btn btn-danger btn-xs" onClick={() => anular(f.id)}>Anular</button>}
-                    </div>
+                    <RowActions
+                      primary={['pendiente', 'parcial'].includes(f.estado) && { label: 'Cobrar', icon: '💵', tone: 'success', onClick: () => abrirCobro(f) }}
+                      onPdf={() => setPdfModal({ url: `/api/pdf/factura/${f.id}`, titulo: `Factura ${f.numero}` })}
+                      items={[
+                        { label: 'Ver detalle', icon: '👁', onClick: () => setDetalle({ _doc: 'factura', ...f }) },
+                        { label: 'Nota de crédito / débito', icon: '↩', onClick: () => setNotaFor(f), hidden: f.estado === 'anulada' },
+                        { label: 'Anular', icon: '⛔', danger: true, onClick: () => anular(f.id), hidden: f.estado !== 'pendiente' },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        <Paginador pagina={pagina} total={total} porPagina={POR_PAGINA} onChange={setPagina} disabled={loading} />
       </div>
 
       {facForm && (
         <ComprobanteForm
-          title={facForm.isNew ? 'Nueva Factura' : `Factura ${facForm.data?.numero || ''}`}
+          title="Nueva Factura"
           tipo="factura"
           initial={facForm.data || {}}
           clientes={clientes}
@@ -170,14 +168,25 @@ export default function Facturas() {
         />
       )}
 
+      {detalle && (
+        <VentaDetalle
+          doc={detalle}
+          onClose={() => setDetalle(null)}
+          acciones={detalle.estado !== 'anulada' && <>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setNotaFor(detalle); setDetalle(null) }}>NC/ND</button>
+            {detalle.estado === 'pendiente' && <button className="btn btn-danger btn-sm" onClick={() => anular(detalle.id)}>Anular</button>}
+          </>}
+        />
+      )}
+
       {reciboFor && (
         <ReciboForm
           clientes={clientes}
           initial={reciboFor}
           onSave={async (payload) => {
             const { RecibosAPI } = await import('../../api')
-            await RecibosAPI.create(payload)
-            toast.success('Cobro registrado')
+            const r = await RecibosAPI.create(payload)
+            toast.success(r?.numero ? `Cobro registrado — Recibo ${r.numero}` : 'Cobro registrado')
             setReciboFor(null); load()
           }}
           onClose={() => setReciboFor(null)}

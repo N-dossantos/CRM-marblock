@@ -1,0 +1,58 @@
+tabla	modulo	columnas	filas_2026_08_21	destino	nota
+GVA14	VENTAS	110	690	clientes	RAZON_SOCI, CUIT, DOMICILIO, LOCALIDAD, COD_PROVIN->GVA18, PORC_DESC; activo = FECHA_INHA IS NULL
+GVA27	VENTAS	9	205	-	contactos por cliente; sin tabla destino, informativo
+GVA18	VENTAS	17	24	(lookup)	COD_PROVIN -> clientes.provincia
+STA11	VENTAS	107	39	productos	codigo/descripcion; el precio NO esta aca
+STA36	VENTAS	7	39	productos.precio_sin_iva	PRE_HABIT = precio habitual por articulo
+GVA10	VENTAS	12	4	(lookup)	listas de precios; INCLUY_IVA decide si hay que dividir por 1,21
+GVA17	VENTAS	7	70	productos.precio_sin_iva	precio por lista; cruzar con GVA10.INCLUY_IVA
+GVA12	VENTAS	130	8620	facturas / notas / recibos	todos juntos; discriminar por T_COMP via GVA15.IDENT_COMP
+GVA53	VENTAS	36	11390	factura_items / nota_items	PRECIO_NET ya es neto sin IVA; descripcion se joinea desde STA11
+GVA125	VENTAS	8	7339	*_items.descripcion	descripciones adicionales por renglon
+GVA15	VENTAS	24	5	(lookup)	IDENT_COMP: define que es cada T_COMP (FAC/NC/ND/REC)
+GVA46	VENTAS	11	4506	facturas.estado	vencimientos por comprobante; ESTADO_VTO deriva pendiente/parcial/cobrada
+GVA07	VENTAS	17	5672	recibo_facturas	T_COMP_CAN / N_COMP_CAN / IMPORT_CAN
+GVA42	VENTAS	14	4846	(control de IVA)	desglose de IVA por alicuota del comprobante (COD_ALICUO 1/2 = 21/10,5%); PERCEP=0 siempre: NO son percepciones (PLAN_MIGRACION_TANGO H11)
+GVA63	VENTAS	11	7191	-	clasificacion SIAP/CITI por comprobante (V1/V2/SIN); informativa, no se carga (H14). La alicuota de los items sale de GVA53.PORC_IVA
+GVA43	VENTAS	37	9	contadores	talonarios: ultimo_numero = PROXIMO - 1 por COMPROB+SUCURSAL
+STA14	VENTAS	49	7259	remitos	cabecera; cliente en COD_PRO_CL
+STA20	VENTAS	28	15318	remito_items	renglones
+GVA54	VENTAS	9	15290	remitos.factura_id	link N remitos <-> 1 factura
+GVA88	VENTAS	14	61	(control de IVA)	igual que GVA42 (desglose de IVA por alicuota); PERCEP=0 siempre (H11)
+GVA151	VENTAS	6	85	(lookup)	rubros de clientes/proveedores: COD_RUBRO -> DESC_RUBRO
+CPA01	COMPRAS	89	375	proveedores	COD_PROVEE, NOM_PROVEE, N_CUIT, COND_IVA, CBU; activo = FECHA_INHA IS NULL
+CPA02	COMPRAS	7	375	-	textos de IIBB por proveedor; informativo
+CPA04	COMPRAS	95	9960	facturas_compra + factura_compra_iva_detalle	trae IVA y percepciones mezclados en COD_IVA1..5 / PORC_IVA1..5 / IMP_IVA1..5: codigos 1/2/5 = IVA, 3/4 = percepcion de IVA segun CPA14 (H13, D9)
+CPA05	COMPRAS	11	8289	pago_proveedor_facturas	imputaciones pago -> factura (analogo a GVA07)
+CPA18	COMPRAS	10	703	percepciones de compra (D9)	percepciones sufridas sobre FP/CP/DP (no retenciones): COD_IMPUES de CPA14 51/54 = IIBB Bs.As./CABA, 40/52 = imp. internos, 53 = ganancias; COD_PROV -> CPA57 (H13)
+CPA46	COMPRAS	19	144	facturas_compra_items	renglones POR ARTICULO - casi no se usa (144 filas)
+CPA47	COMPRAS	13	6566	facturas_compra_items	renglones POR CONCEPTO - esta es la via real (6.566 filas)
+CPA48	COMPRAS	9	143	remitos_compra.factura_compra_id	link remito de compra <-> factura
+CPA45	COMPRAS	13	19	materiales	MAESTRO DE CONCEPTOS: COD_CONCEP + DESC_CONCE + COD_IVA + IMPUTACION. Es lo que le da descripcion a los renglones de CPA47
+CPA28	COMPRAS	29	18	-	maestro de retenciones; sin uso: Marblock no practica retenciones (CPA29: 4 filas de 2011 en $0, H15)
+CPA57	COMPRAS	7	25	(lookup)	provincias de compras: COD_PROVIN -> NOM_PROVIN (proveedores.provincia, retenciones.jurisdiccion)
+CPA54	COMPRAS	9	6170	facturas_compra.estado	vencimientos/cuotas
+CPA63	COMPRAS	7	8355	-	clasificacion SIAP/CITI por comprobante de compra (C1/C3/SIN); informativa, no se carga (H14)
+SBA01	TESORERIA	43	11	cuentas_bancarias	COD_CTA es la PK que usan SBA05 y los cheques
+SBA02	TESORERIA	27	5	tipos_comprobante_tesoreria	COD_COMP, DESC_COMP, D_H
+SBA04	TESORERIA	46	7108	movimientos_tesoreria	cabecera; COD_GVA14/COD_CPA01 = cliente/proveedor relacionado
+SBA05	TESORERIA	34	16270	movimientos_tesoreria + recibo_medios + pago_proveedor_medios	renglones: COD_CTA, D_H, MONTO, EFECTIVO, CHEQUES, CONCILIADO/FECHA_CONC
+SBA14	TESORERIA	56	4994	cheques	cartera de terceros; ESTADO, CLIENTE, ID_BANCO, RAZON_EMIS
+SBA15	TESORERIA	52	88	cheques_propios	chequeras propias; CTA_BANCO, N_CHEQUERA, PROVEEDOR
+SBA23	TESORERIA	13	9932	-	historico de estados de comprobante; informativo
+MOVIMIENTO_CHEQUE_TERCERO	TESORERIA	6	9970	cheques.estado	trazabilidad: ID_SBA14 -> ID_SBA05 + TIPO_MOVIMIENTO
+BANCO	TESORERIA	25	190	(lookup)	ID_BANCO -> cheques.banco y cuentas_bancarias.banco
+CUENTA	CONTABILIDAD	32	152	plan_de_cuentas	COD_CUENTA, DESC_CUENTA, HABILITADO, SALDO_HABITUAL, TIPO_CUENTA
+RUBRO_CN	CONTABILIDAD	15	43	plan_de_cuentas.cuenta_padre_id / nivel	LA JERARQUIA ESTA ACA, no en CUENTA: ID_RUBRO_PADRE + NRO_NIVEL
+CUENTA_SB	CONTABILIDAD	5	11	(matriz)	mapeo cuenta de tesoreria -> cuenta contable
+TIPO_CONTABLE	CONTABILIDAD	4	44	(lookup)	tipos de asiento por modulo
+TIPO_ASIENTO	CONTABILIDAD	9	11	(lookup)	agrupacion de asientos
+MODULO_CUENTA	CONTABILIDAD	3	1064	(matriz)	cuentas habilitadas por modulo
+ARTICULO_CUENTA	CONTABILIDAD	5	22	(matriz)	cuenta contable por articulo
+ASIENTO_GV	CONTABILIDAD	9	13550	asiento_items	ID_CUENTA + D_H + IMPORTE_RENGLON_BASE_GV -> la matriz REAL de ventas
+ASIENTO_CP	CONTABILIDAD	9	22010	asiento_items	idem compras
+ASIENTO_SB	CONTABILIDAD	13	15585	asiento_items	idem tesoreria
+ASIENTO_COMPROBANTE_GV	CONTABILIDAD	8	4876	asientos_contables	cabecera; NCOMP_IN_V ata el asiento al comprobante de GVA12
+ASIENTO_COMPROBANTE_CP	CONTABILIDAD	8	6649	asientos_contables	cabecera; ata a CPA04
+ASIENTO_COMPROBANTE_SB	CONTABILIDAD	8	7108	asientos_contables	cabecera; ata a SBA04
+CONCEPTO_CP	CONTABILIDAD	4	19	(matriz)	concepto de compra -> ID_CUENTA. Otra pieza de la matriz de imputacion

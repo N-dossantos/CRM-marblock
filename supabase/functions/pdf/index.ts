@@ -13,7 +13,7 @@ import {
 } from './templates.ts'
 import {
   generarRankingDeudores, generarResumenVentas,
-  generarSubdiario, generarSaldos, generarMayorTesoreria,
+  generarSubdiario, generarSaldos, generarMayorTesoreria, generarLibroIvaVentas,
 } from './reportes.ts'
 import { generarRemitoPreimpreso, generarCalibracion } from './preimpreso.ts'
 
@@ -170,6 +170,14 @@ Deno.serve(async (req) => {
         })
         const buffer = await generarResumenVentas(data, await getEmpresa(), desde, hasta)
         return enviarPDF(buffer, `Ventas-${desde}-a-${hasta}`)
+      }
+      case 'libro-iva-ventas': {
+        const desde = q.get('desde')
+        const hasta = q.get('hasta')
+        if (!desde || !hasta) return jsonError('Parámetros desde y hasta son obligatorios.')
+        const data = await rpcOne('informe_libro_iva_ventas', { p_desde: desde, p_hasta: hasta })
+        const buffer = await generarLibroIvaVentas(data ?? {}, await getEmpresa(), { desde, hasta })
+        return enviarPDF(buffer, `Libro-IVA-Ventas-${desde}-a-${hasta}`)
       }
 
       // ─── TESORERÍA (Fase D) — comprobantes internos + informes ──────────────

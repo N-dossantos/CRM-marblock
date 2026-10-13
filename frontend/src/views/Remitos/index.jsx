@@ -1,15 +1,14 @@
 // src/views/Remitos/index.jsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { RemitosAPI, ClientesAPI, ProductosAPI, pdfUrl } from '../../api'
-import { fFecha } from '../../utils'
-import { Badge, Loading, EmptyState } from '../../components/UI'
+import { fFecha, renglonesDeRemito } from '../../utils'
+import { Badge, Loading, EmptyState, Paginador, RowActions } from '../../components/UI'
 import ComprobanteForm from '../../components/Forms/ComprobanteForm'
 import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
 export default function Remitos() {
-  const [rows, setRows]         = useState([])
-  const [loading, setLoading]   = useState(true)
   const [clientes, setClientes] = useState([])
   const [productos, setProductos] = useState([])
   const [search, setSearch]     = useState('')
@@ -17,12 +16,8 @@ export default function Remitos() {
   const [form, setForm]         = useState(null)
   const [pdfModal, setPdfModal] = useState(null)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    RemitosAPI.list({ q: search, estado: filtroEst }).then(setRows).finally(() => setLoading(false))
-  }, [search, filtroEst])
-
-  useEffect(() => { load() }, [load])
+  const { rows, total, loading, pagina, setPagina, recargar: load } =
+    useListaPaginada(RemitosAPI.list, { q: search, estado: filtroEst })
   useEffect(() => {
     ClientesAPI.list().then(setClientes)
     ProductosAPI.list({ activo: true }).then(setProductos)
@@ -65,10 +60,8 @@ export default function Remitos() {
     sessionStorage.setItem('crm_desde_remito', JSON.stringify({
       cliente_id: r.cliente_id,
       remito_ids: [r.id],
-      // Mismo formato que produce el checkbox de remitos en ComprobanteForm: sin la línea de
-      // pallets vacíos (la regenera usePalletsVacios) y con `_remito_id` para que destildar el
-      // remito en la factura se lleve estos renglones.
-      items: (r.items || []).filter(it => !it.es_pallet_vacio).map(it => ({ ...it, _remito_id: r.id })),
+      // Mismo armado que el checkbox de remitos en ComprobanteForm (ver renglonesDeRemito).
+      items: renglonesDeRemito(r),
     }))
     window.location.href = '/facturas'
   }
@@ -109,12 +102,12 @@ export default function Remitos() {
             <thead>
               <tr>
                 <th>Número</th><th>Fecha</th><th>Cliente</th><th>Ítems</th>
-                <th>Factura vinculada</th><th>Estado</th><th style={{ width: 200 }}>Acciones</th>
+                <th>Factura vinculada</th><th>Estado</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? <EmptyState icon="🚚" message="Sin remitos" /> : rows.map(r => (
-                <tr key={r.id}>
+                <tr key={r.id} className="tr-click" onClick={() => setForm({ data: r, isNew: false })}>
                   <td><span className="code">{r.numero}</span></td>
                   <td>{fFecha(r.fecha)}</td>
                   <td className="td-bold">{r.razon_social}</td>
@@ -126,21 +119,22 @@ export default function Remitos() {
                   </td>
                   <td><Badge estado={r.estado} /></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-ghost btn-xs" onClick={() => setForm({ data: r, isNew: false })}>Ver</button>
-                      <button className="btn btn-secondary btn-xs" style={{ background: '#fef2f2', color: '#dc2626', borderColor: '#fecaca' }} onClick={() => setPdfModal({ url: pdfUrl.remito(r.id), titulo: `Remito ${r.numero}` })}>📄 PDF</button>
-                      <button className="btn btn-secondary btn-xs" onClick={() => setPdfModal({ url: pdfUrl.remitoTalonario(r.id), titulo: `Remito ${r.numero} — talonario`, talonario: true })}>🖨 Talonario</button>
-                      {r.estado === 'pendiente' && <>
-                        <button className="btn btn-secondary btn-xs" style={{ background: 'var(--blue-50)', color: 'var(--blue-700)', borderColor: 'var(--blue-100)' }} onClick={() => irAFacturar(r)}>→ Factura</button>
-                        <button className="btn btn-danger btn-xs" onClick={() => anular(r.id)}>Anular</button>
-                      </>}
-                    </div>
+                    <RowActions
+                      primary={r.estado === 'pendiente' && { label: 'Facturar', icon: '→', onClick: () => irAFacturar(r) }}
+                      onPdf={() => setPdfModal({ url: pdfUrl.remito(r.id), titulo: `Remito ${r.numero}` })}
+                      items={[
+                        { label: 'Ver', icon: '👁', onClick: () => setForm({ data: r, isNew: false }) },
+                        { label: 'Imprimir en talonario', icon: '🖨', onClick: () => setPdfModal({ url: pdfUrl.remitoTalonario(r.id), titulo: `Remito ${r.numero} — talonario`, talonario: true }) },
+                        { label: 'Anular', icon: '⛔', danger: true, onClick: () => anular(r.id), hidden: r.estado !== 'pendiente' },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+        <Paginador pagina={pagina} total={total} porPagina={POR_PAGINA} onChange={setPagina} disabled={loading} />
       </div>
 
       {form && (

@@ -1,8 +1,9 @@
 // src/views/Recibos/index.jsx
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { RecibosAPI, ClientesAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
-import { Loading, EmptyState, Modal } from '../../components/UI'
+import { Loading, EmptyState, Modal, Paginador } from '../../components/UI'
 import ReciboForm from '../../components/Forms/ReciboForm'
 import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
@@ -11,8 +12,6 @@ const TIPO_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', chequ
 const TIPO_COLOR = { efectivo: '#10b981', transferencia: '#1d4ed8', cheque: '#7c3aed', echeq: '#f97316' }
 
 export default function Recibos() {
-  const [rows, setRows]         = useState([])
-  const [loading, setLoading]   = useState(true)
   const [clientes, setClientes] = useState([])
   const [search, setSearch]     = useState('')
   const [filtroCli, setFiltroCli] = useState('')
@@ -20,24 +19,19 @@ export default function Recibos() {
   const [detalle, setDetalle]   = useState(null)
   const [pdfModal, setPdfModal] = useState(null)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    RecibosAPI.list({ q: search, cliente_id: filtroCli }).then(setRows).finally(() => setLoading(false))
-  }, [search, filtroCli])
-
-  useEffect(() => { load() }, [load])
+  const { rows, total, totalImporte, loading, pagina, setPagina, recargar: load } =
+    useListaPaginada(RecibosAPI.list, { q: search, cliente_id: filtroCli })
   useEffect(() => { ClientesAPI.list().then(setClientes) }, [])
 
   const save = async (payload) => {
-    await RecibosAPI.create(payload)
-    toast.success('Recibo registrado correctamente')
+    const r = await RecibosAPI.create(payload)
+    toast.success(r?.numero ? `Recibo ${r.numero} registrado` : 'Recibo registrado correctamente')
     setNuevo(false)
     load()
   }
 
   const openDetalle = (id) => RecibosAPI.get(id).then(setDetalle)
 
-  const totalGeneral = rows.reduce((a, r) => a + parseFloat(r.total || 0), 0)
 
   return (
     <div>
@@ -57,11 +51,11 @@ export default function Recibos() {
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid #10b981', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Total cobrado (filtro actual)</div>
-            <div className="kpi-value" style={{ color: '#10b981', fontSize: 20 }}>{$ar(totalGeneral)}</div>
+            <div className="kpi-value" style={{ color: '#10b981', fontSize: 20 }}>{$ar(totalImporte)}</div>
           </div>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--blue-600)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Cantidad de recibos</div>
-            <div className="kpi-value" style={{ color: 'var(--blue-600)', fontSize: 20 }}>{rows.length}</div>
+            <div className="kpi-value" style={{ color: 'var(--blue-600)', fontSize: 20 }}>{total.toLocaleString('es-AR')}</div>
           </div>
         </div>
       )}
@@ -110,6 +104,7 @@ export default function Recibos() {
             </tbody>
           </table>
         )}
+        <Paginador pagina={pagina} total={total} porPagina={POR_PAGINA} onChange={setPagina} disabled={loading} />
       </div>
 
       {nuevo && (

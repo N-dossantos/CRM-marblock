@@ -1,8 +1,9 @@
 // src/views/Cheques/index.jsx
 import { useState, useEffect, useCallback } from 'react'
-import { ChequesAPI, ClientesAPI, CuentasBancariasAPI } from '../../api'
+import { ChequesAPI, ClientesAPI, CuentasBancariasAPI, pdfUrl } from '../../api'
 import { $ar, fFecha, hoy, addDias, isVencido } from '../../utils'
-import { Badge, Loading, EmptyState, Modal } from '../../components/UI'
+import { Badge, Loading, EmptyState, Modal, RowActions } from '../../components/UI'
+import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
 const ESTADO_OPTS = [
@@ -23,16 +24,23 @@ export default function Cheques() {
   const [rows, setRows]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [clientes, setClientes] = useState([])
-  const [filtroEst, setFiltroEst] = useState('')
+  // Abre en cartera: es lo que se mira a diario. "Todos" es el histórico (miles de cheques).
+  const [filtroEst, setFiltroEst] = useState('en_cartera')
+  const [vtoDesde, setVtoDesde] = useState('')
+  const [vtoHasta, setVtoHasta] = useState('')
+  const [orden, setOrden]       = useState('vto_asc')
+  const [buscar, setBuscar]     = useState('')
   const [nuevo, setNuevo]       = useState(null)
   const [entregar, setEntregar] = useState(null) // { cheque, prov }
   const [depositar, setDepositar] = useState(null) // { cheque, cuenta_id, fecha }
   const [cuentas, setCuentas]   = useState([])
+  const [pdf, setPdf]           = useState(null) // { url, titulo }
 
   const load = useCallback(() => {
     setLoading(true)
-    ChequesAPI.list({ estado: filtroEst }).then(setRows).finally(() => setLoading(false))
-  }, [filtroEst])
+    ChequesAPI.list({ estado: filtroEst, vto_desde: vtoDesde || undefined, vto_hasta: vtoHasta || undefined, orden })
+      .then(setRows).finally(() => setLoading(false))
+  }, [filtroEst, vtoDesde, vtoHasta, orden])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { ClientesAPI.list().then(setClientes) }, [])
@@ -72,6 +80,14 @@ export default function Cheques() {
 
   const upd = (f, v) => setNuevo(n => ({ ...n, [f]: v }))
 
+  // Búsqueda sobre lo ya traído (número, banco, titular, cliente). PostgREST no deja hacer un OR
+  // que incluya la razón social del cliente embebido, y el rango de fechas ya acota en el servidor.
+  const q = buscar.trim().toLowerCase()
+  const visibles = !q ? rows : rows.filter(c =>
+    [c.numero, c.banco, c.titular, c.cliente_razon_social, c.proveedor_destino]
+      .some(v => (v || '').toLowerCase().includes(q)))
+  const TOPE_POSTGREST = 1000
+
   // Resumen por estado
   const enCartera = rows.filter(c => c.estado === 'en_cartera')
   const totalCartera = enCartera.reduce((a, c) => a + parseFloat(c.monto || 0), 0)
@@ -96,12 +112,32 @@ export default function Cheques() {
 
       <div className="page-toolbar">
         <div className="toolbar-left">
-          <select className="sel" style={{ width: 170 }} value={filtroEst} onChange={e => setFiltroEst(e.target.value)}>
+          <select className="sel" style={{ width: 150 }} value={filtroEst} onChange={e => setFiltroEst(e.target.value)}>
             {ESTADO_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
           </select>
+          <input className="search-inp" style={{ width: 220 }} placeholder="Buscar nro., banco, titular, cliente…" value={buscar} onChange={e => setBuscar(e.target.value)} />
+          <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>Vence</span>
+          <input type="date" className="inp" style={{ width: 140 }} value={vtoDesde} onChange={e => setVtoDesde(e.target.value)} title="Vencimiento desde" />
+          <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>al</span>
+          <input type="date" className="inp" style={{ width: 140 }} value={vtoHasta} onChange={e => setVtoHasta(e.target.value)} title="Vencimiento hasta" />
+          <select className="sel" style={{ width: 190 }} value={orden} onChange={e => setOrden(e.target.value)} title="Orden">
+            <option value="vto_asc">Vencimiento: más viejo primero</option>
+            <option value="vto_desc">Vencimiento: más nuevo primero</option>
+            <option value="emision_desc">Emisión: más nueva primero</option>
+            <option value="monto_desc">Monto: mayor primero</option>
+          </select>
+          {(vtoDesde || vtoHasta || buscar) && (
+            <button className="btn btn-ghost btn-sm" onClick={() => { setVtoDesde(''); setVtoHasta(''); setBuscar('') }}>Limpiar</button>
+          )}
         </div>
         <button className="btn btn-primary" onClick={() => setNuevo({ ...BLANK })}>+ Registrar cheque</button>
       </div>
+
+      {!loading && rows.length >= TOPE_POSTGREST && (
+        <div className="info-box" style={{ marginBottom: 10 }}>
+          Se muestran los primeros {TOPE_POSTGREST} cheques según el orden elegido. Acotá con el rango de vencimiento o el estado para ver el resto.
+        </div>
+      )}
 
       <div className="tbl-wrap">
         {loading ? <Loading /> : (
@@ -111,11 +147,11 @@ export default function Cheques() {
                 <th>Nro. cheque</th><th>Tipo</th><th>Banco</th><th>Titular</th>
                 <th>Cliente origen</th><th className="th-right">Monto</th>
                 <th>F. Emisión</th><th>Vencimiento</th>
-                <th>Destino (proveedor)</th><th>Estado</th><th style={{ width: 160 }}>Acciones</th>
+                <th>Destino (proveedor)</th><th>Estado</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? <EmptyState icon="🏦" message="Sin cheques en cartera" /> : rows.map(ch => (
+              {visibles.length === 0 ? <EmptyState icon="🏦" message="Sin cheques para ese filtro" /> : visibles.map(ch => (
                 <tr key={ch.id}>
                   <td><span className="code" style={{ fontWeight: 700 }}>{ch.numero}</span></td>
                   <td><span style={{ fontSize: 11, background: ch.tipo === 'echeq' ? '#ede9fe' : 'var(--gray-100)', color: ch.tipo === 'echeq' ? '#5b21b6' : 'var(--gray-600)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</span></td>
@@ -131,24 +167,18 @@ export default function Cheques() {
                   <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{ch.proveedor_destino || '—'}</td>
                   <td><Badge estado={ch.estado} /></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {ch.estado === 'en_cartera' && <>
-                        <button className="btn btn-secondary btn-xs" style={{ background: 'var(--green-50)', color: 'var(--green-700)', borderColor: 'var(--green-100)' }}
-                          onClick={() => { if (confirm('¿Marcar como depositado?')) cambiarEstado(ch.id, 'depositado') }}>
-                          ✓ Depositar
-                        </button>
-                        <button className="btn btn-secondary btn-xs" style={{ background: 'var(--purple-50)', color: '#5b21b6', borderColor: '#ede9fe' }}
-                          onClick={() => setEntregar({ cheque: ch, prov: '' })}>
-                          → Entregar
-                        </button>
-                      </>}
-                      {(ch.estado === 'depositado' || ch.estado === 'entregado') && (
-                        <button className="btn btn-danger btn-xs"
-                          onClick={() => { if (confirm('¿Marcar como rechazado por el banco?')) cambiarEstado(ch.id, 'rechazado_banco') }}>
-                          Rechazado
-                        </button>
-                      )}
-                    </div>
+                    {/* El botón PDF es el único acceso al PDF de un cheque de tercero con la data de Tango:
+                        esos cheques cuelgan del recibo, no de un movimiento propio de tesorería. */}
+                    <RowActions
+                      primary={ch.estado === 'en_cartera' && { label: 'Entregar', icon: '→', tone: 'purple', onClick: () => setEntregar({ cheque: ch, prov: '' }) }}
+                      onPdf={() => setPdf({ url: pdfUrl.cheque(ch.id), titulo: `Cheque ${ch.numero}` })}
+                      items={[
+                        { label: 'Depositar', icon: '✓', hidden: ch.estado !== 'en_cartera',
+                          onClick: () => { if (confirm('¿Marcar como depositado?')) cambiarEstado(ch.id, 'depositado') } },
+                        { label: 'Rechazado por el banco', icon: '⛔', danger: true, hidden: !(ch.estado === 'depositado' || ch.estado === 'entregado'),
+                          onClick: () => { if (confirm('¿Marcar como rechazado por el banco?')) cambiarEstado(ch.id, 'rechazado_banco') } },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -156,6 +186,8 @@ export default function Cheques() {
           </table>
         )}
       </div>
+
+      {pdf && <PDFModal url={pdf.url} titulo={pdf.titulo} onClose={() => setPdf(null)} />}
 
       {/* Modal nuevo cheque */}
       {nuevo && (
