@@ -37,8 +37,11 @@ PSQL=(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -X -q)
 PARTES=(sql/10_maestros.sql sql/20_ventas.sql sql/30_compras.sql sql/31_percepciones_compra.sql
         sql/40_tesoreria.sql sql/50_contabilidad.sql)
 
-# Todo lo que se vacía antes de cargar. Son las 42 tablas transaccionales + los maestros que vienen
-# de Tango + los datos de prueba de cuenta2. NO están acá, a propósito:
+# Todo lo que se vacía antes de cargar. Son las tablas transaccionales + los maestros que vienen
+# de Tango. NO están acá, a propósito:
+#   las 6 de Cuenta 2 (clientes_cuenta2, proveedores_cuenta2, cuenta2_*): no vienen de Tango y se
+#   cargan antes del cutover desde las planillas (supabase/carga_cuenta2/). Ojo que el CASCADE las
+#   alcanzaría igual por dos FKs suyas hacia tablas de acá — ver SOLTAR_FKS_CUENTA2 abajo.
 #   productos (los 25 sembrados se conservan: decisión de §5.1 del plan maestro y de D-productos),
 #   alicuotas_iva, tipos_comprobante_tesoreria, agrupaciones_tesoreria (catálogos del sistema que el
 #   ETL referencia por id), config_empresa, tablas_generales, contadores (se hace UPSERT abajo) y
@@ -47,16 +50,38 @@ PARTES=(sql/10_maestros.sql sql/20_ventas.sql sql/30_compras.sql sql/31_percepci
 # CASCADE no arrastra nada que no esté nombrado acá.
 TABLAS="
   asiento_items, asientos_contables,
-  cheques, cheques_propios, clientes, clientes_cuenta2, conciliaciones_bancarias,
-  cuenta2_cheques, cuenta2_movimientos, cuenta2_remito_items, cuenta2_remitos, cuentas_bancarias,
+  cheques, cheques_propios, clientes, conciliaciones_bancarias, cuentas_bancarias,
   factura_compra_iva_detalle, factura_items, facturas, facturas_compra, facturas_compra_items,
   materiales, movimientos_tesoreria,
   nota_compra_items, nota_items, notas, notas_compra,
   pago_proveedor_facturas, pago_proveedor_medios, pagos_proveedor,
   percepciones, percepciones_compra, plan_de_cuentas, presupuesto_items, presupuestos,
-  proveedor_alicuotas, proveedores, proveedores_cuenta2,
+  proveedor_alicuotas, proveedores,
   recibo_facturas, recibo_medios, recibos,
   remito_compra_items, remito_items, remitos, remitos_compra, retenciones"
+
+# Cuenta 2 tiene dos FKs hacia tablas que se truncan: cuenta2_cheques.cheque_id → cheques y
+# cuenta2_remito_items.material_id → materiales. Con ellas puestas, TRUNCATE … CASCADE vacía
+# cuenta2_cheques y cuenta2_remito_items, y por cuenta2_cheques también cuenta2_movimientos. Así que
+# dentro de la misma transacción se sueltan antes del TRUNCATE y se vuelven a crear (validando) al
+# final. Si algo falla, la transacción entera vuelve atrás y las FKs quedan como estaban.
+SOLTAR_FKS_CUENTA2="
+  ALTER TABLE cuenta2_cheques      DROP CONSTRAINT cuenta2_cheques_cheque_id_fkey;
+  ALTER TABLE cuenta2_remito_items DROP CONSTRAINT cuenta2_remito_items_material_id_fkey;"
+RESTAURAR_FKS_CUENTA2="
+  DO \$\$
+  DECLARE v_n integer;
+  BEGIN
+    SELECT count(*) INTO v_n FROM cuenta2_remito_items i
+     WHERE i.material_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM materiales m WHERE m.id = i.material_id);
+    IF v_n > 0 THEN
+      RAISE EXCEPTION 'Hay % ítems de Cuenta 2 con un material que esta carga no trae. No se cargó nada.', v_n;
+    END IF;
+  END \$\$;
+  ALTER TABLE cuenta2_cheques ADD CONSTRAINT cuenta2_cheques_cheque_id_fkey
+    FOREIGN KEY (cheque_id) REFERENCES cheques(id) ON DELETE SET NULL;
+  ALTER TABLE cuenta2_remito_items ADD CONSTRAINT cuenta2_remito_items_material_id_fkey
+    FOREIGN KEY (material_id) REFERENCES materiales(id) ON DELETE SET NULL;"
 
 # Contadores: el último número emitido por serie, POR FECHA (no el máximo: H4, el recibo 00041189 es
 # un error de carga de Tango). Los valores son del .bak del 25/09 y los recalcula
@@ -130,6 +155,12 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN
     RAISE EXCEPTION 'El rol no puede hacer SET session_replication_role: usá el usuario postgres del connection string directo.';
   END;
+
+  -- Cuenta 2 se conserva, pero un cheque suyo transferido a Cuenta 1 apunta a una fila de `cheques`
+  -- que la carga borra: la copia oficial se perdería sin aviso. Mejor frenar y decidir a mano.
+  IF EXISTS (SELECT 1 FROM cuenta2_cheques WHERE cheque_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'Hay cheques de Cuenta 2 transferidos a Cuenta 1 (cuenta2_cheques.cheque_id): la carga borraría su copia en la cartera oficial.';
+  END IF;
 END $$;
 SQL
 echo "   OK: migraciones aplicadas y el rol puede diferir FKs."
@@ -140,7 +171,9 @@ if [[ "${1:-}" == "--vaciar" ]]; then
   "${PSQL[@]}" <<SQL
 BEGIN;
 SET session_replication_role = replica;
+$SOLTAR_FKS_CUENTA2
 TRUNCATE $TABLAS RESTART IDENTITY CASCADE;
+$RESTAURAR_FKS_CUENTA2
 SET session_replication_role = origin;
 COMMIT;
 SQL
@@ -153,12 +186,14 @@ echo "== Cargando =="
 {
   echo "BEGIN;"
   echo "SET session_replication_role = replica;"
+  echo "$SOLTAR_FKS_CUENTA2"
   echo "TRUNCATE $TABLAS RESTART IDENTITY CASCADE;"
   for f in "${PARTES[@]}"; do
     echo "\\echo '   -> $f'"
     echo "\\i $f"
   done
   echo "$CONTADORES"
+  echo "$RESTAURAR_FKS_CUENTA2"
   echo "SET session_replication_role = origin;"
   echo "COMMIT;"
   echo "\\i sql_reset_secuencias.sql"

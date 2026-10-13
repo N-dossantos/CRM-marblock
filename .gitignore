@@ -63,3 +63,6 @@ scratch/
 # Supabase CLI (estado local del link, no del proyecto)
 supabase/.temp/
 .db_url
+
+# Cuenta 2 — planillas del circuito informal (datos reales, nunca a GitHub)
+supabase/cuenta2/
