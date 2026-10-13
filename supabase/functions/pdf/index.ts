@@ -150,7 +150,8 @@ Deno.serve(async (req) => {
           p_tipo_sector: sector, p_entidad_id: Number(id), p_desde: desde, p_hasta: hasta,
         })
         if (!data || !data.entidad) return jsonError('Cliente/proveedor no encontrado', 404)
-        const buffer = await generarCtaCteCuenta2(data, await getEmpresa(), { desde, hasta })
+        // Cuenta 2 no lleva los datos de la empresa (razón social, CUIT, etc.): va sin config_empresa.
+        const buffer = await generarCtaCteCuenta2(data, null, { desde, hasta, sector })
         const nombre = String(data.entidad.nombre || 'Entidad').replace(/\s+/g, '_')
         return enviarPDF(buffer, `CtaCte-C2-${nombre}`)
       }

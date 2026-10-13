@@ -43,7 +43,8 @@ export function textoTenue(doc: any, opacidad: number, dibujar: () => void) {
   doc.restore()
 }
 
-// Dibuja el encabezado común de la empresa
+// Dibuja el encabezado común de la empresa. Con `empresa` = null (Cuenta 2) la franja sale sin
+// razón social, CUIT ni dirección: esos PDF no llevan los datos de la empresa.
 export function dibujarHeader(doc: any, empresa: any, tipoDoc: string, numero: string, fecha: any) {
   const W = doc.page.width
   const M = 45 // margen
@@ -51,20 +52,22 @@ export function dibujarHeader(doc: any, empresa: any, tipoDoc: string, numero: s
   // Franja superior azul oscuro
   doc.rect(0, 0, W, 80).fill(COLORES.azul_oscuro)
 
-  // Nombre empresa (izquierda)
-  doc.fillColor(COLORES.blanco)
-     .font('Helvetica-Bold')
-     .fontSize(16)
-     .text(empresa.razon_social || 'Mi Empresa S.A.', M, 18, { width: 300 })
+  if (empresa) {
+    // Nombre empresa (izquierda)
+    doc.fillColor(COLORES.blanco)
+       .font('Helvetica-Bold')
+       .fontSize(16)
+       .text(empresa.razon_social || 'Mi Empresa S.A.', M, 18, { width: 300 })
 
-  // pdfkit no entiende colores 'rgba(...)': los ignora y sigue con el color anterior (así el recuadro
-  // salía blanco opaco y el tipo/número/fecha, blanco sobre blanco). La transparencia va como
-  // opacidad, entre save/restore porque pdfkit la deja fija para todo lo que se dibuje después.
-  textoTenue(doc, 0.6, () => doc
-     .font('Helvetica')
-     .fontSize(8.5)
-     .text(`CUIT: ${empresa.cuit || '—'}  ·  ${empresa.condicion_iva || 'Resp. Inscripto'}`, M, 38)
-     .text(empresa.direccion || '', M, 50))
+    // pdfkit no entiende colores 'rgba(...)': los ignora y sigue con el color anterior (así el recuadro
+    // salía blanco opaco y el tipo/número/fecha, blanco sobre blanco). La transparencia va como
+    // opacidad, entre save/restore porque pdfkit la deja fija para todo lo que se dibuje después.
+    textoTenue(doc, 0.6, () => doc
+       .font('Helvetica')
+       .fontSize(8.5)
+       .text(`CUIT: ${empresa.cuit || '—'}  ·  ${empresa.condicion_iva || 'Resp. Inscripto'}`, M, 38)
+       .text(empresa.direccion || '', M, 50))
+  }
 
   // Tipo y número de comprobante (derecha)
   const tipoAncho = 160
@@ -231,7 +234,7 @@ export function dibujarTotales(doc: any, y: number, totales: any) {
   return cy + 36
 }
 
-// Dibuja el pie de página
+// Dibuja el pie de página (sin texto si `empresa` es null, como en Cuenta 2)
 export function dibujarFooter(doc: any, empresa: any) {
   const W  = doc.page.width
   const H  = doc.page.height
@@ -239,6 +242,7 @@ export function dibujarFooter(doc: any, empresa: any) {
   const yF = H - 38
 
   doc.moveTo(M, yF).lineTo(W - M, yF).stroke(COLORES.gris_borde)
+  if (!empresa) return
 
   doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(7.5)
      .text(

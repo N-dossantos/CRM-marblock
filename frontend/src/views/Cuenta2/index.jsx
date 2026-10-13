@@ -5,9 +5,9 @@
 // líneas. Misma idea que ComprobanteForm sirviendo presupuesto/remito/factura con `tipo`.
 // Sub-tabs con useState (patrón de views/TesoreriaCuentas), no ruteo anidado.
 import { useState, useEffect, useCallback } from 'react'
-import { ClientesC2API, ProveedoresC2API, RemitosC2API, MovimientosC2API, InformesC2API, pdfUrlC2 } from '../../api/cuenta2'
+import { ClientesC2API, ProveedoresC2API, RemitosC2API, MovimientosC2API, InformesC2API, pdfUrlC2, ctaCteC2PDF } from '../../api/cuenta2'
 import { ProductosAPI, MaterialesAPI } from '../../api'
-import { $ar, fFecha } from '../../utils'
+import { $ar, fFecha, telefonoWhatsApp } from '../../utils'
 import { Modal, Loading, EmptyState, ItemsTable } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
 import RemitoXForm from '../../components/Forms/RemitoXForm'
@@ -20,6 +20,7 @@ const TIPO_STYLE = {
   COBRO:      { bg: '#d1fae5', color: '#065f46', label: 'Cobro' },
   PAGO:       { bg: '#d1fae5', color: '#065f46', label: 'Pago' },
   AJUSTE:     { bg: '#e0e7ff', color: '#3730a3', label: 'Ajuste' },
+  'SALDO ANTERIOR': { bg: 'var(--gray-100)', color: 'var(--gray-700)', label: 'Saldo anterior' },
 }
 
 export default function Cuenta2({ tipoSector }) {
@@ -68,12 +69,35 @@ function tabStyle(active) {
 // La entidad del sector: clientes en ventas, proveedores en compras.
 const entidadAPIde = (tipoSector) => (tipoSector === 'venta' ? ClientesC2API : ProveedoresC2API)
 
+// Entidades activas + catálogo para RemitoXForm (tab Remitos X y botón de la cta. cte.).
+// Proveedores (sector 'compra') compran materiales del catálogo de Compras, no productos de
+// Ventas — se adapta a la forma que espera ItemsTable/ProductoBuscador (id/codigo/descripcion/
+// precio_sin_iva), sin concepto de pallets (unidades_por_pallet=1 → Pallets ≡ cantidad).
+// `activo` = false no pide nada: la cta. cte. lo prende recién al abrir el formulario.
+function useCatalogoC2(tipoSector, activo = true) {
+  const [entidades, setEntidades] = useState([])
+  const [productos, setProductos] = useState([])
+  useEffect(() => {
+    if (!activo) return
+    entidadAPIde(tipoSector).list({ activo: true }).then(setEntidades)
+    if (tipoSector === 'venta') {
+      ProductosAPI.list({ activo: true }).then(setProductos)
+    } else {
+      MaterialesAPI.list({ activo: true }).then(mats => setProductos(mats.map(m => ({
+        id: m.id, codigo: m.codigo, descripcion: m.descripcion,
+        precio_sin_iva: m.precio_referencia, unidades_por_pallet: 1,
+        es_pallet_vacio: false, es_transporte: false, activo: m.activo,
+      }))))
+    }
+  }, [tipoSector, activo])
+  return { entidades, productos }
+}
+
 // ══════════════════════ REMITOS X ══════════════════════
 function RemitosX({ tipoSector }) {
   const esVenta = tipoSector === 'venta'
   const [rows, setRows]           = useState([])
-  const [entidades, setEntidades] = useState([])
-  const [productos, setProductos] = useState([])
+  const { entidades, productos }  = useCatalogoC2(tipoSector)
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
   const [form, setForm]           = useState(null)
@@ -86,21 +110,6 @@ function RemitosX({ tipoSector }) {
   }, [tipoSector, search])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => {
-    entidadAPIde(tipoSector).list({ activo: true }).then(setEntidades)
-    // Proveedores (sector 'compra') compran materiales del catálogo de Compras, no productos de
-    // Ventas — se adapta a la forma que espera ItemsTable/ProductoBuscador (id/codigo/descripcion/
-    // precio_sin_iva), sin concepto de pallets (unidades_por_pallet=1 → Pallets ≡ cantidad).
-    if (esVenta) {
-      ProductosAPI.list({ activo: true }).then(setProductos)
-    } else {
-      MaterialesAPI.list({ activo: true }).then(mats => setProductos(mats.map(m => ({
-        id: m.id, codigo: m.codigo, descripcion: m.descripcion,
-        precio_sin_iva: m.precio_referencia, unidades_por_pallet: 1,
-        es_pallet_vacio: false, es_transporte: false, activo: m.activo,
-      }))))
-    }
-  }, [tipoSector, esVenta])
 
   const save = async (payload) => {
     if (form.isNew) await RemitosC2API.create(payload)
@@ -320,6 +329,9 @@ function CtaCteC2({ tipoSector }) {
   const [hasta, setHasta]         = useState('')
   const [movForm, setMovForm]     = useState(null)
   const [pdfModal, setPdfModal]   = useState(null)
+  const [remitoForm, setRemitoForm] = useState(false)
+  const [enviandoWA, setEnviandoWA] = useState(false)
+  const catalogo = useCatalogoC2(tipoSector, remitoForm)
 
   const loadEntidades = useCallback(() => {
     entidadAPIde(tipoSector).list().then(setEntidades)
@@ -351,6 +363,45 @@ function CtaCteC2({ tipoSector }) {
       toast.success('Movimiento eliminado')
       cargar(); loadEntidades()
     } catch { /* el toast ya lo emitió la capa API */ }
+  }
+
+  const guardarRemito = async (payload) => {
+    await RemitosC2API.create(payload)
+    toast.success('Remito X guardado')
+    setRemitoForm(false); cargar(); loadEntidades()
+  }
+
+  // wa.me no adjunta archivos: se descarga el PDF (con el filtro aplicado) y se abre el chat con
+  // un mensaje corto; el archivo se arrastra a mano. La ventana se abre en el clic: si se abre
+  // después del fetch, el navegador la bloquea como popup.
+  const enviarWhatsApp = async () => {
+    const numero = telefonoWhatsApp(data.entidad.telefono)
+    if (!numero) {
+      toast.error(data.entidad.telefono
+        ? `No se puede armar un celular con "${data.entidad.telefono}". Cargalo con código de área, ej. 11 2345-6789.`
+        : 'El cliente no tiene teléfono cargado (solapa Clientes → Editar).')
+      return
+    }
+    const ventana = window.open('', '_blank')
+    setEnviandoWA(true)
+    try {
+      const blob = await ctaCteC2PDF(tipoSector, selId, desde, hasta)
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      // Sin "C2" en el nombre: este archivo lo recibe el cliente.
+      a.download = `Cuenta_corriente-${data.entidad.nombre.replace(/[^\p{L}\p{N}]+/gu, '_')}.pdf`
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000)
+      const wa = `https://wa.me/${numero}?text=${encodeURIComponent('Hola! Te paso el resumen de tu cuenta corriente.')}`
+      if (ventana) ventana.location.href = wa
+      else window.location.href = wa
+      toast.success('PDF descargado: arrastralo al chat de WhatsApp')
+    } catch (e) {
+      ventana?.close()
+      toast.error(e.message || 'No se pudo generar el PDF')
+    } finally {
+      setEnviandoWA(false)
+    }
   }
 
   const filtradas = entidades.filter(e =>
@@ -436,6 +487,19 @@ function CtaCteC2({ tipoSector }) {
                     >
                       📄 Generar PDF
                     </button>
+                    {esVenta && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={enviarWhatsApp}
+                        disabled={enviandoWA}
+                        title={data.entidad.telefono ? `Enviar a ${data.entidad.telefono}` : 'Sin teléfono cargado'}
+                      >
+                        {enviandoWA ? 'Generando…' : '💬 WhatsApp'}
+                      </button>
+                    )}
+                    <button className="btn btn-secondary btn-sm" onClick={() => setRemitoForm(true)}>
+                      + Nuevo Remito X
+                    </button>
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={() => setMovForm({ entidad: data.entidad, saldo })}
@@ -474,7 +538,8 @@ function CtaCteC2({ tipoSector }) {
                     <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-400)' }}>Sin movimientos en el período</td></tr>
                   ) : data.movimientos.map((m, i) => {
                     const ts = TIPO_STYLE[m.tipo] || { bg: 'var(--gray-100)', color: 'var(--gray-600)', label: m.tipo }
-                    const esRemito = m.tipo === 'REMITO X'
+                    // Remitos se borran desde su solapa; la fila de saldo anterior es sintética (id null).
+                    const sinEliminar = m.tipo === 'REMITO X' || m.tipo === 'SALDO ANTERIOR'
                     return (
                       <tr key={`${m.tipo}-${m.id}-${i}`}>
                         <td>{fFecha(m.fecha)}</td>
@@ -494,7 +559,7 @@ function CtaCteC2({ tipoSector }) {
                           {$ar(m.saldo)}
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          {!esRemito && (
+                          {!sinEliminar && (
                             <button className="btn btn-danger btn-xs" onClick={() => eliminarMov(m)}>Eliminar</button>
                           )}
                         </td>
@@ -507,6 +572,18 @@ function CtaCteC2({ tipoSector }) {
           </div>
         ) : null}
       </div>
+
+      {remitoForm && (
+        <RemitoXForm
+          title={`Nuevo Remito X — ${data.entidad.nombre}`}
+          tipoSector={tipoSector}
+          initial={{ entidad_id: data.entidad.id, descuento_porcentaje: data.entidad.descuento_porcentaje }}
+          entidades={catalogo.entidades}
+          productos={catalogo.productos}
+          onSave={guardarRemito}
+          onClose={() => setRemitoForm(false)}
+        />
+      )}
 
       {movForm && (
         <MovimientoC2Form

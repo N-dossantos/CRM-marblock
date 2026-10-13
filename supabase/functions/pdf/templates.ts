@@ -526,7 +526,7 @@ export async function generarCtaCteCuenta2(data: any, empresa: any, filtros: any
 
     // Info entidad
     doc.rect(M, y + 6, ancho, 52).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
-    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('CLIENTE / PROVEEDOR', M + 10, y + 14)
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text(filtros.sector === 'compra' ? 'PROVEEDOR' : filtros.sector === 'venta' ? 'CLIENTE' : 'CLIENTE / PROVEEDOR', M + 10, y + 14)
     doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(12).text(entidad.nombre, M + 10, y + 24, { width: ancho * 0.6 })
     doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8.5)
        .text(
@@ -573,6 +573,7 @@ export async function generarCtaCteCuenta2(data: any, empresa: any, filtros: any
 
     const TIPO_LABELS_CTA_C2: Record<string, string> = {
       'REMITO X': 'Remito X', COBRO: 'Cobro', PAGO: 'Pago', AJUSTE: 'Ajuste',
+      'SALDO ANTERIOR': 'Saldo anterior',
     }
 
     movimientos.forEach((m: any, i: number) => {

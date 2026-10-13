@@ -194,6 +194,29 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Operaciones & Accesos Rápidos */}
+      <div className="card" style={{ padding: '18px 20px', marginBottom: '20px' }}>
+        <div className="card-header-flex">
+          <div className="card-header-title">
+            <span>Operaciones & Accesos Rápidos</span>
+          </div>
+        </div>
+
+        <div className="quick-actions-grid">
+          {QUICK_ACTIONS.map(a => (
+            <div
+              key={a.to}
+              className="quick-action-btn"
+              onClick={() => nav(a.to)}
+            >
+              <div className="quick-action-icon">{a.icon}</div>
+              <div className="quick-action-title">{a.title}</div>
+              <div className="quick-action-sub">{a.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* KPI Cards Grid (Executive Slate ERP Style) */}
       <div className="kpi-grid">
         {KPI_DEFS.map(k => (
@@ -472,29 +495,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
-      {/* Operaciones & Accesos Rápidos */}
-      <div className="card" style={{ padding: '18px 20px' }}>
-        <div className="card-header-flex">
-          <div className="card-header-title">
-            <span>Operaciones & Accesos Rápidos</span>
-          </div>
-        </div>
-
-        <div className="quick-actions-grid">
-          {QUICK_ACTIONS.map(a => (
-            <div
-              key={a.to}
-              className="quick-action-btn"
-              onClick={() => nav(a.to)}
-            >
-              <div className="quick-action-icon">{a.icon}</div>
-              <div className="quick-action-title">{a.title}</div>
-              <div className="quick-action-sub">{a.sub}</div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }

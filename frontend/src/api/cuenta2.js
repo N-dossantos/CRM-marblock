@@ -156,3 +156,19 @@ export const pdfUrlC2 = {
     return `/api/pdf/cta-cte-cuenta2/${entidadId}?${p.toString()}`
   },
 }
+
+// PDF de la cta. cte. como Blob, para descargarlo sin abrir el modal (botón WhatsApp: wa.me no
+// adjunta archivos, el usuario lo arrastra al chat). Mismo fetch con JWT que PDFModal.
+export const ctaCteC2PDF = async (tipoSector, entidadId, desde, hasta) => {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Sesión expirada — iniciá sesión nuevamente.')
+  const ruta = pdfUrlC2.ctaCte(tipoSector, entidadId, desde, hasta).replace(/^\/api\/pdf\//, '')
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pdf/${ruta}`, {
+    headers: { Authorization: `Bearer ${session.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+  })
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}))
+    throw new Error(d.error || 'Error al generar PDF')
+  }
+  return res.blob()
+}
