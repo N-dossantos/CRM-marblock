@@ -453,8 +453,9 @@ trámites de producción habilitan sólo la Fase 7 y pueden esperar.
 
 > **Estado al 15/10/2026:** pasos 0 a 4 hechos. Certificado `crmmarblockhomo2` (válido hasta
 > 14/10/2028) autorizado a `wsfe` con Marblock S.A. como CUIT representado; PV de homologación = **1**.
-> Probado de punta a punta desde la máquina local (WSAA + WSFEv1 de sólo lectura). Falta sólo el
-> proyecto Supabase de homologación.
+> Probado de punta a punta desde la máquina local (WSAA + WSFEv1 de sólo lectura). Proyecto Supabase
+> de homologación: **Marblock Homologacion** (`jgfxmravtlckmeuzqxjg`, us-west-2), con los cinco
+> secrets `ARCA_*` y un usuario de prueba (credenciales fuera del repo).
 
 0. **Adherir el WSASS.** Es **no delegable**: en el *Administrador de Relaciones de Clave Fiscal*
    hay que entrar eligiendo la **persona física**, no Marblock S.A.; si no, el servicio no aparece.
@@ -541,6 +542,23 @@ respondiendo `AppServer/DbServer/AuthServer = OK`.
 **Si falla:** detener las fases siguientes y evaluar un backend Node para WSAA/WSFE. Mantener el
 contrato de emisión que consume el frontend; ajustar el despliegue, secretos y endpoint del servidor
 antes de continuar.
+
+**Resultado (15/10/2026): ✅ sale en Deno, se sigue con Edge Functions.** Función `arca` desplegada
+en el proyecto de homologación con `soap.ts`, `wsaa.ts`, `wsfe.ts` e `index.ts`:
+
+- `GET /arca/estado` → `FEDummy` OK y TA nuevo de WSAA en 3 s, firmado con `npm:node-forge@1.4.0`
+  (antes, la misma firma se verificó en local con `openssl cms -verify`).
+- La función se despliega con `verify_jwt: false` porque valida la sesión ella misma con
+  `auth.getUser()`: sin sesión, con un token inventado o con la anon key como sesión → **401**.
+- **El cache en memoria no alcanza.** Una segunda llamada cayó en otro isolate, sin el TA, y WSAA
+  respondió `coe.alreadyAuthenticated`: hasta que venció, ese proyecto no pudo autenticarse. El cache en
+  `arca_tokens` (Fase 2) va antes que cualquier emisión. WSAA no siempre rechaza el segundo pedido
+  (esa mañana entregó dos TA seguidos a pedidos locales), así que no hay que contar con ninguno de los
+  dos comportamientos.
+- TLS: los cuatro hosts de ARCA aceptan TLS 1.2 con ECDHE y certificados Sectigo, que es lo que usa
+  Deno. `servicios1.afip.gov.ar` (WSFE de producción) además ofrece DHE con una clave chica, y OpenSSL
+  3 por defecto corta con `dh key too small`: si algún día se usa el plan B en Node, hay que forzar
+  cifrados ECDHE.
 
 ---
 
@@ -650,9 +668,9 @@ vigentes y nunca se borran ni se retroceden.
 
 | Fase | Estado |
 |---|---|
-| 0 — Trámite ARCA (homologación) | 🟨 en curso — certificado, autorización `wsfe` y PV 1 OK, probado en local (15/10/2026); falta el proyecto Supabase de homologación |
+| 0 — Trámite ARCA (homologación) | ✅ 15/10/2026 — certificado, autorización `wsfe`, PV 1 y proyecto Supabase de homologación |
 | 0 — Trámite ARCA (producción) | ⬜ pendiente |
-| 1 — Spike firma CMS | ⬜ pendiente |
+| 1 — Spike firma CMS | ✅ 15/10/2026 — `GET /arca/estado` desplegado en homologación: FEDummy OK y TA real de WSAA |
 | 2 — Schema y catálogos | ⬜ pendiente |
 | 3 — Emisión Factura A/B | ⬜ pendiente |
 | 4 — NC/ND | ⬜ pendiente |
@@ -666,7 +684,7 @@ vigentes y nunca se borran ni se retroceden.
 
 | Riesgo | Mitigación |
 |---|---|
-| **La firma CMS no sale en Deno** | Fase 1 es un spike bloqueante y barato. Plan B (Node en Vercel) sólo mueve dos archivos. |
+| **La firma CMS no sale en Deno** | ✅ Descartado en la Fase 1 (15/10/2026): firma con `node-forge` aceptada por WSAA desde la Edge Function. |
 | **Doble emisión por timeout** | Protocolo de idempotencia con `arca_nro_tentativo` + `FECompConsultar` (§4). Se prueba explícitamente en Fase 3. |
 | **Emitir en producción creyendo que es homologación** | Proyecto Supabase, datos y certificados separados; banner de solo lectura que informa el ambiente desplegado. |
 | **Cliente sin condición IVA cargada** | Validación previa en el cliente + revisión del backfill en Fase 2. |
