@@ -541,6 +541,37 @@ del de homologación, el certificado es de la empresa y no de la persona física
      las 00:19). No hacer pruebas locales con el certificado de producción poco antes de que la
      Edge Function necesite su propio TA.
 
+#### Renovación del certificado de producción (vence el 14/10/2028)
+
+**Si vence sin renovar:** WSAA no da TA, así que el CRM no puede pedir CAE ni emitir facturas o
+NC/ND; un TA ya guardado en `arca_tokens` sirve hasta que vence (12 h como máximo). Lo ya emitido
+conserva su CAE, y el resto del CRM (presupuestos, remitos, recibos, cuenta corriente, informes,
+PDF) no se ve afectado. Hasta renovar se factura en la web de ARCA (PV `00002`, contingencia de la
+Fase 7).
+
+**Hacerlo uno o dos meses antes.** El certificado nuevo se agrega al mismo alias y el viejo sigue
+valiendo hasta su fecha, así que el cambio no corta la facturación. Entrar con clave fiscal
+representando a **Marblock S.A.**, como en el alta:
+
+1. Clave y CSR nuevos, con el mismo `CN` y el CUIT de Marblock; con otro nombre de archivo para no
+   pisar los vigentes:
+   ```bash
+   (umask 077 && openssl genrsa -out ~/.arca/marblock/arca_prod_2028.key 2048 && \
+    openssl req -new -key ~/.arca/marblock/arca_prod_2028.key \
+      -subj "/C=AR/O=Marblock SA/CN=crmmarblock/serialNumber=CUIT <CUIT de Marblock sin guiones>" \
+      -out ~/.arca/marblock/arca_prod_2028.csr)
+   ```
+2. **Administración de Certificados Digitales** → alias `crmmarblock` → *Agregar certificado* →
+   subir el CSR → descargar. Guardarlo como `arca_prod_2028.crt` (`600`) y verificar contra la
+   clave con los dos hashes de §7.1 paso 2.
+3. Actualizar los secrets `ARCA_CERT` y `ARCA_KEY` del proyecto Supabase de producción (PEM en
+   base64, `base64 -i archivo`, §2).
+4. Verificar con `GET /arca/estado` que obtiene TA y `FEDummy` OK.
+5. Anotar el vencimiento nuevo en `PLAN_MAESTRO.md` §3.7 y en este apartado.
+
+**No se rehacen** la relación con Facturación Electrónica (paso 3 del alta) ni el PV `00003`: están
+atados al alias, no al certificado. Confirmarlo igual con el paso 4.
+
 > **Endpoints:** usar los publicados en la documentación oficial vigente, sin sustituir
 > automáticamente dominios `afip.gov.ar` por `arca.gob.ar`. A la fecha de esta revisión el manual
 > WSFEv1 v4.8 publica `wswhomo.afip.gov.ar/wsfev1/service.asmx` y

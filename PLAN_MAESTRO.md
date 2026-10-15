@@ -75,6 +75,7 @@
 | — | Remito sobre talonario preimpreso | 🔄 DB + frontend + PDF listos y probados en pantalla — **falta la prueba sobre papel** |
 | — | Facturación multi-remito (una factura cubre N remitos) | ✅ completo |
 | — | **Percepciones de compra** (D9: tabla propia + `percepciones_monto`) | ✅ aplicado y probado 2026-10-06 (§3.9); falta sólo el paso 5, las cuentas contables, que va con la matriz |
+| — | **Almanaque** (anotaciones cortas por fecha, desde la barra superior) | ⬜ diseñado 2026-10-15, sin empezar — va después del go-live (§3.10) |
 
 ~~**Un solo bloqueo técnico** (deploy de la Edge Function `pdf`)~~ — **resuelto el 2026-10-09**: la
 función está desplegada (**v5**) y es idéntica a `supabase/functions/pdf/` (verificado archivo por
@@ -882,6 +883,79 @@ llega a nada nuevo y los advisors no trajeron hallazgos nuevos.
 con §3.3. Falta además la verificación "un pago por el total la deja `pagada`", que necesita datos
 cargados: va con el smoke de la Tarea 10 paso 4.
 
+### 3.10 Almanaque (anotaciones por fecha) — **diseñado 2026-10-15, sin empezar**
+
+**Qué es.** Un almanaque para anotaciones cortas del día a día —un vencimiento de impuestos, una
+carga que viene a buscar un cliente—, al alcance del staff desde cualquier pantalla. Decidido con
+Nico el 15/10:
+
+- **Sólo texto libre en una fecha**, sin cliente ni comprobante asociado. Si hace falta una hora, va
+  dentro del texto.
+- **Todo lo cargan los usuarios a mano.** Sin repetición, sin importar datos de ningún lado (tampoco
+  el calendario de vencimientos de ARCA) y sin anotaciones que arme el CRM solo (cheques, CAI,
+  certificado).
+- **Compartido** por todo el staff: cualquiera carga, edita, tilda y borra.
+- **Se tilda como hecha.** Una anotación de un día pasado sin tildar sigue apareciendo como
+  **atrasada** hasta que alguien la tilde o la borre.
+- **Acceso:** un botón en la barra superior que abre un panel lateral, más un bloque en el Dashboard.
+
+**Datos** — una migración nueva `…_almanaque.sql`:
+
+- Tabla `almanaque`: `id SERIAL PRIMARY KEY`, `fecha DATE NOT NULL`, `texto TEXT NOT NULL` con
+  `CHECK (length(btrim(texto)) BETWEEN 1 AND 200)`, `hecha BOOLEAN NOT NULL DEFAULT false`,
+  `hecha_en TIMESTAMPTZ` con `CHECK (hecha = (hecha_en IS NOT NULL))` (se llena al tildar y se limpia
+  al destildar) y `creado_en TIMESTAMPTZ NOT NULL DEFAULT now()`. Índice por `fecha`.
+- RLS `staff_all` **sin FORCE**, GRANT de CRUD y de la secuencia a `authenticated`, y REVOKE explícito
+  a `anon` en tabla y secuencia (§5.3).
+- `audit_trigger()` adjunto, como en las demás tablas operativas: el rastro de quién cargó, tildó o
+  borró queda en `audit_log`. La UI no muestra el autor.
+- El borrado es físico: la anotación se elimina y el rastro queda en `audit_log`.
+
+**Acceso a datos** — PostgREST directo desde un `AlmanaqueAPI` en `frontend/src/api/index.js`, como
+`ClientesAPI` o `ChequesAPI`: anotaciones de un rango de fechas, atrasadas, cantidad de pendientes
+(sin tildar con `fecha <= hoy`), alta, edición de fecha y texto, tildar/destildar y baja. **Sin RPC:**
+cada operación toca una sola fila y no hay nada que hacer atómico.
+
+**"Hoy" es la fecha local de Argentina.** `hoy()` de `frontend/src/utils/index.js` usa
+`toISOString()`, que pasa a UTC: **después de las 21 h devuelve el día siguiente**, y eso ya afecta a
+los ~18 lugares que la usan como fecha por defecto. Se corrige `hoy()` para que arme la fecha con los
+componentes locales de `Date`, y el almanaque la usa.
+
+**Frontend:**
+
+- **Botón** en `topbar-right` de `components/Layout/index.jsx`, al lado de `ThemeToggle`: ícono de
+  almanaque con un contador de pendientes (sin tildar de hoy o atrasadas) que se oculta en 0.
+- **Panel lateral** a la derecha, encima de la pantalla actual y **sin navegar**: un formulario a
+  medio cargar (p. ej. un remito) queda intacto. Se cierra con Esc, con la X o con clic afuera.
+  Contenido, de arriba abajo:
+  - El mes en grilla, con flechas para cambiar de mes y un botón "Hoy". Los días con anotaciones
+    llevan una marca y hoy aparece resaltado.
+  - **Atrasadas**, si hay, para que el contador del botón siempre se explique.
+  - El día elegido (hoy por defecto) con sus anotaciones: tilde (tildada queda tachada), clic en el
+    texto para editarlo, botón para borrarla y un campo "Agregar anotación" que guarda con Enter.
+- **Bloque "Almanaque" en el Dashboard** (`views/Dashboard/index.jsx`): **atrasadas**, **hoy** y
+  **próximos 7 días**. Se tilda desde ahí y un clic en una anotación abre el panel en ese día. Se
+  muestra siempre; si no hay nada, lo dice. Hace su propia consulta: no toca `InformesAPI.dashboard()`.
+- Un provider en `lib/almanaque.jsx` (como `lib/theme.jsx`) expone abrir el panel en una fecha y el
+  contador, para que el Dashboard pueda abrir el panel y el contador se actualice al tildar desde
+  cualquiera de los dos lados.
+- Colores con las variables del tema, para que funcione en modo oscuro.
+
+**Cuándo:** después del go-live (§4 paso 10). No depende de los datos de Tango ni bloquea nada.
+
+**Verificación** — primero contra el proyecto de homologación (`jgfxmravtlckmeuzqxjg`), después en
+producción:
+- Con un remito a medio cargar, abrir el panel, cargar, editar, tildar, destildar y borrar → al
+  cerrar el panel, el remito sigue igual.
+- Una anotación de ayer sin tildar aparece en "Atrasadas" del panel y del Dashboard y suma al
+  contador; al tildarla sale de los tres.
+- El Dashboard muestra hoy y los próximos 7 días; una anotación a 8 días no aparece.
+- Después de las 21 h, "hoy" sigue siendo el día local, también en los formularios que usan `hoy()`.
+- Texto vacío o de más de 200 caracteres → rechazado.
+- `anon` no lee la tabla, los advisors no traen hallazgos nuevos y los cambios quedan en
+  `audit_log`.
+- Se ve bien en modo claro y oscuro, y `npm run build` pasa.
+
 ---
 
 ## 4. Orden recomendado
@@ -900,6 +974,7 @@ cargados: va con el smoke de la Tarea 10 paso 4.
 7. **Go-live smoke-test completo** (§3.6) — todos los módulos, informes y PDFs contra la data real.
 8. **Matriz de imputación + prender el flag contable** (§3.3).
 9. **Decidir Pedidos (A o B)** (§3.5) — se puede hacer en paralelo, no depende de datos.
+10. **Almanaque** (§3.10) — después del go-live; no depende de datos ni bloquea nada.
 
 ---
 
