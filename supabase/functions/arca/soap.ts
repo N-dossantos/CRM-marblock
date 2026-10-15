@@ -15,6 +15,12 @@ export class ErrorSoap extends Error {
 }
 
 const ENTIDADES: Record<string, string> = { lt: '<', gt: '>', amp: '&', quot: '"', apos: "'" }
+const ESCAPES: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }
+
+// Texto para meter dentro de un elemento del sobre.
+export function escapar(s: string | number) {
+  return String(s).replace(/[<>&"']/g, (c) => ESCAPES[c])
+}
 
 // Una sola pasada: `&amp;lt;` queda como `&lt;`, no como `<`.
 export function desescapar(s: string) {
@@ -34,6 +40,13 @@ export function extraer(xml: string, tag: string): string | null {
 
 export function extraerTodos(xml: string, tag: string): string[] {
   return [...xml.matchAll(patron(tag))].map((m) => m[1])
+}
+
+// Saca los bloques anidados (y sus formas vacías `<Tag/>`) para leer los campos escalares de un
+// elemento sin agarrar uno homónimo de adentro: p. ej. el PtoVta de un CbteAsoc.
+export function sinBloques(xml: string, tags: string[]) {
+  return tags.reduce((x, tag) => x.replace(patron(tag), '')
+    .replace(new RegExp(`<(?:[\\w.-]+:)?${tag}(?:\\s[^>]*)?/>`, 'g'), ''), xml)
 }
 
 export async function postSoap(url: string, accion: string, sobre: string, timeoutMs = 20_000) {
