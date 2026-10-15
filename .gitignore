@@ -72,3 +72,6 @@ supabase/.temp/
 
 # Cuenta 2 — planillas del circuito informal (datos reales, nunca a GitHub)
 supabase/cuenta2/
+PLAN_ARCA.md
+PLAN_MAESTRO.md
+PLAN_MIGRACION_TANGO.md
