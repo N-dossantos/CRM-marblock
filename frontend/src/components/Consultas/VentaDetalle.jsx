@@ -7,6 +7,7 @@ import { Modal, Badge } from '../UI'
 import PDFModal from '../PDFModal'
 import { pdfUrl } from '../../api'
 import { $ar, fFecha, fDoc } from '../../utils'
+import { FiscalBadge, esFiscal } from '../Arca'
 
 const DOC_LABEL = {
   factura:     'Factura',
@@ -84,13 +85,19 @@ const rotuloIva = (items = []) => {
 }
 
 // `acciones`: botones extra para el pie (p. ej. NC/ND y Anular desde el listado de Facturas).
-export default function VentaDetalle({ doc, onClose, acciones = null }) {
+// `fiscal`: el panel de emisión de ARCA (facturas y notas), entre la cabecera y los ítems. Sin él
+// (consultas) se muestra sólo el estado fiscal en la cabecera.
+export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = null }) {
   const [pdf, setPdf] = useState(null)
   if (!doc) return null
   const tipoDoc = doc._doc
-  const titulo = `${DOC_LABEL[tipoDoc] || 'Comprobante'} ${doc.numero || ''}`
+  // Facturas y notas sin CAE todavía no tienen número fiscal (lo da ARCA al autorizar).
+  const conFiscal = tipoDoc === 'factura' || tipoDoc === 'nota'
+  const titulo = `${DOC_LABEL[tipoDoc] || 'Comprobante'} ${doc.numero || (conFiscal ? '(sin número)' : '')}`
 
-  const pdfBuilder = pdfUrl[tipoDoc]
+  // Un borrador o rechazado no tiene PDF hasta la Fase 6 (marca de agua "SIN VALIDEZ FISCAL"): sin
+  // ella se vería como una factura válida.
+  const pdfBuilder = conFiscal && !esFiscal(doc) ? null : pdfUrl[tipoDoc]
   const abrirPdf = () => pdfBuilder && setPdf({ url: pdfBuilder(doc.id), titulo })
 
   return (
@@ -123,11 +130,16 @@ export default function VentaDetalle({ doc, onClose, acciones = null }) {
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <Field label="Fecha">{fFecha(doc.fecha)}</Field>
             {tipoDoc === 'presupuesto' && <Field label="Vence">{fFecha(doc.fecha_vcto)}</Field>}
-            {(tipoDoc === 'factura' || tipoDoc === 'remito' || tipoDoc === 'presupuesto') && (
+            {conFiscal && !fiscal && (
+              <Field label="ARCA"><FiscalBadge estado={doc.estado_fiscal} cae={doc.cae} /></Field>
+            )}
+            {((tipoDoc === 'factura' && esFiscal(doc)) || tipoDoc === 'remito' || tipoDoc === 'presupuesto') && (
               <Field label="Estado"><Badge estado={doc.estado} /></Field>
             )}
           </div>
         </div>
+
+        {fiscal}
 
         {/* FACTURA */}
         {tipoDoc === 'factura' && (
@@ -165,7 +177,7 @@ export default function VentaDetalle({ doc, onClose, acciones = null }) {
         {tipoDoc === 'nota' && (
           <>
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 14 }}>
-              <Field label="Tipo"><Badge estado={doc.tipo} /></Field>
+              <Field label="Tipo"><Badge estado={doc.tipo} /> {doc.tipo_letra}</Field>
               <Field label="Factura vinc.">{doc.factura_numero || '—'}</Field>
               <Field label="Motivo">{doc.motivo || '—'}</Field>
             </div>

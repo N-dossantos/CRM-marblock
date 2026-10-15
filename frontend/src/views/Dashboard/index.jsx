@@ -1,17 +1,19 @@
 // src/views/Dashboard/index.jsx
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { InformesAPI } from '../../api'
+import { InformesAPI, ArcaAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Loading, Badge } from '../../components/UI'
 
 export default function Dashboard() {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
+  const [bandeja, setBandeja] = useState(null)  // comprobantes sin CAE por estado (arca_bandeja)
   const nav = useNavigate()
 
   useEffect(() => {
     InformesAPI.dashboard().then(setData).finally(() => setLoading(false))
+    ArcaAPI.bandeja().then(setBandeja).catch(() => {})
   }, [])
 
   if (loading) return <Loading />
@@ -243,6 +245,8 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      <AlertaBandejaArca bandeja={bandeja} nav={nav} />
 
       {/* Alerta Destacada: Cheques Vencidos */}
       {kpis.cheques_vencidos > 0 && (
@@ -495,6 +499,43 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Bandeja fiscal (PLAN_ARCA.md §5): facturas y notas sin CAE. Los resultados inciertos van en ámbar
+// y primero: bloquean la emisión de su tipo de comprobante hasta consultar el estado en ARCA.
+function AlertaBandejaArca({ bandeja, nav }) {
+  if (!bandeja) return null
+  const suma = (t) => Object.values(bandeja[t] || {}).reduce((a, n) => a + (+n || 0), 0)
+  const fac = suma('facturas')
+  const not = suma('notas')
+  if (!fac && !not) return null
+  const inciertos = (+bandeja.facturas?.resultado_incierto || 0) + (+bandeja.notas?.resultado_incierto || 0)
+  const detalle = (t) => {
+    const b = bandeja[t] || {}
+    return [
+      b.resultado_incierto && `${b.resultado_incierto} con resultado incierto`,
+      b.en_proceso && `${b.en_proceso} en emisión`,
+      b.rechazado && `${b.rechazado} ${b.rechazado === 1 ? 'rechazada' : 'rechazadas'}`,
+      b.borrador && `${b.borrador} ${b.borrador === 1 ? 'borrador' : 'borradores'}`,
+    ].filter(Boolean).join(', ')
+  }
+  const urgente = inciertos > 0
+  return (
+    <div className={`arca-bandeja${urgente ? ' is-urgente' : ''}`} style={{ marginBottom: 20, padding: '12px 18px' }}>
+      <div style={{ flex: 1, minWidth: 260 }}>
+        <div style={{ fontWeight: 700, fontSize: 13 }}>
+          {urgente ? 'Atención: hay comprobantes con resultado incierto en ARCA' : 'Comprobantes sin CAE'}
+        </div>
+        <div style={{ fontSize: 12, marginTop: 2 }}>
+          {fac > 0 && <>Facturas: {detalle('facturas')}.{' '}</>}
+          {not > 0 && <>Notas C/D: {detalle('notas')}.</>}
+          {urgente && ' Consultá su estado antes de emitir otro comprobante del mismo tipo.'}
+        </div>
+      </div>
+      {fac > 0 && <button type="button" className="btn btn-secondary btn-sm" onClick={() => nav('/facturas?arca=sin_cae')}>Facturas →</button>}
+      {not > 0 && <button type="button" className="btn btn-secondary btn-sm" onClick={() => nav('/notas?arca=sin_cae')}>Notas →</button>}
     </div>
   )
 }

@@ -10,6 +10,7 @@ import {
 } from '../../api'
 import { $ar, fFecha, fDoc, fDocNro, clienteCoincide } from '../../utils'
 import { Badge } from '../../components/UI'
+import { FiscalBadge, esFiscal } from '../../components/Arca'
 import Consulta360 from '../../components/Consultas/Consulta360'
 import VentaDetalle from '../../components/Consultas/VentaDetalle'
 
@@ -139,20 +140,23 @@ export default function ConsultaCliente() {
         <thead><tr>
           <th>Número</th><th>Tipo</th><th>Fecha</th>
           <th className="th-right">Neto</th><th className="th-right">IVA</th><th className="th-right">Total</th>
-          <th>Estado</th><th></th>
+          <th>ARCA</th><th>Estado</th><th></th>
         </tr></thead>
         <tbody>
           {data.facturas.length === 0
-            ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin facturas</td></tr>
+            ? <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin facturas</td></tr>
             : data.facturas.map(f => (
               <tr key={f.id}>
-                <td><span className="code" style={{ fontWeight: 700 }}>{f.numero}</span></td>
+                <td>{f.numero
+                  ? <span className="code" style={{ fontWeight: 700 }}>{f.numero}</span>
+                  : <span className="sin-numero">sin número</span>}</td>
                 <td><span className={`badge badge-${f.tipo}`}>Fac {f.tipo}</span></td>
                 <td>{fFecha(f.fecha)}</td>
                 <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(f.neto_gravado)}</td>
                 <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(f.iva_monto)}</td>
                 <td className="td-right td-bold">{$ar(f.total)}</td>
-                <td><Badge estado={f.estado} /></td>
+                <td><FiscalBadge estado={f.estado_fiscal} cae={f.cae} /></td>
+                <td>{esFiscal(f) ? <Badge estado={f.estado} /> : <span className="arca-historico">—</span>}</td>
                 <td>{btnVer(() => abrir('factura')(f))}</td>
               </tr>
             ))}
@@ -185,17 +189,20 @@ export default function ConsultaCliente() {
   const tabNotas = () => (
     <div className="tbl-wrap">
       <table>
-        <thead><tr><th>Número</th><th>Tipo</th><th>Fecha</th><th>Factura vinc.</th><th className="th-right">Total</th><th></th></tr></thead>
+        <thead><tr><th>Número</th><th>Tipo</th><th>Fecha</th><th>Factura vinc.</th><th className="th-right">Total</th><th>ARCA</th><th></th></tr></thead>
         <tbody>
           {data.notas.length === 0
-            ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin notas</td></tr>
+            ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin notas</td></tr>
             : data.notas.map(n => (
               <tr key={n.id}>
-                <td><span className="code" style={{ fontWeight: 700 }}>{n.numero}</span></td>
+                <td>{n.numero
+                  ? <span className="code" style={{ fontWeight: 700 }}>{n.numero}</span>
+                  : <span className="sin-numero">sin número</span>}</td>
                 <td><Badge estado={n.tipo} /></td>
                 <td>{fFecha(n.fecha)}</td>
                 <td><span className="code">{n.factura_numero}</span></td>
                 <td className="td-right td-bold">{$ar(n.total)}</td>
+                <td><FiscalBadge estado={n.estado_fiscal} cae={n.cae} /></td>
                 <td>{btnVer(() => abrir('nota')(n))}</td>
               </tr>
             ))}

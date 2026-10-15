@@ -2,16 +2,33 @@
 import { useState } from 'react'
 import { Modal, ItemsTable, TotalesBox, TotalesBoxMulti } from '../../components/UI'
 import { $ar, fFecha, calcTotalesMulti } from '../../utils'
+import { revisarEmision } from '../../components/Arca'
 import toast from 'react-hot-toast'
 
 const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
 
-export default function NotaForm({ factura, productos = [], alicuotas = [], onSave, onClose }) {
+// `nota`: para corregir un borrador o rechazado (actualizar_nota). El tipo y la factura no cambian:
+// para eso se descarta la nota y se crea otra.
+// onSave(payload, { emitir }): `emitir` pide además el CAE a ARCA.
+export default function NotaForm({ factura, nota = null, productos = [], alicuotas = [], onSave, onClose }) {
   const multiIva = alicuotas.length > 0
   const alic21 = alicuotas.find(a => +a.porcentaje === 21)
   const alicuotasById = Object.fromEntries(alicuotas.map(a => [a.id, a]))
-  const [form, setForm]   = useState({ tipo: 'NC', motivo: '', items: [], observaciones: '' })
-  const [loading, setLoading] = useState(false)
+  const [form, setForm]   = useState(() => nota
+    ? { tipo: nota.tipo, motivo: nota.motivo || '', items: (nota.items || []).map(it => ({ ...it })), observaciones: nota.observaciones || '' }
+    : { tipo: 'NC', motivo: '', items: [], observaciones: '' })
+  const [loading, setLoading] = useState(null)   // null | 'guardar' | 'emitir'
+  // Mientras guarda o emite no se cierra: el resultado se perdería de vista.
+  const cerrar = () => { if (!loading) onClose() }
+
+  // Validación previa a ARCA (§5): la nota hereda la letra de la factura y va al cliente de la
+  // factura con su condición IVA actual. La base lo vuelve a controlar al emitir.
+  const { bloqueos, avisos } = revisarEmision('notas', {
+    tipo_letra: factura.tipo, clase: factura.clase, condicion_iva: factura.condicion_iva,
+    doc_tipo: factura.doc_tipo, doc_nro: factura.doc_nro,
+    percepciones_monto: nota?.percepciones_monto || 0,
+    factura_estado_fiscal: factura.estado_fiscal, factura_numero: factura.numero,
+  })
 
   const addItem = () => setForm(f => ({ ...f, items: [...f.items, { ...ITEM_BASE, ...(multiIva && { alicuota_iva_id: alic21?.id }) }] }))
 
@@ -48,10 +65,10 @@ export default function NotaForm({ factura, productos = [], alicuotas = [], onSa
       : [...f.items, desdeFactura(it)],
   }))
 
-  const save = async () => {
+  const save = async (emitir) => {
     if (!form.items.length) { toast.error('Agregue al menos un ítem'); return }
     if (!form.motivo.trim()) { toast.error('El motivo es obligatorio'); return }
-    setLoading(true)
+    setLoading(emitir ? 'emitir' : 'guardar')
     try {
       await onSave({
         factura_id:   factura.id,
@@ -60,22 +77,32 @@ export default function NotaForm({ factura, productos = [], alicuotas = [], onSa
         // `_fac_item_id` es sólo para saber qué renglón vino de qué ítem de la factura.
         items:        form.items.map(({ _fac_item_id, ...it }) => it),
         observaciones: form.observaciones,
-      })
+      }, { emitir })
     } finally {
-      setLoading(false)
+      setLoading(null)
     }
   }
 
+  const nombre = `Nota de ${form.tipo === 'NC' ? 'Crédito' : 'Débito'} ${factura.tipo}`
   return (
     <Modal
-      title={`Nueva Nota de ${form.tipo === 'NC' ? 'Crédito' : 'Débito'} — Fac. ${factura.numero}`}
+      title={`${nota ? 'Editar borrador — ' : 'Nueva '}${nombre} — Fac. ${factura.numero}`}
       size="xl"
-      onClose={onClose}
+      onClose={cerrar}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose} disabled={loading}>Cancelar</button>
-          <button className="btn btn-primary" onClick={save} disabled={loading}>
-            {loading ? 'Guardando…' : '✓ Guardar nota'}
+          {loading === 'emitir' && (
+            <span className="arca-ocupado" style={{ marginRight: 'auto' }}>
+              <span className="arca-spinner" aria-hidden />Emitiendo en ARCA… puede tardar hasta 15 segundos.
+            </span>
+          )}
+          <button className="btn btn-secondary" onClick={cerrar} disabled={!!loading}>Cancelar</button>
+          <button className="btn btn-secondary" onClick={() => save(false)} disabled={!!loading}>
+            {loading === 'guardar' ? 'Guardando…' : 'Guardar borrador'}
+          </button>
+          <button className="btn btn-primary" onClick={() => save(true)} disabled={!!loading || bloqueos.length > 0}
+            title={bloqueos.length ? 'Hay datos que impiden emitir: ver el aviso' : 'Guarda la nota y pide el CAE a ARCA'}>
+            {loading === 'emitir' ? 'Emitiendo…' : '⚡ Guardar y emitir en ARCA'}
           </button>
         </>
       }
@@ -85,10 +112,22 @@ export default function NotaForm({ factura, productos = [], alicuotas = [], onSa
         <strong>Factura de referencia:</strong> {factura.numero} — {factura.razon_social} — {$ar(factura.total)} — {fFecha(factura.fecha)}
       </div>
 
+      {bloqueos.length > 0 && (
+        <div className="warn-box">
+          <span>⚠️</span>
+          <div>
+            <strong>Esta nota no se va a poder emitir en ARCA</strong> hasta resolver:
+            <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{bloqueos.map((b, i) => <li key={i}>{b}</li>)}</ul>
+            Se puede guardar como borrador.
+          </div>
+        </div>
+      )}
+      {avisos.map((a, i) => <div key={i} className="warn-box"><span>ℹ️</span><div>{a}</div></div>)}
+
       <div className="form-row3" style={{ marginBottom: 14 }}>
         <div className="field">
           <label className="lbl">Tipo de nota</label>
-          <select className="sel" value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
+          <select className="sel" value={form.tipo} disabled={!!nota} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
             <option value="NC">Nota de Crédito</option>
             <option value="ND">Nota de Débito</option>
           </select>
