@@ -132,7 +132,7 @@ Secrets de cada proyecto Supabase (`supabase secrets set`), nunca en el repo:
 |---|---|
 | `ARCA_CERT` | Certificado `.crt` en base64 |
 | `ARCA_KEY` | Clave privada `.key` en base64 |
-| `ARCA_CUIT` | CUIT del emisor |
+| `ARCA_CUIT` | CUIT del emisor (Marblock S.A.). En homologación es el **CUIT representado**, no el CUIT personal que figura en el certificado del WSASS |
 | `ARCA_AMBIENTE` | `homologacion` \| `produccion` |
 | `ARCA_PUNTO_VENTA` | Punto de venta WS de ese ambiente |
 
@@ -157,8 +157,8 @@ plan no reserva timestamps antiguos: hoy la última del repo es `20261013120000_
 | `arca_solicitudes` (nueva) | Auditoría: `id`, `tabla`, `comprobante_id`, `request` jsonb, `response` jsonb, `resultado`, `errores` jsonb, `observaciones` jsonb, `created_at`. Un renglón por intento. Guardar sólo el payload de negocio necesario; nunca persistir `Token`, `Sign`, clave privada ni certificado. RLS deny-all para acceso directo; exponer a la UI sólo una proyección autorizada por RPC/Edge Function. |
 | `arca_tokens` (nueva) | `servicio` PK, `token` text, `sign` text, `expira_en` timestamptz. **RLS deny-all.** |
 | `arca_series_en_curso` (nueva) | Una fila por (PV, tipo ARCA) con el comprobante y número tentativo del único envío activo. Evita dos solicitudes concurrentes en una serie. RLS deny-all; sólo service-role/RPCs internas. Se libera tras aceptación, rechazo explícito o confirmación de no autorización; un resultado incierto conserva la serie bloqueada hasta reconciliar. |
-| `clientes` | `doc_tipo SMALLINT NOT NULL` (80 CUIT / 96 DNI), `doc_nro VARCHAR(20) NOT NULL`, `condicion_iva_afip_id SMALLINT REFERENCES condiciones_iva_afip(id)`. `doc_tipo/doc_nro` son el documento canónico y reemplazan `cuit`. **Backfill:** `doc_nro = replace(cuit,'-','')`, `doc_tipo = 80`, y `condicion_iva_afip_id` derivado del texto libre de `condicion_iva`. Revisar a mano CUIT placeholder, documentos inválidos y condiciones IVA sin mapeo antes de exigir `NOT NULL`. Actualizar el normalizador `cli` de `frontend/src/api/index.js` y todo consumidor de `clientes.cuit` en formularios, búsquedas, detalles, RPCs e informes; después quitar la columna `cuit` para mantener una sola fuente de verdad. |
-| `condiciones_iva_afip` (nueva) | Catálogo RG 5616 (ver §3.2). |
+| `clientes` | `doc_tipo SMALLINT NOT NULL` (80 CUIT / 96 DNI), `doc_nro VARCHAR(20) NOT NULL`, `condicion_iva_afip_id SMALLINT NOT NULL REFERENCES condiciones_iva_afip(id)`. `doc_tipo/doc_nro` son el documento canónico y reemplazan `cuit`; `condicion_iva_afip_id` reemplaza el texto libre `condicion_iva`. **Backfill:** `doc_nro = replace(cuit,'-','')`, `doc_tipo = 80`, y `condicion_iva_afip_id` según §3.2. Revisar a mano CUIT placeholder, documentos inválidos y condiciones IVA sin mapeo antes de exigir `NOT NULL`. Actualizar el normalizador `cli` de `frontend/src/api/index.js` y todo consumidor de `clientes.cuit` y `clientes.condicion_iva` en formularios, búsquedas, detalles, RPCs, informes y PDF (lista en §3.2); después quitar las columnas `cuit` y `condicion_iva` para mantener una sola fuente de verdad. |
+| `condiciones_iva_afip` (nueva) | Catálogo RG 5616 **con la clase de comprobante** que ARCA admite para cada condición (ver §3.2). |
 
 > **Backfill fiscal:** dejar en `autorizado` las filas históricas con CAE; las filas históricas sin
 > CAE quedan en `historico`, nunca como borradores nuevos. Antes de aplicar, contar y revisar esos
@@ -207,23 +207,66 @@ igual criterio que `crm_calc_totales_multi_alicuota`. Si el comprobante es todo 
 ### 3.2 Condición IVA del receptor (RG 5616)
 
 **Es obligatorio informar `CondicionIVAReceptorId`.** Hoy `clientes.condicion_iva` es texto libre
-(`VARCHAR(50) DEFAULT 'Resp. Inscripto'`) y no sirve para ARCA. Catálogo:
+(`VARCHAR(50) DEFAULT 'Resp. Inscripto'`) y no sirve para ARCA. Catálogo **tal como lo devolvió
+`FEParamGetCondicionIvaReceptor` en homologación el 15/10/2026** (clases A y B; la C y la M no aplican
+a un emisor Responsable Inscripto):
 
-| Id | Descripción |
-|---|---|
-| 1 | IVA Responsable Inscripto |
-| 4 | IVA Sujeto Exento |
-| 5 | Consumidor Final |
-| 6 | Responsable Monotributo |
-| 7 | Sujeto No Categorizado |
-| 9 | Cliente del Exterior |
-| 10 | IVA Liberado – Ley 19.640 |
-| 13 | Monotributista Social |
-| 15 | IVA No Alcanzado |
-| 16 | Monotributo Trabajador Independiente Promovido |
+| Id | Descripción (ARCA) | Clase |
+|---|---|---|
+| 1 | IVA Responsable Inscripto | **A** |
+| 6 | Responsable Monotributo | **A** |
+| 13 | Monotributista Social | **A** |
+| 16 | Monotributo Trabajador Independiente Promovido | **A** |
+| 4 | IVA Sujeto Exento | B |
+| 5 | Consumidor Final | B |
+| 7 | Sujeto No Categorizado | B |
+| 8 | Proveedor del Exterior | B |
+| 9 | Cliente del Exterior | B |
+| 10 | IVA Liberado – Ley N° 19.640 | B |
+| 15 | IVA No Alcanzado | B |
 
-> El catálogo se siembra en la migración con estos valores y se **verifica contra
-> `FEParamGetCondicionIvaReceptor`** en la Fase 3. Si ARCA agregó o cambió algún Id, gana ARCA.
+> El catálogo se siembra en la migración con estos valores (Id, descripción y `clase`) y se vuelve a
+> verificar contra producción en la Fase 7. Si ARCA agregó o cambió algún Id o su clase, gana ARCA.
+
+**La letra la decide la clase, no una regla propia.** Factura A ⇔ condición de clase A (Responsable
+Inscripto **y los tres monotributos**); Factura B ⇔ clase B. A un monotributista le corresponde
+Factura A, y la B no lo admite. Las NC/ND heredan la letra de la factura asociada (§3.3). Hoy la letra
+se sugiere en `tipoFacturaPara` de `frontend/src/components/Forms/ComprobanteForm.jsx` (A para
+`Resp. Inscripto` y `Monotributista`, B para el resto: coincide con ARCA para las cuatro opciones de
+texto actuales), pero es sólo un aviso que el usuario puede ignorar. Pasa a ser una regla:
+
+- **Servidor:** `crear_factura`, `actualizar_factura` y `arca_comprobante_para_emitir` rechazan una
+  letra distinta de la clase de la condición del cliente. Es la defensa real: ARCA rechaza la
+  combinación, y conviene que no llegue.
+- **Frontend:** la letra se toma de `clase` (no de un texto) y deja de poder elegirse en contra.
+
+**Mapeo del texto actual al catálogo** (backfill de Fase 2):
+
+| `condicion_iva` hoy | Id | Revisión manual |
+|---|---|---|
+| `Resp. Inscripto` | 1 | — |
+| `Monotributista` | 6 | confirmar si es 13 o 16 |
+| `Exento` | 4 | — |
+| `Consumidor Final` | 5 | ver abajo |
+
+Tango sólo maneja `CAT_IVA` `RI` / `CF` / `EX` (`supabase/tango/etl/maestros.py`): **no tiene categoría
+de monotributo**, así que ningún cliente migrado llega como monotributista aunque lo sea. En `GVA12`
+hay facturas y NC **A** emitidas con `CAT_IVA = CF` (4 FAC + 10 NC) y comprobantes **B** con
+`CAT_IVA = RI` (3 FAC + 1 NC). Antes de exigir `NOT NULL`, revisar a mano los clientes `Consumidor
+Final` con CUIT válido cuyo último comprobante fue A (candidatos a monotributo, Id 6) y los
+`Resp. Inscripto` cuyo último comprobante fue B. El ETL de Tango no cambia: carga el texto el día del
+cutover y el backfill de Fase 2 lo convierte.
+
+**Consumidores de `clientes.condicion_iva` a adaptar** (además de la letra): `api/index.js`
+(normalizador `cli`), `views/Clientes` (el `<select>` de cuatro textos pasa a ser el catálogo),
+`views/CtaCte`, `views/ConsultaCliente`, `views/Informes` (`index.jsx` y `exportar.js`),
+`utils/excel.js`, y en el PDF `base.ts`, `templates.ts`, `reportes.ts` y `preimpreso.ts`. Las RPCs de
+lectura que hoy devuelven `c.condicion_iva` (la última versión de cada una) pasan a devolver la
+descripción del catálogo **con la misma clave `condicion_iva`**, más `condicion_iva_afip_id` y `clase`,
+para que la pantalla no tenga que cambiar donde sólo muestra el texto.
+
+**Fuera de alcance:** `proveedores.condicion_iva` (Compras) sigue como texto: no interviene en la
+emisión ante ARCA.
 
 ### 3.3 Reglas de validación de ARCA que el sistema debe respetar
 
@@ -250,6 +293,8 @@ Estas son las que rebotan en producción si no se contemplan:
 - **`Concepto = 1`** (productos) para todo lo de esta empresa.
 - **`MonId = 'PES'`, `MonCotiz = 1`.**
 - **Factura A exige `DocTipo = 80`** y CUIT válido del receptor.
+- **`CondicionIVAReceptorId` tiene que pertenecer a la clase del comprobante** (§3.2): A con 1, 6,
+  13 o 16; B con 4, 5, 7, 8, 9, 10 o 15. Se valida en el CRM antes de llamar a ARCA.
 - **NC/ND exigen `CbtesAsoc`**: tipo, punto de venta, número, CUIT del emisor y fecha del comprobante
   asociado. Se derivan de `notas.factura_id`. **La letra de la nota debe coincidir con la de la
   factura** (NC A sobre Factura A).
@@ -365,8 +410,9 @@ Todas `SECURITY DEFINER SET search_path = public, pg_temp`, siguiendo el patrón
 | **Panel de rechazo/resultado incierto** | Muestra códigos y mensajes de ARCA tal cual vienen. Un rechazo funcional ofrece corregir y reintentar. Un resultado incierto ofrece **Consultar estado** vía `POST /arca/reconciliar`; sólo después de confirmar que no se autorizó se habilita un nuevo envío. |
 | **Bandeja fiscal** | Filtros para borradores, resultado incierto y rechazados en las listas + contadores en el Dashboard. Los inciertos se destacan porque requieren reconciliación antes de cualquier nuevo envío. |
 | **Banner de ambiente** | Franja visible en la aplicación conectada al proyecto de homologación. El ambiente lo informa la función desplegada, no una preferencia editable. |
-| **Formulario de clientes** | `views/Clientes/`: tipo y número de documento + selector de condición IVA de ARCA (obligatorio). |
-| **Validación previa** | Antes de emitir: condición IVA y documento del cliente; Factura A sólo a Responsable Inscripto; fecha fuera de ventana; percepciones distintas de cero. Se avisa antes de llamar a ARCA. Si hay percepción, se deriva al procedimiento fiscal vigente y no se sugiere eliminarla para emitir. La Edge Function/RPC repite las validaciones críticas. |
+| **Formulario de clientes** | `views/Clientes/`: tipo y número de documento + selector de condición IVA con el catálogo de ARCA (§3.2, obligatorio), en lugar de los cuatro textos actuales. |
+| **Letra de la factura** | `ComprobanteForm.jsx`: la letra sale de la `clase` de la condición IVA del cliente (§3.2) y no se puede elegir en contra; reemplaza a `tipoFacturaPara` y al aviso `letraDesvio`. |
+| **Validación previa** | Antes de emitir: condición IVA y documento del cliente; letra igual a la clase de la condición IVA (A: Responsable Inscripto y monotributos; B: el resto, §3.2); fecha fuera de ventana; percepciones distintas de cero. Se avisa antes de llamar a ARCA. Si hay percepción, se deriva al procedimiento fiscal vigente y no se sugiere eliminarla para emitir. La Edge Function/RPC repite las validaciones críticas. |
 | **`api/index.js`** | Nuevo bloque `arca`: `emitir(tabla, id)`, `reconciliar(tabla,id)`, `estado()`, `ultimoAutorizado(tipo)`, `solicitud(tabla,id)`. Invoca la Edge Function con el Bearer de la sesión. |
 
 ---
@@ -381,6 +427,10 @@ En `supabase/functions/pdf/templates.ts`, `generarFactura` (y el template de not
   `ver`, `fecha` (RFC3339), `cuit` (emisor), `ptoVta`, `tipoCmp`, `nroCmp`, `importe`, `moneda:'PES'`, `ctz:1`,
   `tipoDocRec`, `nroDocRec`, `tipoCodAut:'E'`, `codAut` (el CAE). Se genera con `npm:qrcode` a PNG y
   entra por `doc.image()` — `pdfkit` ya está en uso.
+- En el bloque del cliente, la **descripción del catálogo** de ARCA (§3.2) en lugar del texto libre.
+- **Factura A a un monotributista** (Id 6, 13 o 16): la leyenda que exige la normativa para el crédito
+  fiscal del receptor monotributista (RG 5003/2021, Ley 27.618). Confirmar el texto exacto con el
+  contador antes de la Fase 6; el comentario de `tipoFacturaPara` cita una versión que hay que validar.
 
 Un borrador o comprobante rechazado sale con marca de agua **"SIN VALIDEZ FISCAL"**, sin número
 fiscal ni QR. Un registro histórico sin CAE local se identifica como **"REGISTRO HISTÓRICO — SIN
@@ -401,19 +451,48 @@ trámites de producción habilitan sólo la Fase 7 y pueden esperar.
 
 ### 7.1 Homologación (testing) — habilita las fases 1 a 6
 
+> **Estado al 15/10/2026:** pasos 0 a 4 hechos. Certificado `crmmarblockhomo2` (válido hasta
+> 14/10/2028) autorizado a `wsfe` con Marblock S.A. como CUIT representado; PV de homologación = **1**.
+> Probado de punta a punta desde la máquina local (WSAA + WSFEv1 de sólo lectura). Falta sólo el
+> proyecto Supabase de homologación.
+
+0. **Adherir el WSASS.** Es **no delegable**: en el *Administrador de Relaciones de Clave Fiscal*
+   hay que entrar eligiendo la **persona física**, no Marblock S.A.; si no, el servicio no aparece.
+   *Adherir servicio* → ARCA → *Servicios interactivos* → **"WSASS - Autogestión Certificados
+   Homologación"**. Salir y volver a entrar para verlo.
 1. Generar clave privada y CSR **localmente** (nunca subir la `.key` a ningún lado):
    ```bash
-   openssl genrsa -out arca_homo.key 2048
-   openssl req -new -key arca_homo.key \
-     -subj "/C=AR/O=<razon social>/CN=crm-marblock-homo/serialNumber=CUIT <cuit sin guiones>" \
-     -out arca_homo.csr
+   openssl genrsa -out arca_homologacion.key 2048
+   openssl req -new -key arca_homologacion.key \
+     -subj "/C=AR/O=<razon social>/CN=<alias>/serialNumber=CUIT <CUIT personal sin guiones>" \
+     -out arca_homologacion.csr
    ```
-2. Entrar al **WSASS** (autogestión de certificados de homologación) con clave fiscal, crear un
-   certificado pegando el CSR, y descargar el `.crt`.
-3. En el mismo WSASS, **autorizar el certificado al servicio `wsfe`**.
-4. Homologación trae puntos de venta ficticios ya creados (típicamente 1 y 2). Confirmar cuál usar
-   con `FEParamGetPtosVenta`. El proyecto Supabase de homologación y su base también son separados
-   del proyecto de producción.
+   - El `serialNumber` lleva el **CUIT personal** de quien está logueado en el WSASS, **no** el de
+     la empresa: el formulario lo completa solo (no es editable) y tiene que coincidir con el del
+     CSR. El CUIT de Marblock entra recién en el paso 3.
+   - El alias **no admite guiones**. Usar el mismo valor en el `CN` (el WSASS igual arma el DN final
+     como `SERIALNUMBER=CUIT <n>, CN=<alias>`).
+2. WSASS → **Nuevo Certificado**: alias nuevo + pegar el CSR → *Crear DN y obtener certificado*.
+   Guardar el PEM devuelto como `arca_homologacion.crt` y verificar que corresponde a la clave
+   (los dos hashes tienen que ser iguales):
+   ```bash
+   openssl x509 -in arca_homologacion.crt -pubkey -noout | openssl sha256
+   openssl rsa -in arca_homologacion.key -pubout | openssl sha256
+   ```
+   Los certificados creados **no se pueden borrar**. Si devuelve `Error creando computador`, mirar
+   si el alias quedó creado en el desplegable de *Agregar Certificado a Alias* (ese formulario
+   ignora el DN del CSR); si no, reintentar con un alias nuevo. Soporte de homologación:
+   `webservices-desa@afip.gob.ar` (el que figura en el manual del WSASS).
+3. WSASS → **Crear Autorización a Servicio**: el alias del paso 2, **CUIT representado = CUIT de
+   Marblock S.A.**, servicio **`wsfe`**. Confirmar que aparece en *Autorizaciones*.
+4. ✅ **Punto de venta: 1.** En homologación `FEParamGetPtosVenta` responde `602 — Sin Resultados`
+   (no hay PV dados de alta y es normal); el PV 1 se usa igual: `FECompUltimoAutorizado(PV 1)` con
+   `Auth.Cuit` = Marblock devolvió 0 para Factura A y B el 15/10/2026, lo que confirma además que la
+   representación del paso 3 funciona. `ARCA_PUNTO_VENTA = 1` en el proyecto de homologación. El
+   proyecto Supabase de homologación y su base son separados del proyecto de producción.
+   - **El TA (token + sign) dura 12 h y WSAA no da otro mientras esté vigente**, también para las
+     pruebas locales: el de la prueba del 15/10 quedó en `~/.arca/marblock/ta_wsfe_homologacion.xml`
+     (`600`) y venció a las 19:53 de ese día.
 
 ### 7.2 Producción — habilita la Fase 7
 
@@ -441,7 +520,8 @@ trámites de producción habilitan sólo la Fase 7 y pueden esperar.
 > y `wsaa.afip.gov.ar/ws/services/LoginCms`.
 
 **Entregable de la fase:** archivos de clave/certificado fuera del repo, creados por ambiente
-(`arca_homo.key/.crt`, `arca_prod.key/.crt`), y los PV de homologación y producción anotados.
+(`~/.arca/marblock/arca_homologacion.key/.crt`, carpeta con permisos `700`; los de producción,
+`arca_prod.key/.crt`), y los PV de homologación y producción anotados.
 
 ---
 
@@ -475,7 +555,9 @@ antes del go-live. Los borradores se pueden insertar sin número; `SELECT` direc
 `arca_solicitudes` y `arca_series_en_curso` como `authenticated` **debe fallar**.
 
 **Riesgo:** el backfill de `clientes.condicion_iva_afip_id` desde texto libre. Revisar a mano los que
-queden en NULL antes de seguir — sin condición IVA no se puede emitir.
+queden en NULL antes de seguir — sin condición IVA no se puede emitir. Y como Tango no tiene
+categoría de monotributo, revisar los candidatos que marca §3.2 (`Consumidor Final` con CUIT y
+último comprobante A): si quedan como Id 5, el sistema les va a exigir Factura B y ARCA la rechaza.
 
 ---
 
@@ -487,6 +569,8 @@ convertido a borrador.
 **Verificación (en homologación, contra el PV de testing):**
 - Factura A a un CUIT válido, un solo ítem al 21% → CAE + vencimiento.
 - Factura B a un receptor con DNI (`DocTipo 96`).
+- **Factura A a un monotributista** (`CondicionIVAReceptorId` 6) → CAE. **Factura B a un
+  monotributista** o **Factura A a un consumidor final** → bloqueada en el CRM, sin llamar a ARCA.
 - Factura con **dos alícuotas** (21% y 10.5%) → array `Iva` con dos entradas, `ImpIVA` cuadrando.
 - Factura con descuento general → `ImpNeto` coincidiendo con `neto_gravado` de la BD.
 - Factura con un ítem `Exento (0%)` y otro al 21 % → el exento va a `ImpOpEx`, `ImpNeto` es sólo la
@@ -504,7 +588,8 @@ convertido a borrador.
 - Crear factura/notas en borrador no altera saldo, cuenta corriente, informes, remito ni presupuesto;
   al autorizar, cada efecto se aplica una sola vez. Dos emisiones concurrentes de una misma serie
   quedan serializadas y el resultado incierto bloquea nuevos envíos hasta reconciliar.
-- Verificar el catálogo sembrado contra `FEParamGetCondicionIvaReceptor`.
+- El catálogo sembrado coincide con `FEParamGetCondicionIvaReceptor` (ya consultado en
+  homologación el 15/10/2026, §3.2; repetir si pasó tiempo).
 
 ---
 
@@ -565,7 +650,7 @@ vigentes y nunca se borran ni se retroceden.
 
 | Fase | Estado |
 |---|---|
-| 0 — Trámite ARCA (homologación) | ⬜ pendiente |
+| 0 — Trámite ARCA (homologación) | 🟨 en curso — certificado, autorización `wsfe` y PV 1 OK, probado en local (15/10/2026); falta el proyecto Supabase de homologación |
 | 0 — Trámite ARCA (producción) | ⬜ pendiente |
 | 1 — Spike firma CMS | ⬜ pendiente |
 | 2 — Schema y catálogos | ⬜ pendiente |
@@ -585,6 +670,7 @@ vigentes y nunca se borran ni se retroceden.
 | **Doble emisión por timeout** | Protocolo de idempotencia con `arca_nro_tentativo` + `FECompConsultar` (§4). Se prueba explícitamente en Fase 3. |
 | **Emitir en producción creyendo que es homologación** | Proyecto Supabase, datos y certificados separados; banner de solo lectura que informa el ambiente desplegado. |
 | **Cliente sin condición IVA cargada** | Validación previa en el cliente + revisión del backfill en Fase 2. |
+| **Letra que no corresponde a la condición del receptor** (p. ej. Factura B a un monotributista) | La letra sale de la `clase` del catálogo de ARCA (§3.2) y las RPCs la validan en el servidor. Revisión manual de los monotributistas que Tango no distingue (Fase 2). |
 | **Exento declarado como IVA 0 %** | El renglón `Exento (0%)` va a `ImpOpEx`, nunca a `Iva.Id 3` (§3.1). Se prueba con la ND exenta de la Fase 4. |
 | **Percepciones cargadas en un comprobante** | El CRM actual permite cargarlas; la UI y `arca_comprobante_para_emitir` explican y bloquean la emisión cuando `percepciones_monto ≠ 0` hasta implementar su mapeo. |
 | **Certificado vencido** (duran ~2 años) | Anotar la fecha de vencimiento en `PLAN_MAESTRO.md` §3.7, junto al CAI del talonario de remitos. Sin certificado no se factura. |
