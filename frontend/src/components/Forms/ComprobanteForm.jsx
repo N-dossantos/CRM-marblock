@@ -15,13 +15,6 @@ const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitar
 // MAPA.items.renglones en supabase/functions/pdf/preimpreso.ts.
 const RENGLONES_TALONARIO = 19
 
-// Letra de factura según la condición de IVA del receptor: A a Responsables Inscriptos y, desde
-// 2021, también a Monotributistas (con la leyenda "Receptor del comprobante – Responsable
-// Monotributo"); B a Consumidor Final y Exento. El CUIT genérico de consumidor final nunca va en A.
-const CUIT_CONSUMIDOR_FINAL = '00-00000000-0'
-const tipoFacturaPara = (cl) =>
-  cl && ['Resp. Inscripto', 'Monotributista'].includes(cl.condicion_iva) && cl.cuit !== CUIT_CONSUMIDOR_FINAL ? 'A' : 'B'
-
 export default function ComprobanteForm({
   title,
   tipo,           // 'factura' | 'presupuesto' | 'remito'
@@ -121,17 +114,6 @@ export default function ComprobanteForm({
     if (cl.descuento_porcentaje != null) setForm(f => ({ ...f, descuento_general: +cl.descuento_porcentaje }))
   }, [tipo, clientes, form.cliente_id])
 
-  // Misma idea para la letra: si la factura nueva llega con el cliente ya elegido (desde un remito
-  // o un presupuesto), se propone A o B según su condición de IVA, una sola vez.
-  const tipoClienteAplicado = useRef(!esFacturaNueva || !!initial.tipo)
-  useEffect(() => {
-    if (tipoClienteAplicado.current || !form.cliente_id) return
-    const cl = clientes.find(c => c.id === +form.cliente_id)
-    if (!cl) return
-    tipoClienteAplicado.current = true
-    setForm(f => ({ ...f, tipo_fac: tipoFacturaPara(cl) }))
-  }, [clientes, form.cliente_id])
-
   // Auto-aplicar descuento del cliente al seleccionarlo
   const onCliChange = (cliId) => {
     const cl = clientes.find(c => c.id === +cliId)
@@ -143,13 +125,11 @@ export default function ComprobanteForm({
       remito_ids: [],
       items: f.items.filter(it => !it._remito_id),
       descuento_general: cl?.descuento_porcentaje ?? f.descuento_general,
-      ...(esFacturaNueva && cl && { tipo_fac: tipoFacturaPara(cl) }),
       // El teléfono del remito se prellena con el del cliente pero queda editable: el de la
       // obra suele ser otro (capataz/obrador) y es el que sirve si hay que llamar en la entrega.
       ...(esRemito && !f.telefono_entrega && cl?.telefono ? { telefono_entrega: cl.telefono } : {}),
     }))
     dtoClienteAplicado.current = true
-    tipoClienteAplicado.current = true
     onClienteChange?.(cliId)
   }
 
@@ -190,9 +170,10 @@ export default function ComprobanteForm({
     return Math.abs(dif) > UMBRAL_DESVIO ? dif : null
   })()
 
-  // Letra distinta de la que corresponde al cliente: avisa, no bloquea (el operador decide).
+  // La letra la decide la clase de la condición IVA del cliente en el catálogo de ARCA (A: Resp.
+  // Inscripto y monotributos; B: el resto). No se elige: el servidor rechaza cualquier otra.
   const clienteSel = tipo === 'factura' ? clientes.find(c => c.id === +form.cliente_id) : null
-  const letraDesvio = esFacturaNueva && clienteSel && form.tipo_fac !== tipoFacturaPara(clienteSel)
+  const letra = esFacturaNueva ? clienteSel?.clase : form.tipo_fac
 
   const save = async (forzar = false) => {
     if (!form.cliente_id)   { toast.error('Seleccione un cliente'); return }
@@ -219,7 +200,7 @@ export default function ComprobanteForm({
         domicilio_obra:    form.domicilio_obra?.trim() || null,
         telefono_entrega:  form.telefono_entrega?.trim() || null,
       }),
-      ...(tipo === 'factura' && { tipo: form.tipo_fac, remito_ids: form.remito_ids }),
+      ...(tipo === 'factura' && { tipo: letra, remito_ids: form.remito_ids }),
       ...(tipo === 'factura' && form.presupuesto_id && { presupuesto_id: +form.presupuesto_id }),
       ...(forzar && { forzar_vencido: true }),
     }
@@ -297,10 +278,13 @@ export default function ComprobanteForm({
         {tipo === 'factura' && (
           <div className="field">
             <label className="lbl">Tipo</label>
-            <select className="sel" value={form.tipo_fac} onChange={e => setForm(f => ({ ...f, tipo_fac: e.target.value }))}>
-              <option value="A">Factura A</option>
-              <option value="B">Factura B</option>
-            </select>
+            <input
+              className="inp"
+              readOnly
+              value={letra ? `Factura ${letra}` : '—'}
+              title={clienteSel ? `Cliente ${clienteSel.condicion_iva}` : 'Depende de la condición IVA del cliente'}
+              style={{ background: 'var(--gray-50)', color: 'var(--gray-500)' }}
+            />
           </div>
         )}
       </div>
@@ -314,17 +298,6 @@ export default function ComprobanteForm({
             El número está <strong>{Math.abs(desvio)} hoja(s) {desvio > 0 ? 'adelante' : 'atrás'}</strong> del
             sugerido (<span style={{ fontFamily: 'monospace' }}>{numeroSugerido.numero_formateado}</span>).
             Verificá que coincida con la hoja que pusiste en la impresora.
-          </div>
-        </div>
-      )}
-
-      {letraDesvio && (
-        <div className="warn-box" style={{ marginBottom: 14 }}>
-          <span>⚠️</span>
-          <div>
-            {form.tipo_fac === 'A'
-              ? <>El cliente es <strong>{clienteSel.cuit === CUIT_CONSUMIDOR_FINAL ? 'consumidor final genérico (sin CUIT)' : clienteSel.condicion_iva}</strong>: le corresponde <strong>Factura B</strong>. Una Factura A necesita un receptor Responsable Inscripto o Monotributista con CUIT.</>
-              : <>El cliente es <strong>{clienteSel.condicion_iva}</strong>: le corresponde <strong>Factura A</strong>. Con una Factura B no puede computar el IVA.</>}
           </div>
         </div>
       )}

@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   ClientesAPI, InformesAPI, PresupuestosAPI, FacturasAPI, RemitosAPI, NotasAPI, RecibosAPI,
 } from '../../api'
-import { $ar, fFecha } from '../../utils'
+import { $ar, fFecha, fDoc, fDocNro, clienteCoincide } from '../../utils'
 import { Badge } from '../../components/UI'
 import Consulta360 from '../../components/Consultas/Consulta360'
 import VentaDetalle from '../../components/Consultas/VentaDetalle'
@@ -60,7 +60,7 @@ export default function ConsultaCliente() {
         <div>
           <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--gray-800)' }}>{data.cli.razon_social}</h2>
           <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
-            CUIT: {data.cli.cuit} · {data.cli.condicion_iva}
+            {fDoc(data.cli.doc_tipo, data.cli.doc_nro)} · {data.cli.condicion_iva}
             {+data.cli.descuento_porcentaje > 0 && ` · Dto. ${data.cli.descuento_porcentaje}%`}
           </div>
           <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
@@ -248,6 +248,8 @@ export default function ConsultaCliente() {
         data={data}
         header={header}
         tabs={tabs}
+        getSubtitle={c => fDocNro(c.doc_tipo, c.doc_nro)}
+        matchFn={clienteCoincide}
       />
       {detalle && <VentaDetalle doc={detalle} onClose={() => setDetalle(null)} />}
     </>

@@ -1,7 +1,7 @@
 // src/views/Informes/index.jsx
 import { useState, useEffect, useRef } from 'react'
 import { InformesAPI, ClientesAPI, CuentasBancariasAPI, MovimientosTesoreriaAPI, PlanCuentasAPI, pdfUrl } from '../../api'
-import { $ar, fFecha, hoy } from '../../utils'
+import { $ar, fFecha, hoy, fDocNro } from '../../utils'
 import { Loading } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
 import { exportarXlsx } from '../../utils/excel'
@@ -422,14 +422,14 @@ export default function Informes() {
                   <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
                     <table>
                       <thead><tr>
-                        <th>Cliente</th><th>CUIT</th><th className="th-right">Facturas</th>
+                        <th>Cliente</th><th>CUIT / DNI</th><th className="th-right">Facturas</th>
                         <th className="th-right">Total</th><th className="th-right">Pendiente</th>
                       </tr></thead>
                       <tbody>
                         {data.por_cliente.map((c, i) => (
                           <tr key={i}>
                             <td className="td-bold">{c.razon_social}</td>
-                            <td className="td-mono">{c.cuit}</td>
+                            <td className="td-mono">{fDocNro(c.doc_tipo, c.doc_nro)}</td>
                             <td className="td-right">{c.cantidad_facturas}</td>
                             <td className="td-right td-bold">{$ar(c.total_facturado)}</td>
                             <td className="td-right" style={{ color: parseFloat(c.pendiente) > 0 ? 'var(--red-500)' : 'var(--green-600)', fontWeight: 600 }}>
@@ -468,7 +468,7 @@ export default function Informes() {
               <div className="tbl-wrap">
                 <table>
                   <thead><tr>
-                    <th>#</th><th>Cliente</th><th>CUIT</th><th className="th-right">Facturas</th>
+                    <th>#</th><th>Cliente</th><th>CUIT / DNI</th><th className="th-right">Facturas</th>
                     <th className="th-right">Total facturado</th><th className="th-right">Saldo pendiente</th><th>Última compra</th>
                   </tr></thead>
                   <tbody>
@@ -478,7 +478,7 @@ export default function Informes() {
                         <tr key={c.id}>
                           <td style={{ fontWeight: 800, color: i < 3 ? 'var(--amber-600)' : 'var(--gray-400)' }}>{i + 1}</td>
                           <td className="td-bold">{c.razon_social}</td>
-                          <td className="td-mono">{c.cuit}</td>
+                          <td className="td-mono">{fDocNro(c.doc_tipo, c.doc_nro)}</td>
                           <td className="td-right">{c.cantidad_facturas}</td>
                           <td className="td-right td-bold">{$ar(c.total_facturado)}</td>
                           <td className="td-right" style={{ color: parseFloat(c.saldo_pendiente) > 0 ? 'var(--red-500)' : 'var(--green-600)', fontWeight: 600 }}>
@@ -527,7 +527,7 @@ export default function Informes() {
                   <div className="tbl-wrap">
                     <table>
                       <thead><tr>
-                        <th>#</th><th>Cliente</th><th>CUIT</th><th>Teléfono</th>
+                        <th>#</th><th>Cliente</th><th>CUIT / DNI</th><th>Teléfono</th>
                         <th className="th-right">Facturas pend.</th>
                         <th className="th-right">Total adeudado</th>
                         <th className="th-right">Factura más antigua</th>
@@ -538,7 +538,7 @@ export default function Informes() {
                           <tr key={c.id}>
                             <td style={{ fontWeight: 800, color: i < 3 ? 'var(--red-500)' : 'var(--gray-400)' }}>{i + 1}</td>
                             <td className="td-bold">{c.razon_social}</td>
-                            <td className="td-mono">{c.cuit}</td>
+                            <td className="td-mono">{fDocNro(c.doc_tipo, c.doc_nro)}</td>
                             <td style={{ fontSize: 12 }}>{c.telefono || '—'}</td>
                             <td className="td-right">{c.facturas_pendientes}</td>
                             <td className="td-right" style={{ color: 'var(--red-500)', fontWeight: 700 }}>{$ar(c.total_pendiente)}</td>
@@ -669,7 +669,7 @@ export default function Informes() {
               <div className="tbl-wrap">
                 <table>
                   <thead><tr>
-                    <th>Fecha</th><th>Comprobante</th><th>Cliente</th><th>CUIT</th><th>Cond. IVA</th>
+                    <th>Fecha</th><th>Comprobante</th><th>Cliente</th><th>CUIT / DNI</th><th>Cond. IVA</th>
                     <th className="th-right">Neto</th><th className="th-right">IVA</th><th className="th-right">Total</th>
                   </tr></thead>
                   <tbody>
@@ -684,7 +684,7 @@ export default function Informes() {
                             {c.anulada && <span style={{ color: 'var(--red-500)', marginLeft: 6, fontSize: 12 }}>(anulada)</span>}
                           </td>
                           <td className="td-bold">{c.razon_social}</td>
-                          <td className="td-mono">{c.cuit}</td>
+                          <td className="td-mono">{fDocNro(c.doc_tipo, c.doc_nro)}</td>
                           <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.condicion_iva}</td>
                           <td className="td-right">{$ar(c.neto_gravado)}</td>
                           <td className="td-right">{$ar(c.iva_monto)}</td>

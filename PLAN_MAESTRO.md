@@ -162,7 +162,7 @@ valores calculados y hace rollback, así las tablas quedaban vacías para el cut
 
 ### 2.3 Trabajo posterior a la Fase F
 - **Cuenta 2 — circuito informal aislado de Cuenta 1** (migraciones `20260815120000`–`…0003` +
-  `20260820120001_cuenta2_material_id`). Sus 6 fases:
+  `20260820113138_cuenta2_material_id`). Sus 6 fases:
   - **Fase 1 — Base de datos y API.** ✅ 6 tablas (`clientes_cuenta2`, `proveedores_cuenta2`,
     `cuenta2_remitos` + items, `cuenta2_ctacte`, `cuenta2_cheques`), RLS `staff_all` y 15 funciones
     (`crear_/actualizar_/eliminar_remito_cuenta2`, `registrar_movimiento_cuenta2`,

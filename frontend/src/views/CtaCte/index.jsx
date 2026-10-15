@@ -1,7 +1,7 @@
 // src/views/CtaCte/index.jsx
 import { useState, useEffect } from 'react'
 import { InformesAPI, ClientesAPI } from '../../api'
-import { $ar, fFecha } from '../../utils'
+import { $ar, fFecha, fDoc, fDocNro, clienteCoincide } from '../../utils'
 import { Loading } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
 import { exportarCtaCte } from '../../utils/excel'
@@ -40,7 +40,7 @@ export default function CtaCte() {
   useEffect(() => { if (selCli) cargar() }, [selCli])
 
   const clisFiltrados = clientes.filter(c =>
-    !search || c.razon_social.toLowerCase().includes(search.toLowerCase()) || c.cuit.includes(search)
+    clienteCoincide(c, search)
   )
 
   return (
@@ -80,7 +80,7 @@ export default function CtaCte() {
                     {$ar(saldo)} {saldo > 0 ? '▲ Debe' : saldo < 0 ? '▼ A favor' : '✓ Sin saldo'}
                   </div>
                 )}
-                {saldo === null && <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>{c.cuit}</div>}
+                {saldo === null && <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>{fDocNro(c.doc_tipo, c.doc_nro)}</div>}
               </div>
             )
           })}
@@ -104,7 +104,7 @@ export default function CtaCte() {
                 <div>
                   <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--gray-800)' }}>{data.cliente.razon_social}</h2>
                   <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
-                    CUIT: {data.cliente.cuit} &nbsp;·&nbsp; {data.cliente.condicion_iva}
+                    {fDoc(data.cliente.doc_tipo, data.cliente.doc_nro)} &nbsp;·&nbsp; {data.cliente.condicion_iva}
                     {data.cliente.email && ` · ${data.cliente.email}`}
                   </div>
                 </div>
@@ -132,7 +132,7 @@ export default function CtaCte() {
                   <button
                     className="btn btn-secondary btn-sm"
                     style={{ marginTop: 10, marginLeft: 6, background: 'var(--green-50)', color: 'var(--green-700)', borderColor: 'var(--green-100)' }}
-                    onClick={() => exportarCtaCte(data, data.cliente, 'Cliente')}
+                    onClick={() => exportarCtaCte(data, data.cliente, 'Cliente', fDoc(data.cliente.doc_tipo, data.cliente.doc_nro))}
                   >
                     📊 Excel
                   </button>

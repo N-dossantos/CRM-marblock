@@ -1,17 +1,21 @@
 // src/views/Clientes/index.jsx
 import { useState, useEffect, useCallback } from 'react'
-import { ClientesAPI } from '../../api'
-import { $ar } from '../../utils'
+import { ClientesAPI, CondicionesIvaAPI } from '../../api'
+import { $ar, fDocNro, cuitValido } from '../../utils'
 import { Modal, Loading, EmptyState } from '../../components/UI'
 import toast from 'react-hot-toast'
 
-const BLANK = { razon_social: '', cuit: '', condicion_iva: 'Resp. Inscripto', direccion: '', localidad: '', telefono: '', email: '', descuento_porcentaje: 0, notas: '' }
+// La condición IVA no tiene valor por defecto: decide la letra de la factura (§3.2 de PLAN_ARCA).
+const BLANK = { razon_social: '', doc_tipo: 80, doc_nro: '', condicion_iva_afip_id: '', direccion: '', localidad: '', telefono: '', email: '', descuento_porcentaje: 0, notas: '' }
 
 export default function Clientes() {
   const [rows, setRows]       = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
   const [modal, setModal]     = useState(null)  // null | { form, isNew }
+  const [condiciones, setCondiciones] = useState([])
+
+  useEffect(() => { CondicionesIvaAPI.list().then(setCondiciones) }, [])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -21,12 +25,15 @@ export default function Clientes() {
   useEffect(() => { load() }, [load])
 
   const openNew  = () => setModal({ form: { ...BLANK }, isNew: true })
-  const openEdit = (c) => setModal({ form: { ...c }, isNew: false })
+  const openEdit = (c) => setModal({ form: { ...c, doc_nro: fDocNro(c.doc_tipo, c.doc_nro) }, isNew: false })
 
   const save = async () => {
     const { form, isNew } = modal
     if (!form.razon_social.trim()) { toast.error('Razón social obligatoria'); return }
-    if (!form.cuit.trim())         { toast.error('CUIT obligatorio'); return }
+    const nro = String(form.doc_nro || '').replace(/\D/g, '')
+    if (+form.doc_tipo === 80 && !cuitValido(nro)) { toast.error('CUIT inválido: revisá los 11 dígitos'); return }
+    if (+form.doc_tipo === 96 && !/^\d{7,8}$/.test(nro)) { toast.error('El DNI tiene que tener 7 u 8 dígitos'); return }
+    if (!form.condicion_iva_afip_id) { toast.error('Condición IVA obligatoria'); return }
     try {
       if (isNew) await ClientesAPI.create(form)
       else       await ClientesAPI.update(form.id, form)
@@ -43,7 +50,7 @@ export default function Clientes() {
     <div>
       <div className="page-toolbar">
         <div className="toolbar-left">
-          <input className="search-inp" placeholder="Buscar por razón social o CUIT…" value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="search-inp" placeholder="Buscar por razón social, CUIT o DNI…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <button className="btn btn-primary" onClick={openNew}>+ Nuevo cliente</button>
       </div>
@@ -54,7 +61,7 @@ export default function Clientes() {
             <thead>
               <tr>
                 <th>Razón Social</th>
-                <th>CUIT</th>
+                <th>CUIT / DNI</th>
                 <th>Condición IVA</th>
                 <th>Localidad</th>
                 <th>Teléfono</th>
@@ -73,7 +80,7 @@ export default function Clientes() {
                       <div className="td-bold">{c.razon_social}</div>
                       <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>{c.email}</div>
                     </td>
-                    <td className="td-mono">{c.cuit}</td>
+                    <td className="td-mono">{fDocNro(c.doc_tipo, c.doc_nro)}</td>
                     <td style={{ fontSize: 12 }}>{c.condicion_iva}</td>
                     <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.localidad || '—'}</td>
                     <td style={{ fontSize: 12 }}>{c.telefono || '—'}</td>
@@ -115,16 +122,23 @@ export default function Clientes() {
               <input className="inp" value={modal.form.razon_social} onChange={e => upd('razon_social', e.target.value)} />
             </div>
             <div className="field">
-              <label className="lbl">CUIT *</label>
-              <input className="inp" value={modal.form.cuit} onChange={e => upd('cuit', e.target.value)} placeholder="30-12345678-9" />
+              <label className="lbl">Documento *</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <select className="sel" style={{ width: 90 }} value={modal.form.doc_tipo} onChange={e => upd('doc_tipo', +e.target.value)}>
+                  <option value={80}>CUIT</option>
+                  <option value={96}>DNI</option>
+                </select>
+                <input className="inp" value={modal.form.doc_nro} onChange={e => upd('doc_nro', e.target.value)}
+                  placeholder={+modal.form.doc_tipo === 80 ? '30-12345678-9' : '12345678'} />
+              </div>
             </div>
             <div className="field">
-              <label className="lbl">Condición IVA</label>
-              <select className="sel" value={modal.form.condicion_iva} onChange={e => upd('condicion_iva', e.target.value)}>
-                <option>Resp. Inscripto</option>
-                <option>Monotributista</option>
-                <option>Exento</option>
-                <option>Consumidor Final</option>
+              <label className="lbl">Condición IVA *</label>
+              <select className="sel" value={modal.form.condicion_iva_afip_id} onChange={e => upd('condicion_iva_afip_id', e.target.value)}>
+                <option value="">Elegir…</option>
+                {condiciones.map(ci => (
+                  <option key={ci.id} value={ci.id}>{ci.descripcion} — Factura {ci.clase}</option>
+                ))}
               </select>
             </div>
             <div className="field" style={{ gridColumn: '1 / 3' }}>

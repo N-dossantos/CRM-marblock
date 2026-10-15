@@ -15,6 +15,36 @@ export const fFecha = (s) => {
 // Fecha de hoy en formato YYYY-MM-DD
 export const hoy = () => new Date().toISOString().split('T')[0]
 
+// Documento del cliente con los códigos de ARCA (clientes.doc_tipo / doc_nro, sólo dígitos).
+export const TIPOS_DOC = { 80: 'CUIT', 96: 'DNI' }
+
+// Número tal como se lee: CUIT con guiones, DNI tal cual.
+export const fDocNro = (tipo, nro) => {
+  const d = String(nro ?? '')
+  return +tipo === 80 && /^\d{11}$/.test(d) ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}` : d
+}
+
+// Con el tipo adelante: "CUIT 30-12345678-9" / "DNI 12345678".
+export const fDoc = (tipo, nro) => (nro ? `${TIPOS_DOC[tipo] || 'Doc.'} ${fDocNro(tipo, nro)}` : '—')
+
+// Búsqueda de clientes por razón social o por los dígitos del documento (con o sin guiones).
+export const clienteCoincide = (c, search) => {
+  const s = String(search || '').trim()
+  if (!s) return true
+  const dig = s.replace(/\D/g, '')
+  return (c.razon_social || '').toLowerCase().includes(s.toLowerCase())
+    || (!!dig && String(c.doc_nro || '').includes(dig))
+}
+
+// Dígito verificador de CUIT (módulo 11). Mismo criterio que crm_cuit_valido en la base.
+export const cuitValido = (nro) => {
+  const d = String(nro ?? '')
+  if (!/^\d{11}$/.test(d) || d === '00000000000') return false
+  const s = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2].reduce((a, p, i) => a + p * +d[i], 0)
+  const dv = 11 - (s % 11)
+  return (dv === 11 ? 0 : dv) === +d[10]
+}
+
 // Teléfono argentino tal como se tipea ("011 15-2345-6789", "+54 9 11 2345 6789", "11 2345-6789 / 4698…")
 // → número para wa.me (549 + área + abonado, 13 dígitos). null si no se puede armar: falta el
 // código de área o no es un celular válido. Toma el primer número si hay varios separados por "/".

@@ -77,11 +77,12 @@ frontend ──POST /functions/v1/arca/emitir {tipo:'factura', id:123}──▶ 
 ```
 supabase/functions/arca/
   index.ts     router: POST /arca/emitir, POST /arca/reconciliar,
-               GET /arca/estado (FEDummy + ambiente), GET /arca/ultimo,
-               GET /arca/solicitud (estado/errores seguros por comprobante)
+               GET /arca/estado (FEDummy + ambiente), GET /arca/ultimo
+               (estado/errores por comprobante: la UI llama a la RPC arca_solicitud_ultimo, §4)
   wsaa.ts      TRA + firma CMS/PKCS#7 + cache de token
   wsfe.ts      sobres SOAP y parseo de FECAESolicitar / FECompUltimoAutorizado / FECompConsultar
-  mapeo.ts     CRM → ARCA (tipos de comprobante, Ids de IVA, doc tipo, condición IVA receptor)
+  mapeo.ts     payload de arca_comprobante_para_emitir → XML de FECAEDetRequest. Los códigos ARCA
+               (tipo de comprobante, Id de IVA, doc tipo, condición IVA) ya vienen de la base (Fase 2)
   soap.ts      helpers de XML (armado y extracción, sin cliente SOAP genérico)
 ```
 
@@ -155,7 +156,7 @@ plan no reserva timestamps antiguos: hoy la última del repo es `20261013120000_
 |---|---|
 | `facturas`, `notas` | `numero`, `punto_venta`, `numero_comp` pasan a **NULLABLE** (el borrador todavía no tiene número fiscal; Postgres admite varios `NULL`). `estado_fiscal VARCHAR(24) NOT NULL DEFAULT 'historico'` distingue `historico`, `borrador`, `en_proceso`, `resultado_incierto`, `rechazado` y `autorizado`. `arca_nro_tentativo` guarda el número consultado/enviado durante un intento. Los campos `cae`, `cae_vencimiento` y `afip_*` ya existen desde la migración `20260728120000_fiscal_afip_columns.sql`; no volver a crearlos. |
 | `arca_solicitudes` (nueva) | Auditoría: `id`, `tabla`, `comprobante_id`, `request` jsonb, `response` jsonb, `resultado`, `errores` jsonb, `observaciones` jsonb, `created_at`. Un renglón por intento. Guardar sólo el payload de negocio necesario; nunca persistir `Token`, `Sign`, clave privada ni certificado. RLS deny-all para acceso directo; exponer a la UI sólo una proyección autorizada por RPC/Edge Function. |
-| `arca_tokens` (nueva) | `servicio` PK, `token` text, `sign` text, `expira_en` timestamptz. **RLS deny-all.** |
+| `arca_tokens` (nueva) | `servicio` PK, `token` text, `sign` text, `expira_en` timestamptz, `pedido_hasta` timestamptz (turno de renovación entre isolates, §4). **RLS deny-all.** |
 | `arca_series_en_curso` (nueva) | Una fila por (PV, tipo ARCA) con el comprobante y número tentativo del único envío activo. Evita dos solicitudes concurrentes en una serie. RLS deny-all; sólo service-role/RPCs internas. Se libera tras aceptación, rechazo explícito o confirmación de no autorización; un resultado incierto conserva la serie bloqueada hasta reconciliar. |
 | `clientes` | `doc_tipo SMALLINT NOT NULL` (80 CUIT / 96 DNI), `doc_nro VARCHAR(20) NOT NULL`, `condicion_iva_afip_id SMALLINT NOT NULL REFERENCES condiciones_iva_afip(id)`. `doc_tipo/doc_nro` son el documento canónico y reemplazan `cuit`; `condicion_iva_afip_id` reemplaza el texto libre `condicion_iva`. **Backfill:** `doc_nro = replace(cuit,'-','')`, `doc_tipo = 80`, y `condicion_iva_afip_id` según §3.2. Revisar a mano CUIT placeholder, documentos inválidos y condiciones IVA sin mapeo antes de exigir `NOT NULL`. Actualizar el normalizador `cli` de `frontend/src/api/index.js` y todo consumidor de `clientes.cuit` y `clientes.condicion_iva` en formularios, búsquedas, detalles, RPCs, informes y PDF (lista en §3.2); después quitar las columnas `cuit` y `condicion_iva` para mantener una sola fuente de verdad. |
 | `condiciones_iva_afip` (nueva) | Catálogo RG 5616 **con la clase de comprobante** que ARCA admite para cada condición (ver §3.2). |
@@ -289,6 +290,11 @@ Estas son las que rebotan en producción si no se contemplan:
   la fecha actual en `America/Argentina/Buenos_Aires` para no cruzar el día por usar UTC. La regla
   vigente permite hasta 5 días anteriores o posteriores y la fecha no puede exceder el mes de
   presentación. Validar en servidor y avisar en la UI antes de emitir.
+  **Implementado (Fase 2):** `arca_reclamar_serie` pone como fecha del comprobante el día del envío
+  en hora argentina. Un borrador de ayer o un rechazado que se corrige hoy sale con fecha de hoy:
+  así nunca queda fuera de la ventana ni es anterior al último autorizado de la serie (ARCA rechaza
+  fechas menores a la del último). La validación de ventana queda igual en
+  `arca_comprobante_para_emitir`, como defensa.
 - **`CbteDesde = CbteHasta = FECompUltimoAutorizado + 1`.** Sin huecos: ARCA no autoriza saltos.
 - **`Concepto = 1`** (productos) para todo lo de esta empresa.
 - **`MonId = 'PES'`, `MonCotiz = 1`.**
@@ -362,16 +368,16 @@ Todas `SECURITY DEFINER SET search_path = public, pg_temp`, siguiendo el patrón
 
 | RPC | Qué hace |
 |---|---|
-| `arca_reclamar_serie(p_tabla, p_id)` | Reclama condicionalmente el comprobante y el único espacio de envío activo para (PV, tipo ARCA). |
+| `arca_reclamar_serie(p_tabla, p_id, p_punto_venta)` | Reclama condicionalmente el comprobante (`borrador`/`rechazado` → `en_proceso`) y el único espacio de envío activo para (PV, tipo ARCA). El PV lo pasa la Edge Function desde su secret. Pone la fecha del envío (§3.3) y devuelve el payload de `arca_comprobante_para_emitir`. |
 | `arca_reservar_numero(p_tabla, p_id, p_nro)` | Deja constancia del número tentativo mientras el comprobante mantiene la reclamación de la serie. |
-| `arca_registrar_cae(p_tabla, p_id, p_numero, p_cae, p_vto, p_afip_tipo, p_doc_tipo, p_doc_nro, p_request, p_response)` | **Atómica**: escribe número + CAE + vencimiento + campos `afip_*`, pasa `estado_fiscal='autorizado'` e inserta la fila en `arca_solicitudes`. |
+| `arca_registrar_cae(p_tabla, p_id, p_numero, p_cae, p_vto, p_afip_tipo, p_doc_tipo, p_doc_nro, p_request, p_response, p_observaciones)` | **Atómica**: escribe número + CAE + vencimiento + campos `afip_*`, pasa `estado_fiscal='autorizado'`, libera la serie, aplica los efectos comerciales e inserta la fila en `arca_solicitudes`. Acepta `en_proceso` y `resultado_incierto` (reconciliación). **Nunca aborta:** si el comprobante no está como se esperaba, audita el CAE con el motivo, deja la serie bloqueada y devuelve `registrado = false`. |
 | `arca_registrar_error_previo(p_tabla, p_id, p_error, p_request)` | Para errores antes de enviar `FECAESolicitar`: audita el error, vuelve a `borrador` y libera la serie. |
 | `arca_registrar_rechazo(p_tabla, p_id, p_errores, p_observaciones, p_request, p_response)` | Sólo para rechazo funcional explícito. Guarda errores/observaciones y pasa a `rechazado` si sigue `en_proceso`. |
-| `arca_registrar_incierto(p_tabla, p_id, p_request, p_response, p_error)` | Registra un resultado de transporte incierto sin afirmar que ARCA rechazó. Conserva el número tentativo y la serie reclamada para reconciliar. |
-| `arca_confirmar_no_autorizado(p_tabla, p_id, p_request, p_response)` | Sólo tras consulta concluyente sin comprobante y con último autorizado menor al tentativo. Limpia el intento, vuelve a `borrador` y libera la serie. |
-| `arca_comprobante_para_emitir(p_tabla, p_id)` | Devuelve el comprobante + cliente + ítems agrupados por alícuota, con la base exenta separada (`ImpNeto` / `ImpOpEx`, §3.3), en la forma que necesita la Edge Function. Un solo viaje. Rechaza si `percepciones_monto ≠ 0`. |
-| `arca_token_get()` / `arca_token_set(...)` | Cache del ticket WSAA. Alcanzables **sólo con service-role**. |
-| `arca_solicitud_ultimo(p_tabla, p_id)` | Proyección autorizada para la UI: último resultado, errores, observaciones y estado. No devuelve request/response completos ni credenciales. |
+| `arca_registrar_incierto(p_tabla, p_id, p_request, p_response, p_error)` | Registra un resultado de transporte incierto sin afirmar que ARCA rechazó. Conserva el número tentativo y la serie reclamada para reconciliar. También convierte un `en_proceso` colgado (la función murió a mitad del envío) si tiene número tentativo; sin número no se envió nada y corresponde `error_previo`. |
+| `arca_confirmar_no_autorizado(p_tabla, p_id, p_ultimo_autorizado, p_request, p_response)` | Sólo tras consulta concluyente sin comprobante. Recibe el último autorizado y la base también verifica que sea menor al tentativo. Limpia el intento, vuelve a `borrador` y libera la serie. |
+| `arca_comprobante_para_emitir(p_tabla, p_id)` | Devuelve el comprobante en la forma de `FECAEDetRequest` (códigos ARCA incluidos, `Iva` agrupado por alícuota, exento en `ImpOpEx`, `CbtesAsoc` para NC/ND) más PV, tipo y número tentativo para reconciliar. Un solo viaje. Recalcula los importes desde los ítems y rechaza si no coinciden con la cabecera, si `percepciones_monto ≠ 0`, si la letra no es la clase del cliente o si el CUIT no es válido. |
+| `arca_token_get(p_servicio, p_margen_segundos)` / `arca_token_set(...)` | Cache del ticket WSAA. Si no hay TA vigente, da el turno de renovarlo a un solo llamador por minuto (`renovar`) y los demás reciben `esperar`. Alcanzables **sólo con service-role**. |
+| `arca_solicitud_ultimo(p_tabla, p_id)` | Proyección autorizada para la UI: estado, CAE, último resultado, errores y observaciones. No devuelve request/response ni credenciales. La puede llamar `authenticated` directo. |
 
 ### Cambios en RPCs existentes
 
@@ -413,7 +419,7 @@ Todas `SECURITY DEFINER SET search_path = public, pg_temp`, siguiendo el patrón
 | **Formulario de clientes** | `views/Clientes/`: tipo y número de documento + selector de condición IVA con el catálogo de ARCA (§3.2, obligatorio), en lugar de los cuatro textos actuales. |
 | **Letra de la factura** | `ComprobanteForm.jsx`: la letra sale de la `clase` de la condición IVA del cliente (§3.2) y no se puede elegir en contra; reemplaza a `tipoFacturaPara` y al aviso `letraDesvio`. |
 | **Validación previa** | Antes de emitir: condición IVA y documento del cliente; letra igual a la clase de la condición IVA (A: Responsable Inscripto y monotributos; B: el resto, §3.2); fecha fuera de ventana; percepciones distintas de cero. Se avisa antes de llamar a ARCA. Si hay percepción, se deriva al procedimiento fiscal vigente y no se sugiere eliminarla para emitir. La Edge Function/RPC repite las validaciones críticas. |
-| **`api/index.js`** | Nuevo bloque `arca`: `emitir(tabla, id)`, `reconciliar(tabla,id)`, `estado()`, `ultimoAutorizado(tipo)`, `solicitud(tabla,id)`. Invoca la Edge Function con el Bearer de la sesión. |
+| **`api/index.js`** | Nuevo bloque `arca`: `emitir(tabla, id)`, `reconciliar(tabla,id)`, `estado()`, `ultimoAutorizado(tipo)` invocan la Edge Function con el Bearer de la sesión; `solicitud(tabla,id)` llama a la RPC `arca_solicitud_ultimo`. |
 
 ---
 
@@ -577,6 +583,62 @@ queden en NULL antes de seguir — sin condición IVA no se puede emitir. Y como
 categoría de monotributo, revisar los candidatos que marca §3.2 (`Consumidor Final` con CUIT y
 último comprobante A): si quedan como Id 5, el sistema les va a exigir Factura B y ARCA la rechaza.
 
+**Resultado (15/10/2026): aplicada y verificada en homologación; producción pendiente.** Tres
+migraciones:
+
+- `20261015120000_arca_schema.sql`: `estado_fiscal` + `arca_nro_tentativo` en facturas y notas
+  (número fiscal opcional), con CHECKs que impiden un borrador con número, un autorizado sin CAE o un
+  incierto sin número tentativo. Catálogo `condiciones_iva_afip` (sólo lectura para el staff).
+  `arca_tokens`, `arca_series_en_curso` y `arca_solicitudes` sin políticas y sin privilegios para
+  nadie, ni siquiera `service_role`: sólo se llega por las RPCs. Un CHECK impide auditar el bloque
+  `Auth`.
+- `20261015120001_clientes_documento_condicion_iva.sql`: `doc_tipo` / `doc_nro` /
+  `condicion_iva_afip_id` con backfill (un número de 7–8 dígitos en el campo CUIT pasa a DNI; texto
+  sin equivalente o documento inválido abortan la migración con la lista), `UNIQUE (doc_tipo,
+  doc_nro)` y se borran `cuit` y `condicion_iva`. Se reescriben las 13 lecturas que los usaban
+  (misma clave `condicion_iva` con la descripción del catálogo, más `condicion_iva_afip_id` y
+  `clase`). `crear_factura` y `actualizar_factura` rechazan una letra distinta de la clase. En el
+  mismo cambio: formulario de clientes (tipo y número de documento, catálogo), letra de la factura
+  tomada de la clase y no editable, formato único del documento en listas, informes, Excel y PDF.
+- `20261015120002_rpc_arca.sql`: las RPCs de §4, con las firmas que figuran ahí.
+
+Verificado en homologación con datos sintéticos (6 clientes PRUEBA en el formato viejo + facturas
+históricas): backfill, restricciones, permisos (como `authenticated` no se leen las tres tablas;
+`anon` no lee el catálogo), letra = clase, payload de ARCA (FAC A 21 %, FAC B con DNI, dos
+alícuotas, gravado + exento, todo exento, descuento general, NC A con `CbtesAsoc`) y bloqueos
+(percepciones, CUIT de relleno, total editado a mano, fecha fuera de ventana, histórico, NC B sobre
+FAC A). El ciclo de emisión se simuló entero contra las RPCs: autorizado, CAE repetido idempotente,
+rechazo tardío que no pisa un autorizado, incierto que bloquea la serie, confirmación de no
+autorizado y recuperación del CAE, error previo, rechazo y CAE con número inesperado (queda auditado
+y la serie bloqueada). Frontend y PDF probados en Chrome contra homologación. Las advertencias de
+Supabase no agregan nada nuevo salvo `arca_solicitud_ultimo` ejecutable por `authenticated`, que es
+intencional.
+
+**Decisiones de implementación** (ya reflejadas en §2, §3.3 y §4): fecha fiscal = día del envío;
+la base entrega el payload con los códigos ARCA (mapeo.ts sólo arma el XML); `arca_registrar_cae`
+nunca aborta; turno de renovación del TA en `arca_token_get` (en la Fase 3, bajar el margen de
+`wsaa.ts` de 10 min a ~1 min: WSAA no da otro TA mientras el anterior siga vigente, así que
+descartarlo 10 minutos antes deja sin emitir); `arca_solicitud_ultimo` por RPC directa.
+
+**Producción** (antes del go-live): aplicar las tres migraciones **después de la carga de Tango del
+17/10** (el ETL escribe `cuit` y `condicion_iva`) y junto con el merge del frontend, por MCP
+`apply_migration` como el resto (el historial de prod no usa las versiones de los archivos). Antes,
+repetir la revisión de §3.2 con los datos reales: en el `.bak` del 25/09 hay 2 CUIT de relleno
+(`00-00000000-0` y uno `99-…`, que no se van a poder facturar hasta corregirlos) y 1 Resp. Inscripto
+cuyo último comprobante fue B; ningún Consumidor Final con CUIT y último comprobante A.
+
+**Para las Fases 3 y 4** (encontrado al implementar):
+- Los borradores todavía tienen efectos: el trigger contable `trg_asiento_auto_*` corre al insertar
+  (hoy el flag está apagado), `recalcular_estado_factura` resta todas las NC (también las borrador),
+  e informes y `crear_recibo` no filtran por `estado_fiscal`. `actualizar_factura` todavía permite
+  editar un comprobante `en_proceso`.
+- Con varias alícuotas, la suma de las bases redondeadas por alícuota puede diferir en un centavo del
+  neto redondeado de la cabecera; `arca_comprobante_para_emitir` lo bloquea. `crear_factura` /
+  `crear_nota` tienen que guardar totales que ya cuadren (neto = suma de las bases por alícuota).
+- El ETL de Tango no carga CAE: todo el histórico queda `historico`. Una NC/ND sobre una factura
+  histórica requiere verificarla con `FECompConsultar` (`verificar_asociado`); confirmar que la
+  consulta responde para el PV `00002` (Comprobantes en línea).
+
 ---
 
 ### Fase 3 — Emisión de Factura A/B en homologación *(el corazón)*
@@ -596,7 +658,8 @@ convertido a borrador.
 - Comprobante con `percepciones_monto ≠ 0` (forzado en la base) → **rechazado en el CRM**, sin
   llamar a ARCA.
 - Los números salen **consecutivos** y coinciden con `FECompUltimoAutorizado`.
-- **Validación local de fecha fuera de ventana** → bloqueada antes de llamar a ARCA. Además,
+- **Validación local de fecha fuera de ventana** → bloqueada antes de llamar a ARCA (verificado en
+  la Fase 2 contra la RPC; en el flujo normal no se da, porque la fecha es la del envío). Además,
   provocar un rechazo funcional controlado en homologación → queda `rechazado` con el error legible
   de ARCA en `arca_solicitudes`.
 - **Recuperación por timeout**: simular en homologación una respuesta perdida tras autorizar;
@@ -671,7 +734,7 @@ vigentes y nunca se borran ni se retroceden.
 | 0 — Trámite ARCA (homologación) | ✅ 15/10/2026 — certificado, autorización `wsfe`, PV 1 y proyecto Supabase de homologación |
 | 0 — Trámite ARCA (producción) | ⬜ pendiente |
 | 1 — Spike firma CMS | ✅ 15/10/2026 — `GET /arca/estado` desplegado en homologación: FEDummy OK y TA real de WSAA |
-| 2 — Schema y catálogos | ⬜ pendiente |
+| 2 — Schema y catálogos | 🟨 15/10/2026 — aplicada y verificada en homologación (RPCs, frontend y PDF); falta producción, después de la carga de Tango y junto con el merge |
 | 3 — Emisión Factura A/B | ⬜ pendiente |
 | 4 — NC/ND | ⬜ pendiente |
 | 5 — UI y reintento | ⬜ pendiente |

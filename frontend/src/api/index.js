@@ -14,9 +14,10 @@ const pagina = (limit, offset) => (limit ? { p_limit: limit, p_offset: offset ||
 
 // Normalizadores (trim / defaults / tipos) equivalentes a los del backend.
 const cli = (d) => ({
-  razon_social:         d.razon_social?.trim(),
-  cuit:                 d.cuit?.trim(),
-  condicion_iva:        d.condicion_iva || 'Resp. Inscripto',
+  razon_social:          d.razon_social?.trim(),
+  doc_tipo:              +d.doc_tipo,
+  doc_nro:               String(d.doc_nro ?? '').replace(/\D/g, ''),
+  condicion_iva_afip_id: +d.condicion_iva_afip_id,
   direccion:            d.direccion ?? null,
   localidad:            d.localidad ?? null,
   provincia:            d.provincia || 'Buenos Aires',
@@ -93,7 +94,14 @@ export const ClientesAPI = {
       p_q: q || null,
       p_activo: activo === undefined ? null : (activo === true || activo === 'true'),
     }),
-  get:    (id)      => supabase.from('clientes').select('*').eq('id', id).maybeSingle().then(unwrap),
+  // Misma forma que clientes_list: la condición IVA como descripción del catálogo, más su clase.
+  get:    (id)      => supabase.from('clientes').select('*, cond:condiciones_iva_afip(descripcion, clase)')
+    .eq('id', id).maybeSingle().then(unwrap)
+    .then((c) => {
+      if (!c) return c
+      const { cond, ...r } = c
+      return { ...r, condicion_iva: cond.descripcion, clase: cond.clase }
+    }),
   create: (data)    => supabase.from('clientes').insert(cli(data)).select().single().then(unwrap),
   update: (id,data) => supabase.from('clientes').update(cli(data)).eq('id', id).select().single().then(unwrap),
   delete: (id)      => supabase.from('clientes').update({ activo: false }).eq('id', id).then(unwrap).then(() => ({ ok: true })),
@@ -359,6 +367,11 @@ export const MaterialesAPI = {
 // ── ALÍCUOTAS IVA (catálogo p/ selects) ──────────────────────────────
 export const AlicuotasIvaAPI = {
   list: () => supabase.from('alicuotas_iva').select('*').eq('activo', true).order('porcentaje').then(unwrap),
+}
+
+// ── CONDICIONES IVA DEL RECEPTOR (catálogo de ARCA, RG 5616; sólo lectura) ──
+export const CondicionesIvaAPI = {
+  list: () => supabase.from('condiciones_iva_afip').select('*').order('clase').order('id').then(unwrap),
 }
 
 // ── FACTURAS DE COMPRA ───────────────────────────────────────────────

@@ -5,7 +5,7 @@
 import PDFDocument from 'npm:pdfkit@0.15.0'
 import { Buffer } from 'node:buffer'
 import {
-  COLORES, $ar, fFecha,
+  COLORES, $ar, fFecha, fDocNro,
   dibujarHeader, dibujarCabeceraTabla, dibujarFilaItem, dibujarFooter, textoTenue,
 } from './base.ts'
 
@@ -41,7 +41,7 @@ export async function generarRankingDeudores(deudores: any[], empresa: any): Pro
     const cols = [
       { label: '#',             w: 28,  align: 'center' },
       { label: 'Cliente',       w: 200, align: 'left'   },
-      { label: 'CUIT',          w: 95,  align: 'left'   },
+      { label: 'CUIT / DNI',    w: 95,  align: 'left'   },
       { label: 'Teléfono',      w: 85,  align: 'left'   },
       { label: 'Fact. pend.',   w: 65,  align: 'center' },
       { label: 'Total adeudado',w: 95,  align: 'right'  },
@@ -55,7 +55,7 @@ export async function generarRankingDeudores(deudores: any[], empresa: any): Pro
       y = dibujarFilaItem(doc, y, [
         i + 1,
         d.razon_social.length > 32 ? d.razon_social.slice(0, 32) + '…' : d.razon_social,
-        d.cuit,
+        fDocNro(d.doc_tipo, d.doc_nro),
         d.telefono || '—',
         d.facturas_pendientes,
         $ar(d.total_pendiente),
@@ -140,7 +140,7 @@ export async function generarResumenVentas(data: any, empresa: any, desde: any, 
 
     const colsCli = [
       { label: 'Cliente',       w: 220, align: 'left'   },
-      { label: 'CUIT',          w: 95,  align: 'left'   },
+      { label: 'CUIT / DNI',    w: 95,  align: 'left'   },
       { label: 'Facturas',      w: 60,  align: 'center' },
       { label: 'Total',         w: 100, align: 'right'  },
       { label: 'Pendiente',     w: ancho - 220 - 95 - 60 - 100, align: 'right' },
@@ -149,7 +149,7 @@ export async function generarResumenVentas(data: any, empresa: any, desde: any, 
     por_cliente.forEach((c: any, i: number) => {
       y = dibujarFilaItem(doc, y, [
         c.razon_social.length > 34 ? c.razon_social.slice(0, 34) + '…' : c.razon_social,
-        c.cuit,
+        fDocNro(c.doc_tipo, c.doc_nro),
         c.cantidad_facturas,
         $ar(c.total_facturado),
         parseFloat(c.pendiente) > 0 ? $ar(c.pendiente) : '✓ Cobrada',
@@ -428,7 +428,7 @@ export async function generarLibroIvaVentas(data: any, empresa: any, filtros: an
       { label: 'Fecha',        w: 50,  align: 'left'  },
       { label: 'Comprobante',  w: 105, align: 'left'  },
       { label: 'Cliente',      w: ancho - 50 - 105 - 75 - 65 - 85 - 80 - 65 - 90, align: 'left' },
-      { label: 'CUIT',         w: 75,  align: 'left'  },
+      { label: 'CUIT / DNI',   w: 75,  align: 'left'  },
       { label: 'Cond. IVA',    w: 65,  align: 'left'  },
       { label: 'Neto',         w: 85,  align: 'right' },
       { label: 'IVA',          w: 80,  align: 'right' },
@@ -442,7 +442,7 @@ export async function generarLibroIvaVentas(data: any, empresa: any, filtros: an
         fFecha(c.fecha),
         `${c.comprobante} ${c.letra || ''} ${c.numero || ''}`.replace(/\s+/g, ' ').trim(),
         c.anulada ? `${c.razon_social || '—'} (ANULADA)` : (c.razon_social || '—'),
-        c.cuit || '—',
+        fDocNro(c.doc_tipo, c.doc_nro) || '—',
         c.condicion_iva || '—',
         $ar(c.neto_gravado),
         $ar(c.iva_monto),

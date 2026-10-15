@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { FacturasAPI, ClientesAPI, ProductosAPI, AlicuotasIvaAPI, RemitosAPI } from '../../api'
-import { $ar, fFecha } from '../../utils'
+import { $ar, fFecha, fDocNro } from '../../utils'
 import { Badge, Loading, EmptyState, Paginador, RowActions } from '../../components/UI'
 import ComprobanteForm from '../../components/Forms/ComprobanteForm'
 import ReciboForm from '../../components/Forms/ReciboForm'
@@ -122,7 +122,7 @@ export default function Facturas() {
                   <td>{fFecha(f.fecha)}</td>
                   <td>
                     <div className="td-bold">{f.razon_social}</div>
-                    <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{f.cuit}</div>
+                    <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{fDocNro(f.doc_tipo, f.doc_nro)}</div>
                   </td>
                   <td>
                     {f.remito_numero

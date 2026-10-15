@@ -10,6 +10,7 @@
 // deno-lint-ignore-file no-explicit-any
 import PDFDocument from 'npm:pdfkit@0.15.0'
 import { Buffer } from 'node:buffer'
+import { fDoc, fDocNro } from './base.ts'
 
 // 1 pulgada = 25.4 mm = 72 pt
 export const mm = (n: number) => (n * 72) / 25.4
@@ -105,7 +106,9 @@ function dibujarHoja(doc: any, remito: any, off: { dx: number; dy: number }) {
   poner(remito.direccion,            MAPA.direccion, { size: DATOS_MIN })
   poner(remito.localidad,            MAPA.localidad, { size: DATOS_MIN })
   poner(remito.condicion_iva,        MAPA.iva,  { size: DATOS_MIN })
-  poner(remito.cuit,                 MAPA.cuit, { size: DATOS_MIN })
+  // El renglón del talonario dice C.U.I.T.: un CUIT va sólo el número; un DNI, con su tipo.
+  poner(+remito.doc_tipo === 80 ? fDocNro(80, remito.doc_nro) : fDoc(remito.doc_tipo, remito.doc_nro),
+        MAPA.cuit, { size: DATOS_MIN })
   poner(remito.condiciones_venta,    MAPA.condiciones_venta)
   poner(remito.domicilio_obra,       MAPA.domicilio_obra,  { size: DATOS_MIN })
   poner(remito.telefono_entrega,     MAPA.telefono,        { size: DATOS_MIN })

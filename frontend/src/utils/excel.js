@@ -72,7 +72,8 @@ export const nombreArchivo = (...partes) =>
 
 // Cuenta corriente de un cliente o proveedor (`informe_cta_cte` / `informe_cta_cte_proveedor`):
 // mismas columnas que la pantalla. `data.desde` / `data.hasta` son los de la consulta.
-export function exportarCtaCte(data, entidad, rotulo) {
+// `documento` viene armado ("CUIT 30-…" / "DNI …"): clientes y proveedores lo guardan distinto.
+export function exportarCtaCte(data, entidad, rotulo, documento) {
   const periodo = data.desde || data.hasta
     ? `Período: ${data.desde ? fFecha(data.desde) : 'inicio'} al ${data.hasta ? fFecha(data.hasta) : 'hoy'}`
     : `Al ${fFecha(hoy())}`
@@ -80,7 +81,7 @@ export function exportarCtaCte(data, entidad, rotulo) {
     nombre: 'Cuenta corriente',
     encabezado: [
       `Cuenta corriente — ${entidad.razon_social}`,
-      `${rotulo} · CUIT ${entidad.cuit || '—'} · ${entidad.condicion_iva || ''}`,
+      `${rotulo} · ${documento} · ${entidad.condicion_iva || ''}`,
       periodo,
       `${data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}: ${$ar(data.saldo_total)}`,
     ],

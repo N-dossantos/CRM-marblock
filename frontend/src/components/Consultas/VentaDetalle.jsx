@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { Modal, Badge } from '../UI'
 import PDFModal from '../PDFModal'
 import { pdfUrl } from '../../api'
-import { $ar, fFecha } from '../../utils'
+import { $ar, fFecha, fDoc } from '../../utils'
 
 const DOC_LABEL = {
   factura:     'Factura',
@@ -118,7 +118,7 @@ export default function VentaDetalle({ doc, onClose, acciones = null }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 12, marginBottom: 14, borderBottom: '1px solid var(--gray-100)' }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-800)' }}>{doc.razon_social}</div>
-            {doc.cuit && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>CUIT {doc.cuit}</div>}
+            {doc.doc_nro && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>{fDoc(doc.doc_tipo, doc.doc_nro)}</div>}
           </div>
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <Field label="Fecha">{fFecha(doc.fecha)}</Field>

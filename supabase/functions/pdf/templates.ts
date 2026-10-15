@@ -5,7 +5,7 @@
 import PDFDocument from 'npm:pdfkit@0.15.0'
 import { Buffer } from 'node:buffer'
 import {
-  COLORES, $ar, fFecha,
+  COLORES, $ar, fFecha, fDoc,
   dibujarHeader, dibujarCliente, dibujarCabeceraTabla,
   dibujarFilaItem, dibujarTotales, dibujarFooter, calcularDetalleAlicuotas, textoTenue,
 } from './base.ts'
@@ -426,7 +426,7 @@ export async function generarCtaCte(data: any, empresa: any, filtros: any = {}):
     doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('CLIENTE', M + 10, y + 14)
     doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(12).text(cliente.razon_social, M + 10, y + 24, { width: ancho * 0.6 })
     doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8.5)
-       .text(`CUIT: ${cliente.cuit}  ·  ${cliente.condicion_iva}`, M + 10, y + 40)
+       .text(`${fDoc(cliente.doc_tipo, cliente.doc_nro)}  ·  ${cliente.condicion_iva}`, M + 10, y + 40)
 
     // Saldo (derecha)
     const saldoColor = saldo_total > 0 ? COLORES.rojo : saldo_total < 0 ? COLORES.verde : COLORES.gris_texto
