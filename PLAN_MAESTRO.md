@@ -775,8 +775,10 @@ Migraciones ya bosquejadas para el caso (B): `…_pedidos_schema.sql` + `…_rpc
   `00010101–00010400`. **Hay que reponer antes de esa fecha.**
 - 📅 **El certificado ARCA de homologación vence el 14/10/2028** (alias `crmmarblockhomo2`, emitido
   por el WSASS el 15/10/2026). Sólo afecta las pruebas; se renueva con *Agregar Certificado a Alias*.
-  Cuando se emita el de producción, anotar acá su vencimiento: sin certificado vigente no se factura
-  (`PLAN_ARCA.md` §10).
+- 📅 **El certificado ARCA de producción vence el 14/10/2028** (alias `crmmarblock`, de Marblock
+  S.A., emitido por *Administración de Certificados Digitales* el 15/10/2026). **Sin certificado
+  vigente no se factura** (`PLAN_ARCA.md` §10): renovarlo con tiempo (nueva clave y CSR, mismo alias)
+  y actualizar el secret `ARCA_CERT` de producción.
 - ⚠️ **Riesgo residual asumido en remitos:** el número lo tipea un humano. El `UNIQUE` impide
   duplicados pero **no** detecta un error de tipeo que caiga en un número libre. El prellenado con
   `remito_numero_sugerido()` + el aviso de desvío (>10 hojas) son mitigación, no garantía.

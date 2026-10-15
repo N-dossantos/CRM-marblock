@@ -226,8 +226,9 @@ a un emisor Responsable Inscripto):
 | 10 | IVA Liberado – Ley N° 19.640 | B |
 | 15 | IVA No Alcanzado | B |
 
-> El catálogo se siembra en la migración con estos valores (Id, descripción y `clase`) y se vuelve a
-> verificar contra producción en la Fase 7. Si ARCA agregó o cambió algún Id o su clase, gana ARCA.
+> El catálogo se siembra en la migración con estos valores (Id, descripción y `clase`). **Producción
+> devolvió los mismos Ids por clase el 15/10/2026** (A: 1, 6, 13, 16; B: 4, 5, 7, 8, 9, 10, 15); se
+> repite el control en la Fase 7. Si ARCA agregó o cambió algún Id o su clase, gana ARCA.
 
 **La letra la decide la clase, no una regla propia.** Factura A ⇔ condición de clase A (Responsable
 Inscripto **y los tres monotributos**); Factura B ⇔ clase B. A un monotributista le corresponde
@@ -385,6 +386,9 @@ Todas `SECURITY DEFINER SET search_path = public, pg_temp`, siguiendo el patrón
   sin número fiscal. Las notas nuevas sólo se pueden asociar a facturas `autorizado`. Para una
   factura `historico` sin CAE local, permitir emisión sólo tras verificar por `FECompConsultar` que
   ARCA reconoce el comprobante asociado y están todos los datos de `CbtesAsoc`.
+  ⚠ **No sirve para el PV `00002`:** en producción, WSFEv1 responde `11002 — El punto de venta no se
+  encuentra habilitado a usar en el presente WS` (15/10/2026), así que una factura histórica de la
+  web de ARCA no se puede consultar por WS. A definir en la Fase 4 (ver allí).
 - **Efectos comerciales sólo al autorizar**: crear un borrador no lo incluye en cuenta corriente,
   saldo, informes ni métricas de facturación; tampoco marca remitos facturados ni presupuestos
   convertidos. `arca_registrar_cae` aplica esos cambios atómicamente. Para evitar dos borradores
@@ -503,22 +507,40 @@ trámites de producción habilitan sólo la Fase 7 y pueden esperar.
 
 ### 7.2 Producción — habilita la Fase 7
 
-1. Generar **otra** clave privada y CSR, distintos de los de homologación:
+> **Estado al 15/10/2026: hecho.** Certificado de **Marblock S.A.**, alias `crmmarblock` (emisor
+> `CN=Computadores, O=AFIP`, válido hasta **14/10/2028**), con relación a Facturación Electrónica;
+> PV de producción = **`00003`** ("CAE - Ri Iva", no bloqueado). Verificado desde la máquina local:
+> `FEDummy` OK, TA de WSAA para `wsfe` (`destination` = `CN=crmmarblock`, CUIT de Marblock),
+> `FEParamGetPtosVenta` lista el PV 3 y `FECompUltimoAutorizado(PV 3)` da 0 en los seis tipos. Los
+> secrets de producción se cargan en la Fase 7.
+
+En todos los pasos, al entrar con clave fiscal elegir **representar a Marblock S.A.**: a diferencia
+del de homologación, el certificado es de la empresa y no de la persona física.
+
+1. Generar **otra** clave privada y CSR, distintos de los de homologación. El `serialNumber` lleva el
+   **CUIT de Marblock**; el alias va **sin guiones** y es el mismo valor del `CN`:
    ```bash
-   openssl genrsa -out arca_prod.key 2048
-   openssl req -new -key arca_prod.key \
-     -subj "/C=AR/O=<razon social>/CN=crm-marblock/serialNumber=CUIT <cuit sin guiones>" \
-     -out arca_prod.csr
+   (umask 077 && openssl genrsa -out ~/.arca/marblock/arca_prod.key 2048 && \
+    openssl req -new -key ~/.arca/marblock/arca_prod.key \
+      -subj "/C=AR/O=Marblock SA/CN=crmmarblock/serialNumber=CUIT <CUIT de Marblock sin guiones>" \
+      -out ~/.arca/marblock/arca_prod.csr)
    ```
-2. Con clave fiscal → **Administración de Certificados Digitales**: crear un alias (Computador
-   Fiscal), subir el CSR, descargar el certificado.
-3. → **Administrador de Relaciones de Clave Fiscal** → *Nueva Relación* → servicio
-   **Facturación Electrónica / `wsfe`** (Webservices) → representante: el certificado del paso 2.
-   Sin este paso el certificado autentica pero no puede facturar.
-4. → **Administración de Puntos de Venta y Domicilios** → *Alta de punto de venta* → Sistema:
-   **"RECE para aplicativo y web services"**. **Anotar el número** (p. ej. `00003`) — va en el
-   secret `ARCA_PUNTO_VENTA` del proyecto de producción.
+2. **Administración de Certificados Digitales** → *Agregar alias* (`crmmarblock`) + subir el CSR →
+   *Ver* → descargar el certificado. Guardarlo como `arca_prod.crt` (`600`) y verificar contra la
+   clave con los dos hashes de §7.1 paso 2.
+3. **Administrador de Relaciones de Clave Fiscal** → *Nueva Relación* → ARCA → WebServices →
+   **Facturación Electrónica**. Autorizante: Marblock S.A.; representante: tipo **Computador
+   Fiscal**, buscado con el **CUIT de Marblock**, alias `crmmarblock`. Sin este paso WSAA no da TA
+   para `wsfe`.
+4. **Administración de Puntos de Venta y Domicilios** → *A/B/M de Puntos de Venta* → *Agregar* →
+   Sistema: **"RECE para aplicativo y web services"**. **Anotar el número**: va en el secret
+   `ARCA_PUNTO_VENTA` del proyecto de producción. El PV `00002` (web de ARCA) no se toca: convive
+   con el nuevo, cada uno con su numeración, y es la contingencia de la Fase 7.
 5. Verificar con `FEDummy` y `FEParamGetPtosVenta` que el PV aparece y está habilitado.
+   - **El TA de producción también dura 12 h y WSAA no da otro mientras esté vigente**: el de la
+     verificación del 15/10 quedó en `~/.arca/marblock/ta_wsfe_prod.xml` (`600`, venció el 16/10 a
+     las 00:19). No hacer pruebas locales con el certificado de producción poco antes de que la
+     Edge Function necesite su propio TA.
 
 > **Endpoints:** usar los publicados en la documentación oficial vigente, sin sustituir
 > automáticamente dominios `afip.gov.ar` por `arca.gob.ar`. A la fecha de esta revisión el manual
@@ -636,8 +658,9 @@ cuyo último comprobante fue B; ningún Consumidor Final con CUIT y último comp
   neto redondeado de la cabecera; `arca_comprobante_para_emitir` lo bloquea. `crear_factura` /
   `crear_nota` tienen que guardar totales que ya cuadren (neto = suma de las bases por alícuota).
 - El ETL de Tango no carga CAE: todo el histórico queda `historico`. Una NC/ND sobre una factura
-  histórica requiere verificarla con `FECompConsultar` (`verificar_asociado`); confirmar que la
-  consulta responde para el PV `00002` (Comprobantes en línea).
+  histórica requiere verificarla con `FECompConsultar` (`verificar_asociado`). **Comprobado el
+  15/10/2026: no responde para el PV `00002`** (web de ARCA): error `11002`, el PV no está habilitado
+  en WSFEv1. Ver la Fase 4.
 
 ---
 
@@ -685,6 +708,13 @@ crear el borrador y se recalcula al autorizar por `recalcular_estado_factura`. I
 rechazarse **en el CRM**, antes de llegar a ARCA. **ND A totalmente exenta** (el caso real más común
 de exento en Tango, §1) → `ImpOpEx` = total, `ImpNeto = 0`, sin array `Iva`, y CAE otorgado.
 
+**A decidir al arrancar la fase:** NC/ND sobre una factura **histórica** (PV `00002`, emitida en la
+web de ARCA). `FECompConsultar` no la puede verificar (`11002`, §4), así que `verificar_asociado`
+no tiene cómo cumplirse por WS. Opciones: confiar en la validación de `CbtesAsoc` que hace ARCA al
+pedir el CAE (con `Cuit` y `CbteFch` del asociado), o seguir emitiendo esas notas en la web de ARCA
+hasta que no queden facturas históricas con saldo. Probar en homologación qué responde
+`FECAESolicitar` con un `CbtesAsoc` inexistente antes de elegir.
+
 ---
 
 ### Fase 5 — UI y ciclo de reintento
@@ -713,7 +743,8 @@ codifica mal los datos se ve idéntico.
 1. Cargar los secrets de producción (`ARCA_CERT`, `ARCA_KEY`, `ARCA_CUIT`, `ARCA_AMBIENTE` y
    `ARCA_PUNTO_VENTA`, §7.2) en el proyecto Supabase de producción.
 2. Confirmar que frontend de producción apunta al proyecto/base y Edge Function de producción.
-3. Confirmar `FEDummy` y `FEParamGetPtosVenta` contra producción.
+3. Confirmar `FEDummy` y `FEParamGetPtosVenta` contra producción (ya dieron OK desde local el
+   15/10/2026, §7.2; repetirlo desde la Edge Function).
 4. **Emitir una primera factura real, chica, a un cliente conocido.** Verificar en *Mis Comprobantes*
    de ARCA que figura, y contrastar importes.
 5. Recién con eso OK: **dejar de cargar facturas en la web de ARCA**. Fin de la doble carga.
@@ -732,7 +763,7 @@ vigentes y nunca se borran ni se retroceden.
 | Fase | Estado |
 |---|---|
 | 0 — Trámite ARCA (homologación) | ✅ 15/10/2026 — certificado, autorización `wsfe`, PV 1 y proyecto Supabase de homologación |
-| 0 — Trámite ARCA (producción) | ⬜ pendiente |
+| 0 — Trámite ARCA (producción) | ✅ 15/10/2026 — certificado `crmmarblock` de Marblock S.A. (vence 14/10/2028), relación `wsfe` y PV `00003` verificados |
 | 1 — Spike firma CMS | ✅ 15/10/2026 — `GET /arca/estado` desplegado en homologación: FEDummy OK y TA real de WSAA |
 | 2 — Schema y catálogos | 🟨 15/10/2026 — aplicada y verificada en homologación (RPCs, frontend y PDF); falta producción, después de la carga de Tango y junto con el merge |
 | 3 — Emisión Factura A/B | ⬜ pendiente |
