@@ -23,6 +23,7 @@
 | **Tributos** | Sólo IVA en la primera entrega | El histórico de Tango no contiene percepciones, pero el CRM actual ya permite cargarlas. Si `percepciones_monto ≠ 0`, la emisión se bloquea antes de llamar a ARCA y la UI deriva al procedimiento fiscal vigente; no ofrece quitar la percepción sólo para habilitar la emisión. Mapear percepciones a `Tributos` queda fuera de esta entrega. |
 | **Operaciones exentas** | Van a `ImpOpEx`, no al array `Iva` | En Tango hay comprobantes con importe exento: el renglón `Exento (0%)` de `alicuotas_iva` es **exento**, no "gravado al 0 %" (ver §3.1). |
 | **Factura B** | Receptores identificados con CUIT o DNI | No hay venta de mostrador anónima; no hace falta el flujo `DocTipo 99 / DocNro 0`. |
+| **NC/ND sobre facturas históricas** | Se emiten desde el CRM; la factura de referencia se consulta **a mano en la web de ARCA** cuando haga falta | `FECompConsultar` no responde para el PV `00002` (`11002`, 15/10/2026). No se esperan NC/ND a corto plazo. |
 
 ### Lo que muestra Tango (`MARBLOCK_SA.bak`, 25/09/2026)
 
@@ -383,21 +384,19 @@ Todas `SECURITY DEFINER SET search_path = public, pg_temp`, siguiendo el patrón
 ### Cambios en RPCs existentes
 
 - **`crear_factura` / `crear_nota`**: dejan de llamar a `siguiente_numero`. Insertan como borrador,
-  sin número fiscal. Las notas nuevas sólo se pueden asociar a facturas `autorizado`. Para una
-  factura `historico` sin CAE local, permitir emisión sólo tras verificar por `FECompConsultar` que
-  ARCA reconoce el comprobante asociado y están todos los datos de `CbtesAsoc`.
-  ⚠ **No sirve para el PV `00002`:** en producción, WSFEv1 responde `11002 — El punto de venta no se
-  encuentra habilitado a usar en el presente WS` (15/10/2026), así que una factura histórica de la
-  web de ARCA no se puede consultar por WS. A definir en la Fase 4 (ver allí).
+  sin número fiscal. Las notas nuevas sólo se pueden asociar a facturas `autorizado`, salvo una
+  factura `historico` (PV `00002`, sin CAE local): se permite, pero la factura de referencia se
+  verifica **a mano en la web de ARCA**. WSFEv1 no la puede consultar: `FECompConsultar` responde
+  `11002 — El punto de venta no se encuentra habilitado a usar en el presente WS` (probado en
+  producción el 15/10/2026). ARCA igual valida `CbtesAsoc` al pedir el CAE.
 - **Efectos comerciales sólo al autorizar**: crear un borrador no lo incluye en cuenta corriente,
   saldo, informes ni métricas de facturación; tampoco marca remitos facturados ni presupuestos
   convertidos. `arca_registrar_cae` aplica esos cambios atómicamente. Para evitar dos borradores
   basados en el mismo presupuesto/remito, comprobar si ya hay otro borrador activo asociado.
 - **Notas sólo ajustan saldo tras CAE**: `crear_nota` no llama a `recalcular_estado_factura`; la
   autorización de la nota bloquea la fila de factura asociada, registra CAE y recalcula el saldo en
-  la misma transacción para evitar perder actualizaciones entre notas concurrentes. Para asociar
-  una nota a una factura histórica sin CAE local, verificar primero que ARCA la reconoce y que hay
-  datos suficientes para armar `CbtesAsoc`.
+  la misma transacción para evitar perder actualizaciones entre notas concurrentes. Si la factura
+  asociada es histórica, aplica la verificación manual del punto anterior.
 - **`actualizar_factura`**: hoy permite editar mientras `estado='pendiente'`. Pasa a permitir sólo
   `estado_fiscal IN ('borrador','rechazado')`; recalcula importes server-side y limpia el último
   rechazo y `arca_nro_tentativo` al guardar. **Una factura con CAE o en estado incierto es inmutable.**
@@ -657,10 +656,9 @@ cuyo último comprobante fue B; ningún Consumidor Final con CUIT y último comp
 - Con varias alícuotas, la suma de las bases redondeadas por alícuota puede diferir en un centavo del
   neto redondeado de la cabecera; `arca_comprobante_para_emitir` lo bloquea. `crear_factura` /
   `crear_nota` tienen que guardar totales que ya cuadren (neto = suma de las bases por alícuota).
-- El ETL de Tango no carga CAE: todo el histórico queda `historico`. Una NC/ND sobre una factura
-  histórica requiere verificarla con `FECompConsultar` (`verificar_asociado`). **Comprobado el
-  15/10/2026: no responde para el PV `00002`** (web de ARCA): error `11002`, el PV no está habilitado
-  en WSFEv1. Ver la Fase 4.
+- El ETL de Tango no carga CAE: todo el histórico queda `historico`. `FECompConsultar` no responde
+  para el PV `00002` (web de ARCA, error `11002`, comprobado el 15/10/2026), así que una NC/ND sobre
+  una factura histórica se verifica a mano en la web de ARCA (Fase 4).
 
 ---
 
@@ -699,7 +697,7 @@ convertido a borrador.
 
 ### Fase 4 — Notas de Crédito y Débito
 
-**Entregables:** `crear_nota` convertida a borrador sólo sobre una factura autorizada; `CbtesAsoc`
+**Entregables:** `crear_nota` convertida a borrador sólo sobre una factura autorizada o histórica; `CbtesAsoc`
 armado desde `notas.factura_id`; validación de coincidencia de letra. El saldo no cambia hasta el
 CAE de la nota.
 
@@ -708,12 +706,12 @@ crear el borrador y se recalcula al autorizar por `recalcular_estado_factura`. I
 rechazarse **en el CRM**, antes de llegar a ARCA. **ND A totalmente exenta** (el caso real más común
 de exento en Tango, §1) → `ImpOpEx` = total, `ImpNeto = 0`, sin array `Iva`, y CAE otorgado.
 
-**A decidir al arrancar la fase:** NC/ND sobre una factura **histórica** (PV `00002`, emitida en la
-web de ARCA). `FECompConsultar` no la puede verificar (`11002`, §4), así que `verificar_asociado`
-no tiene cómo cumplirse por WS. Opciones: confiar en la validación de `CbtesAsoc` que hace ARCA al
-pedir el CAE (con `Cuit` y `CbteFch` del asociado), o seguir emitiendo esas notas en la web de ARCA
-hasta que no queden facturas históricas con saldo. Probar en homologación qué responde
-`FECAESolicitar` con un `CbtesAsoc` inexistente antes de elegir.
+**NC/ND sobre una factura histórica (decidido el 15/10/2026):** se emiten desde el CRM como
+cualquier otra; cuando haga falta, la factura de referencia (PV `00002`, emitida en la web de ARCA)
+se consulta a mano en la web de ARCA, porque `FECompConsultar` no la puede verificar (`11002`, §4).
+La Edge Function **no** llama a `FECompConsultar` para el asociado; el `verificar_asociado` que ya
+devuelve `arca_comprobante_para_emitir` puede quedar como aviso en la UI. No se esperan NC/ND a
+corto plazo.
 
 ---
 
