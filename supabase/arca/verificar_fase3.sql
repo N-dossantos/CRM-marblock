@@ -132,7 +132,7 @@ BEGIN
     'no consume el contador factura_a');
   PERFORM pg_temp.ok(pg_temp.cambios(pg_temp.foto(cli), base) = '',
     'no cambia saldo ni facturado del cliente, cta. cte., dashboard, informe de ventas, libro IVA, rankings ni pendientes'
-    || NULLIF(' [cambió: ' || pg_temp.cambios(pg_temp.foto(cli), base) || ']', ' [cambió: ]'));
+    || COALESCE(NULLIF(' [cambió: ' || pg_temp.cambios(pg_temp.foto(cli), base) || ']', ' [cambió: ]'), ''));
   PERFORM pg_temp.ok(EXISTS (SELECT 1 FROM facturas_list(p_cliente_id => cli) x WHERE (x->>'id')::int = b),
     'facturas_list sin filtro de estado sí lo muestra');
 END $$;
@@ -286,16 +286,20 @@ DECLARE
   fh   int := pg_temp.fac_hist();
   base jsonb;
   est  text;
+  nc   int;
 BEGIN
   PERFORM recalcular_estado_factura(fh);
   base := pg_temp.foto(cli);
   est  := (SELECT estado FROM facturas WHERE id = fh);
   INSERT INTO notas (tipo, tipo_letra, fecha, factura_id, cliente_id, neto_gravado, iva_monto, total, estado_fiscal)
-  VALUES ('NC', 'A', pg_temp.hoy(), fh, cli, 100000, 21000, 121000, 'borrador');
+  VALUES ('NC', 'A', pg_temp.hoy(), fh, cli, 100000, 21000, 121000, 'borrador')
+  RETURNING id INTO nc;
   PERFORM recalcular_estado_factura(fh);
   PERFORM pg_temp.ok((SELECT estado FROM facturas WHERE id = fh) = est AND pg_temp.cambios(pg_temp.foto(cli), base) = '',
     'una NC borrador por el total no cobra la factura ni cambia saldos, cta. cte., dashboard ni libro IVA'
-    || NULLIF(' [cambió: ' || pg_temp.cambios(pg_temp.foto(cli), base) || ']', ' [cambió: ]'));
+    || COALESCE(NULLIF(' [cambió: ' || pg_temp.cambios(pg_temp.foto(cli), base) || ']', ' [cambió: ]'), ''));
+  -- Desde la Fase 4, factura_anular no anula una factura con notas sin CAE (sección 11).
+  DELETE FROM notas WHERE id = nc;
 END $$;
 
 \echo '── 9) Asiento automático: un borrador no genera asiento'
