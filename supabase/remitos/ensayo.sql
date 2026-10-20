@@ -13,6 +13,7 @@
 BEGIN;
 \ir semilla_backfill.sql
 \ir ../migrations/20261020160000_remito_factura_asignaciones.sql
+\ir ../migrations/20261020160001_rpc_remitos_asignaciones.sql
 \ir verificar_asignaciones.sql
 ROLLBACK;
 \echo '── Fin: ROLLBACK (la base queda como estaba)'

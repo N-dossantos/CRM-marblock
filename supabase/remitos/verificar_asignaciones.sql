@@ -266,3 +266,177 @@ BEGIN
   PERFORM pg_temp.ok(pg_temp.pend(f6, r29) = '{"dbloque hueco 12": 60}',
     '2.9 excluyendo ese remito (edición): F6 vuelve a 60');
 END $$;
+
+-- ── Helpers de la sección 3: las RPC de remitos, como las llama el frontend (authenticated) ──
+-- Ítems para las RPC a partir de [{"p": "bloque", "c": 2520, "a": [{"f": "f1", "c": 2520}]}]:
+-- [{"producto_id", "descripcion", "cantidad", "asignaciones": [{"factura_id", "cantidad"}]}].
+CREATE FUNCTION pg_temp.items(p_items jsonb) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT jsonb_agg(jsonb_build_object(
+           'producto_id', r.producto_id, 'descripcion', r.descripcion, 'cantidad', r.cantidad,
+           'asignaciones', COALESCE((
+             SELECT jsonb_agg(jsonb_build_object('factura_id', pg_temp.id(a->>'f'), 'cantidad', (a->>'c')::numeric)
+                              ORDER BY m)
+             FROM jsonb_array_elements(x.it->'a') WITH ORDINALITY y(a, m)), '[]'))
+         ORDER BY x.n)
+  FROM jsonb_array_elements(p_items) WITH ORDINALITY x(it, n)
+  JOIN pg_temp.renglones(p_items) r ON r.orden = x.n $$;
+
+-- crear_remito para el cliente 'cli' con el próximo número del PV 09999 (09999-0000000N, igual que
+-- pg_temp.remito). Devuelve el id.
+CREATE FUNCTION pg_temp.crear(p_items jsonb) RETURNS int LANGUAGE plpgsql AS $$
+DECLARE v_comp int := (SELECT count(*) + 1 FROM remitos WHERE punto_venta = '09999');
+BEGIN
+  RETURN (pg_temp.como('authenticated', format(
+    $q$SELECT to_jsonb(r) FROM crear_remito(%s, %L, %L::jsonb) r$q$,
+    pg_temp.id('cli'), '09999-' || lpad(v_comp::text, 8, '0'), pg_temp.items(p_items)))->>'id')::int;
+END $$;
+
+-- actualizar_remito con los ítems dados, sin cambiar el cliente.
+CREATE FUNCTION pg_temp.actualizar(p_remito int, p_items jsonb) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_temp.como('authenticated', format(
+    $q$SELECT to_jsonb(r) FROM actualizar_remito(%s, %s, %L::jsonb) r$q$,
+    p_remito, (SELECT cliente_id FROM remitos WHERE id = p_remito), pg_temp.items(p_items)));
+END $$;
+
+CREATE FUNCTION pg_temp.anular(p_remito int) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_temp.como('authenticated', format($q$SELECT to_jsonb(r) FROM remito_anular(%s) r$q$, p_remito));
+END $$;
+
+-- El mensaje de error de p_sql, o NULL si no falla (y entonces lo que hizo queda).
+CREATE FUNCTION pg_temp.error(p_sql text) RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE p_sql;
+  RETURN NULL;
+EXCEPTION WHEN OTHERS THEN
+  RETURN SQLERRM;
+END $$;
+
+-- Lo pendiente de una factura en una clave; 0 si no aparece.
+CREATE FUNCTION pg_temp.quedan(p_factura int, p_clave text) RETURNS numeric LANGUAGE sql AS $$
+  SELECT COALESCE((pg_temp.pend(p_factura)->>p_clave)::numeric, 0) $$;
+
+\echo '── 3) Remitos que descuentan de facturas: crear, editar y anular'
+-- Sigue del estado en que terminó la sección 2: los valores de F1 se controlan como diferencia,
+-- F4 no tiene pendiente desde 2.5 y F7 arranca en 1000.
+DO $$
+DECLARE
+  f1 int := pg_temp.id('f1');
+  f7 int := pg_temp.id('f7');
+  bloque text := pg_temp.k('bloque');
+  pallet text := pg_temp.k('pallet');
+  v_desc text := (SELECT descripcion FROM productos WHERE id = pg_temp.id('bloque'));
+  antes_b numeric;
+  antes_p numeric;
+  r1 int; r2 int; r3 int; rt int;
+  v_err text;
+BEGIN
+  PERFORM pg_temp.ok(
+    (SELECT count(*) FROM pg_proc WHERE proname IN ('crear_remito','actualizar_remito','remito_anular')) = 3
+    AND has_function_privilege('authenticated', 'crear_remito(integer, varchar, jsonb, text, integer, varchar, varchar, varchar)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'crear_remito(integer, varchar, jsonb, text, integer, varchar, varchar, varchar)', 'EXECUTE')
+    AND has_function_privilege('authenticated', 'actualizar_remito(integer, integer, jsonb, text, varchar, varchar, varchar)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'actualizar_remito(integer, integer, jsonb, text, varchar, varchar, varchar)', 'EXECUTE')
+    AND has_function_privilege('authenticated', 'remito_anular(integer)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'remito_anular(integer)', 'EXECUTE')
+    AND NOT has_function_privilege('authenticated', 'crm_remito_asignar(integer, integer, jsonb)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'crm_remito_asignar(integer, integer, jsonb)', 'EXECUTE')
+    AND has_function_privilege('authenticated', 'crm_remito_bloqueado(integer)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'crm_remito_bloqueado(integer)', 'EXECUTE'),
+    '3.1 permisos: una sola firma de cada RPC de remitos, authenticated sí y anon no; '
+    'crm_remito_asignar ninguno de los dos; crm_remito_bloqueado authenticated sí, anon no');
+
+  antes_b := pg_temp.quedan(f1, bloque);
+  antes_p := pg_temp.quedan(f1, pallet);
+  r1 := pg_temp.crear('[{"p":"bloque","c":2520,"a":[{"f":"f1","c":2520}]},
+                        {"p":"pallet","c":24,"a":[{"f":"f1","c":24}]}]');
+  INSERT INTO ids VALUES ('r1', r1);
+  PERFORM pg_temp.ok((SELECT estado = 'facturado' AND factura_id = f1 FROM remitos WHERE id = r1),
+    '3.1 R1 (bloque 2520 y pallet 24, todo de F1): facturado, con factura_id F1');
+  PERFORM pg_temp.ok(antes_b - pg_temp.quedan(f1, bloque) = 2520 AND antes_p - pg_temp.quedan(f1, pallet) = 24,
+    '3.1 F1 baja 2520 de bloque y 24 de pallet');
+
+  antes_b := pg_temp.quedan(f1, bloque);
+  r2 := pg_temp.crear('[{"p":"bloque","c":2520,"a":[{"f":"f1","c":1470}]}]');
+  PERFORM pg_temp.ok((SELECT estado FROM remitos WHERE id = r2) = 'pendiente'
+      AND (SELECT sum(sin_facturar) FROM crm_remito_items_sin_facturar(r2)) = 1050
+      AND antes_b - pg_temp.quedan(f1, bloque) = 1470,
+    '3.2 R2 (bloque 2520, 1470 de F1): pendiente, con 1050 sin facturar; F1 baja 1470');
+
+  antes_b := pg_temp.quedan(f1, bloque);
+  r3 := pg_temp.crear('[{"p":"bloque","c":2520,"a":[{"f":"f1","c":2310},{"f":"f7","c":210}]}]');
+  PERFORM pg_temp.ok((SELECT count(*) FROM remito_items WHERE remito_id = r3) = 1
+      AND (SELECT count(*) FROM remito_item_facturas a JOIN remito_items ri ON ri.id = a.remito_item_id
+           WHERE ri.remito_id = r3 AND a.origen = 'remito') = 2
+      AND (SELECT estado FROM remitos WHERE id = r3) = 'facturado'
+      AND antes_b - pg_temp.quedan(f1, bloque) = 2310
+      AND pg_temp.quedan(f7, bloque) = 790,
+    '3.3 R3 (bloque 2520: 2310 de F1 y 210 de F7): 1 renglón y 2 asignaciones ''remito''; F7 queda en 790');
+
+  v_err := pg_temp.error(format('SELECT pg_temp.crear(%L)', '[{"p":"bloque","c":10,"a":[{"f":"f4","c":10}]}]'));
+  PERFORM pg_temp.ok(v_err LIKE '%ya no tiene pendiente suficiente%' AND v_err LIKE '%quedan 0,%',
+    format('3.4 asignar a F4 (sin pendiente): E3 con "quedan 0" → %s', v_err));
+
+  PERFORM pg_temp.crear('[{"p":"bloque","c":500,"a":[{"f":"f7","c":500}]}]');
+  PERFORM pg_temp.ok(pg_temp.quedan(f7, bloque) = 290, '3.5 primer remito contra F7 (500): F7 queda en 290');
+  v_err := pg_temp.error(format('SELECT pg_temp.crear(%L)', '[{"p":"bloque","c":400,"a":[{"f":"f7","c":400}]}]'));
+  PERFORM pg_temp.ok(v_err = format('La factura %s ya no tiene pendiente suficiente de "%s": quedan 290, se '
+      'quieren remitir 400. Volvé a abrir el remito para ver lo pendiente actualizado.',
+      (SELECT numero FROM facturas WHERE id = f7), v_desc),
+    format('3.5 segundo remito contra F7 (400): E3 → %s', v_err));
+  -- Dos renglones del mismo producto contra la misma factura se controlan juntos: 200 + 200.
+  v_err := pg_temp.error(format('SELECT pg_temp.crear(%L)',
+    '[{"p":"bloque","c":200,"a":[{"f":"f7","c":200}]},{"p":"bloque","c":200,"a":[{"f":"f7","c":200}]}]'));
+  PERFORM pg_temp.ok(v_err LIKE '%quedan 290, se quieren remitir 400.%' AND pg_temp.quedan(f7, bloque) = 290,
+    format('3.5 dos renglones de bloque con 200 cada uno contra F7: E3 por la suma, F7 sigue en 290 → %s', v_err));
+
+  v_err := pg_temp.error(format('SELECT pg_temp.crear(%L)', '[{"p":"bloque","c":10,"a":[{"f":"f9","c":10}]}]'));
+  PERFORM pg_temp.ok(v_err = format('La factura %s no es de este cliente.', (SELECT numero FROM facturas WHERE id = pg_temp.id('f9'))),
+    format('3.6 F9 (de otro cliente): E1 → %s', v_err));
+  v_err := pg_temp.error(format('SELECT pg_temp.crear(%L)', '[{"p":"bloque","c":10,"a":[{"f":"f2","c":10}]}]'));
+  PERFORM pg_temp.ok(v_err = format('La factura #%s no está emitida: sólo se remite contra facturas con CAE o históricas.',
+      pg_temp.id('f2')),
+    format('3.6 F2 (borrador): E2 → %s', v_err));
+  v_err := pg_temp.error(format('SELECT pg_temp.crear(%L)',
+    '[{"p":"bloque","c":20,"a":[{"f":"f7","c":10},{"f":"f5","c":20}]}]'));
+  PERFORM pg_temp.ok(v_err = format('El renglón "%s" asigna 30 a facturas pero lleva 20.', v_desc),
+    format('3.6 asignaciones que suman 30 en un renglón de 20: E4 → %s', v_err));
+
+  antes_b := pg_temp.quedan(f1, bloque);
+  antes_p := pg_temp.quedan(f1, pallet);
+  PERFORM pg_temp.actualizar(r1, '[{"p":"bloque","c":1050,"a":[{"f":"f1","c":1050}]}]');
+  PERFORM pg_temp.ok(pg_temp.quedan(f1, bloque) - antes_b = 1470 AND pg_temp.quedan(f1, pallet) - antes_p = 24
+      AND (SELECT estado = 'facturado' AND factura_id = f1 FROM remitos WHERE id = r1),
+    '3.7 R1 editado (facturado, pero con asignaciones ''remito''), ahora bloque 1050 de F1: '
+    'F1 recupera 1470 de bloque y los 24 de pallet');
+
+  rt := pg_temp.remito_tango(pg_temp.id('f8'), '[{"p":"bloque","c":100}]');
+  v_err := pg_temp.error(format('SELECT pg_temp.actualizar(%s, %L)', rt, '[{"p":"bloque","c":50}]'));
+  PERFORM pg_temp.ok(v_err = format('El remito %s se usó para armar una factura: no se puede editar.',
+      (SELECT numero FROM remitos WHERE id = rt)),
+    format('3.8 remito de Tango contra F8, actualizar_remito: E5 → %s', v_err));
+  v_err := pg_temp.error(format('SELECT pg_temp.anular(%s)', rt));
+  PERFORM pg_temp.ok(v_err = format('El remito %s se usó para armar una factura: no se puede anular.',
+      (SELECT numero FROM remitos WHERE id = rt)),
+    format('3.8 remito de Tango contra F8, remito_anular: E5 → %s', v_err));
+  -- Contra una factura anulada (F3) la asignación 'tango' ya no bloquea.
+  rt := pg_temp.remito_tango(pg_temp.id('f3'), '[{"p":"bloque","c":10}]');
+  v_err := pg_temp.error(format('SELECT pg_temp.anular(%s)', rt));
+  PERFORM pg_temp.ok(v_err IS NULL AND (SELECT estado FROM remitos WHERE id = rt) = 'anulado',
+    format('3.8 remito de Tango contra F3 (anulada): no está bloqueado, se anula%s', ' → ' || v_err));
+
+  antes_b := pg_temp.quedan(f1, bloque);
+  PERFORM pg_temp.anular(r1);
+  PERFORM pg_temp.ok(pg_temp.quedan(f1, bloque) - antes_b = 1050
+      AND (SELECT estado = 'anulado' AND factura_id IS NULL FROM remitos WHERE id = r1)
+      AND NOT EXISTS (SELECT 1 FROM remito_item_facturas a JOIN remito_items ri ON ri.id = a.remito_item_id
+                      WHERE ri.remito_id = r1),
+    '3.9 remito_anular(R1): F1 recupera los 1050; R1 anulado, sin factura_id y sin asignaciones');
+  v_err := pg_temp.error(format('SELECT pg_temp.actualizar(%s, %L)', r1, '[{"p":"bloque","c":10}]'));
+  PERFORM pg_temp.ok(v_err = 'No se puede editar un remito anulado.',
+    format('3.9 actualizar_remito(R1) anulado: E7 → %s', v_err));
+  v_err := pg_temp.error(format('SELECT pg_temp.anular(%s)', r1));
+  PERFORM pg_temp.ok(v_err = 'Remito no encontrado o ya anulado.',
+    format('3.9 remito_anular(R1) otra vez → %s', v_err));
+END $$;
