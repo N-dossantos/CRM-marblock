@@ -93,11 +93,19 @@ Deno.serve(async (req) => {
       return Array.isArray(data) ? (data[0] ?? null) : (data ?? null)
     }
 
+    // Observaciones que devolvió ARCA al autorizar: el PDF las imprime como la web de ARCA.
+    const observacionesArca = async (tabla: 'facturas' | 'notas', doc: any) => {
+      if (doc.estado_fiscal !== 'autorizado') return []
+      const s = await rpcOne('arca_solicitud_ultimo', { p_tabla: tabla, p_id: doc.id })
+      return s?.ultimo?.resultado === 'autorizado' ? (s.ultimo.observaciones ?? []) : []
+    }
+
     switch (resource) {
       // ─── COMPROBANTES ──────────────────────────────────────────────────────
       case 'factura': {
         const factura = await rpcOne('facturas_list', { p_id: Number(id) })
         if (!factura) return jsonError('Factura no encontrada', 404)
+        factura.arca_observaciones = await observacionesArca('facturas', factura)
         const empresa = await getEmpresa()
         const buffer  = await generarFactura(factura, empresa, contextoFiscal(empresa))
         return enviarPDF(buffer, `Factura-${nombreFiscal(factura)}`)
@@ -129,6 +137,7 @@ Deno.serve(async (req) => {
       case 'nota': {
         const nota = await rpcOne('notas_list', { p_id: Number(id) })
         if (!nota) return jsonError('Nota no encontrada', 404)
+        nota.arca_observaciones = await observacionesArca('notas', nota)
         const empresa = await getEmpresa()
         const buffer  = await generarNota(nota, empresa, contextoFiscal(empresa))
         const tipo    = nota.tipo === 'NC' ? 'NotaCredito' : 'NotaDebito'

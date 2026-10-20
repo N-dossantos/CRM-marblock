@@ -10,7 +10,7 @@
 import PDFDocument from 'npm:pdfkit@0.15.0'
 import QRCode from 'npm:qrcode@1.5.4'
 import { Buffer } from 'node:buffer'
-import { $ar, fFecha, calcularDetalleAlicuotas } from './base.ts'
+import { fFecha, calcularDetalleAlicuotas } from './base.ts'
 
 export interface ContextoFiscal {
   cuitEmisor: string | null   // secret ARCA_CUIT del proyecto: el mismo CUIT que se le informó a ARCA
@@ -19,6 +19,7 @@ export interface ContextoFiscal {
 
 const NEGRO = '#000000'
 const GRIS  = '#d9d9d9'
+const ROJO  = '#c8102e'
 const M     = 28            // margen
 const PIE   = 112           // alto reservado al pie (bloque CAE / leyenda + número de página)
 
@@ -37,9 +38,21 @@ const LEYENDA_MONOTRIBUTO =
   'El crédito fiscal discriminado en el presente comprobante, sólo podrá ser computado a efectos del ' +
   'Régimen de Sostenimiento e Inclusión Fiscal para Pequeños Contribuyentes de la Ley Nº 27.618'
 
-// Pie del modelo de la especificación del QR de ARCA.
-const DESCARGO_ARCA =
-  'Esta Administración Federal no se responsabiliza por la veracidad de los datos ingresados en el detalle de la operación'
+// Pie del PDF actual de ARCA.
+const DESCARGO_ARCA = 'Esta Agencia no se responsabiliza por los datos ingresados en el detalle de la operación'
+
+// La que Marblock pone en sus facturas de la web de ARCA.
+const LEYENDA_MERCADERIA = '"LA MERCADERIA VIAJA POR CUENTA Y RIESGO DEL COMPRADOR."'
+
+// Tabla "Otros Tributos" de la A, como la de ARCA. Hoy un comprobante con percepciones no se emite
+// (§1), pero un borrador puede tenerlas.
+const OTROS_TRIBUTOS: [string, string | null][] = [
+  ['Per./Ret. de Impuesto a las Ganancias', 'ganancias'],
+  ['Per./Ret. de IVA',                      'iva'],
+  ['Per./Ret. Ingresos Brutos',             'iibb'],
+  ['Impuestos Internos',                    null],
+  ['Impuestos Municipales',                 null],
+]
 
 // Como el PDF de ARCA: el comprobante completo tres veces.
 const COPIAS = ['ORIGINAL', 'DUPLICADO', 'TRIPLICADO']
@@ -56,8 +69,8 @@ const r2     = (n: number) => Math.round(n * 100) / 100
 const num    = (v: any) => parseFloat(v) || 0
 const digitos = (v: any) => String(v ?? '').replace(/\D/g, '')
 
-// Importe sin signo de pesos, como en las columnas del comprobante de ARCA.
-const nAr = (v: any) => $ar(v).replace(/^\$ /, '')
+// Importe como lo imprime ARCA: sin signo de pesos ni separador de miles ("135070,85").
+const nAr = (v: any) => num(v).toFixed(2).replace('.', ',')
 
 // Cantidad con 2 decimales, o 3 si los tiene (cantidad es numeric(10,3)).
 const fCant = (v: any) => {
@@ -260,6 +273,44 @@ function columnas(letra: string, ancho: number) {
   return cols
 }
 
+function dibujarOtrosTributos(doc: any, x: number, y: number, percepciones: any[], total: number) {
+  const cols = [
+    { label: 'Descripción', w: 128, align: 'left'  },
+    { label: 'Detalle',     w: 42,  align: 'left'  },
+    { label: 'Alíc. %',     w: 32,  align: 'right' },
+    { label: 'Importe',     w: 46,  align: 'right' },
+  ]
+  const ancho = cols.reduce((a, col) => a + col.w, 0)
+  doc.fillColor(NEGRO).font('Helvetica-Bold').fontSize(8).text('Otros Tributos', x, y, { lineBreak: false })
+  let yF = y + 11
+  doc.rect(x, yF, ancho, 12).fillAndStroke(GRIS, NEGRO)
+  doc.fillColor(NEGRO).font('Helvetica').fontSize(7)
+  let xc = x
+  for (const col of cols) {
+    doc.text(col.label, xc + 3, yF + 3, { width: col.w - 6, align: col.align, lineBreak: false })
+    xc += col.w
+  }
+  yF += 15
+  for (const [descripcion, tipo] of OTROS_TRIBUTOS) {
+    const ps = tipo ? percepciones.filter((p: any) => p.tipo_percepcion === tipo) : []
+    const valores = [
+      descripcion,
+      ps.map((p: any) => p.jurisdiccion).filter(Boolean).join(', '),
+      ps.length === 1 ? fPct(num(ps[0].alicuota)) : '',
+      nAr(ps.reduce((a: number, p: any) => a + num(p.monto), 0)),
+    ]
+    xc = x
+    cols.forEach((col, i) => {
+      doc.text(valores[i], xc + 3, yF, { width: col.w - 6, align: col.align, lineBreak: false })
+      xc += col.w
+    })
+    yF += 10.5
+  }
+  doc.fontSize(8)
+     .text('Importe Otros Tributos: $', x, yF + 3, { width: ancho - 52, align: 'right', lineBreak: false })
+     .text(nAr(total), x + ancho - 49, yF + 3, { width: 46, align: 'right', lineBreak: false })
+}
+
 function dibujarCabeceraItems(doc: any, y: number, cols: any[]) {
   const ancho = cols.reduce((a, col) => a + col.w, 0)
   doc.font('Helvetica-Bold').fontSize(7.5)
@@ -350,8 +401,8 @@ export async function generarComprobanteFiscal(
 
     // ── Totales ────────────────────────────────────────────────────────────
     const total  = num(c.total)
-    const otros  = num(c.percepciones_monto) ||
-      (c.percepciones || []).reduce((a: number, p: any) => a + num(p.monto), 0)
+    const percepciones = c.percepciones || []
+    const otros  = num(c.percepciones_monto) || percepciones.reduce((a: number, p: any) => a + num(p.monto), 0)
     const dtoGral = num(c.descuento_general)
     const lineas: [string, number, boolean?][] = []
     if (letra === 'A') {
@@ -363,7 +414,9 @@ export async function generarComprobanteFiscal(
         lineas.push([`Bonificación general ${fPct(dtoGral)}%`, -num(c.descuento_monto)])
       }
       lineas.push(['Importe Neto Gravado', r2(num(c.neto_gravado) - exento)])
+      // El IVA 0% de ARCA es gravado a tasa 0: el exento va aparte (§3.1), así que siempre da 0.
       for (const p of [27, 21, 10.5, 5, 2.5]) lineas.push([`IVA ${fPct(p)}%`, ivaDe(p)])
+      lineas.push(['IVA 0%', 0])
       if (exento > 0) lineas.push(['Importe Exento', exento])
     } else {
       // La B no discrimina IVA: los ítems y el subtotal van con IVA incluido. El subtotal es el total
@@ -379,25 +432,92 @@ export async function generarComprobanteFiscal(
     lineas.push(['Importe Otros Tributos', otros])
     lineas.push(['Importe Total', total, true])
 
-    // Leyendas del ángulo inferior izquierdo del recuadro de totales.
-    const leyendas: { texto: string; negrita?: boolean }[] = []
+    // ── Cierre: los recuadros de abajo, en el orden del comprobante de ARCA ──
+    // Cada bloque es un recuadro del ancho de la hoja; van pegados salvo los `separado`.
+    const bloques: { h: number; separado?: boolean; color?: string; dibujar: (y: number) => void }[] = []
+
+    // 1) Totales, con la tabla de otros tributos a la izquierda en la A.
+    const hLinea = 13
+    const xEtq = W / 2 + 10
+    const wEtq = 150
+    const xVal = xEtq + wEtq + 6
+    const wVal = W - M - 8 - xVal
+    bloques.push({
+      h: Math.max(lineas.length * hLinea + 14, letra === 'A' ? 104 : 50),
+      dibujar: (y) => {
+        let yL = y + 8
+        for (const [etiqueta, valor, fuerte] of lineas) {
+          doc.fillColor(NEGRO).font('Helvetica-Bold').fontSize(fuerte ? 9.5 : 8.5)
+             .text(`${etiqueta}: $`, xEtq, yL, { width: wEtq, align: 'right', lineBreak: false })
+          doc.font(fuerte ? 'Helvetica-Bold' : 'Helvetica')
+             .text(nAr(valor), xVal, yL, { width: wVal, align: 'right', lineBreak: false })
+          yL += hLinea
+        }
+        if (letra === 'A') dibujarOtrosTributos(doc, M + 4, y + 5, percepciones, otros)
+      },
+    })
+
+    // 2) Leyenda fiscal: Ley 27.743 en la B (RG 5614); RG 5003 en la A a un monotributista.
     if (letra === 'B') {
-      // Ley 27.743 (RG 5614): en la B, el IVA contenido y los otros impuestos nacionales indirectos.
-      leyendas.push({ texto: 'Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)', negrita: true })
-      leyendas.push({ texto: `IVA Contenido: ${$ar(c.iva_monto)}` })
-      leyendas.push({ texto: `Otros Impuestos Nacionales Indirectos: ${$ar(0)}` })
+      bloques.push({
+        h: 40,
+        dibujar: (y) => {
+          const titulo = 'Régimen de Transparencia Fiscal al Consumidor (Ley 27.743)'
+          doc.fillColor(NEGRO).font('Helvetica-BoldOblique').fontSize(8.5)
+          // Subrayado como en el PDF de ARCA; sin `width`, pdfkit no sabe hasta dónde trazar la línea.
+          doc.text(titulo, M + 4, y + 6, { width: doc.widthOfString(titulo) + 2, underline: true, lineBreak: false })
+          doc.font('Helvetica-Bold').fontSize(8.5)
+             .text('IVA Contenido: $', M + 4, y + 22, { width: 200, align: 'right', lineBreak: false })
+             .text(nAr(c.iva_monto), M + 210, y + 22, { width: 60, align: 'right', lineBreak: false })
+        },
+      })
     } else if (MONOTRIBUTO.includes(Number(c.condicion_iva_afip_id))) {
-      leyendas.push({ texto: LEYENDA_MONOTRIBUTO, negrita: true })
+      doc.font('Helvetica-Bold').fontSize(8)
+      const h = Math.ceil(doc.heightOfString(LEYENDA_MONOTRIBUTO, { width: ancho - 12 })) + 12
+      bloques.push({
+        h,
+        dibujar: (y) => {
+          doc.fillColor(NEGRO).font('Helvetica-Bold').fontSize(8)
+             .text(LEYENDA_MONOTRIBUTO, M + 6, y + 6, { width: ancho - 12 })
+        },
+      })
     }
 
-    const hLinea = 13
-    const hTot = Math.max(lineas.length * hLinea + 14, 60)
+    // 3) Observaciones: en las facturas, la leyenda de la mercadería; en las notas, el motivo.
     const textoObs = [
+      clase === 'factura' ? LEYENDA_MERCADERIA : null,
       clase === 'nota' && c.motivo ? `Motivo: ${c.motivo}` : null,
-      c.observaciones ? `Observaciones: ${c.observaciones}` : null,
+      c.observaciones || null,
     ].filter(Boolean).join('\n')
-    doc.font('Helvetica').fontSize(8)
-    const hObs = textoObs ? Math.ceil(doc.heightOfString(textoObs, { width: ancho - 12 })) + 10 : 0
+    if (textoObs) {
+      doc.font('Helvetica-Oblique').fontSize(9.5)
+      const h = Math.ceil(doc.heightOfString(textoObs, { width: ancho - 16 })) + 12
+      bloques.push({
+        h,
+        dibujar: (y) => {
+          doc.fillColor(NEGRO).font('Helvetica-Oblique').fontSize(9.5)
+             .text(textoObs, M + 8, y + 6, { width: ancho - 16, align: 'center' })
+        },
+      })
+    }
+
+    // 4) Observaciones que devolvió ARCA al autorizar, en rojo, como las imprime "Comprobantes en
+    //    línea" (p. ej. 10017: receptor inactivo en el padrón).
+    const textoArca = (autorizado ? c.arca_observaciones || [] : [])
+      .map((o: any) => String(o?.Msg ?? '').trim().toUpperCase()).filter(Boolean).join('\n')
+    if (textoArca) {
+      doc.font('Helvetica').fontSize(7)
+      const h = Math.ceil(doc.heightOfString(textoArca, { width: ancho - 16 })) + 10
+      bloques.push({
+        h, separado: true, color: ROJO,
+        dibujar: (y) => {
+          doc.fillColor(ROJO).font('Helvetica').fontSize(7)
+             .text(textoArca, M + 8, y + 5, { width: ancho - 16, align: 'center' })
+        },
+      })
+    }
+
+    const hCierre = bloques.reduce((a, b) => a + b.h + (b.separado ? 4 : 0), 0)
 
     // ── Copias: el mismo comprobante tres veces, cada una con su numeración de páginas ──
     const paginaActual = () => { const { start, count } = doc.bufferedPageRange(); return start + count - 1 }
@@ -416,33 +536,17 @@ export async function generarComprobanteFiscal(
         dibujarFila(doc, y, valores, cols)
         y += h
       }
-      if (y + 6 + hObs + hTot > limite) {
+      if (y + 6 + hCierre > limite) {
         doc.addPage()
         dibujarCabeceraItems(doc, dibujarEncabezado(doc, d, copia), cols)
       }
 
-      const yTot = limite - hTot
-      if (textoObs) {
-        doc.fillColor(NEGRO).font('Helvetica').fontSize(8)
-           .text(textoObs, M + 6, yTot - hObs, { width: ancho - 12 })
-      }
-      doc.lineWidth(0.8).rect(M, yTot, ancho, hTot).stroke(NEGRO)
-      const xEtq = W / 2 + 10
-      const wEtq = 150
-      const xVal = xEtq + wEtq + 6
-      const wVal = W - M - 8 - xVal
-      let yL = yTot + 8
-      for (const [etiqueta, valor, fuerte] of lineas) {
-        doc.fillColor(NEGRO).font('Helvetica-Bold').fontSize(fuerte ? 9.5 : 8.5)
-           .text(`${etiqueta}: $`, xEtq, yL, { width: wEtq, align: 'right', lineBreak: false })
-           .text(nAr(valor), xVal, yL, { width: wVal, align: 'right', lineBreak: false })
-        yL += hLinea
-      }
-      let yLey = yTot + 8
-      for (const l of leyendas) {
-        doc.fillColor(NEGRO).font(l.negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(8)
-           .text(l.texto, M + 8, yLey, { width: W / 2 - M - 14 })
-        yLey = doc.y + 3
+      let yB = limite - hCierre
+      for (const b of bloques) {
+        if (b.separado) yB += 4
+        doc.lineWidth(0.8).rect(M, yB, ancho, b.h).stroke(b.color ?? NEGRO)
+        b.dibujar(yB)
+        yB += b.h
       }
 
       tramos.push([primera, paginaActual()])
@@ -475,9 +579,12 @@ function dibujarPie(doc: any, d: Datos, qr: string | null, pagina: number, pagin
     const lado = 82
     dibujarQr(doc, qr, M, yP, lado)
     const xA = M + lado + 10
-    doc.fillColor(NEGRO).font('Helvetica-Bold').fontSize(26).text('ARCA', xA, yP + 14, { lineBreak: false })
-    doc.font('Helvetica-BoldOblique').fontSize(9).text('Comprobante Autorizado', xA, yP + 42, { lineBreak: false })
-    doc.font('Helvetica-Oblique').fontSize(6).text(DESCARGO_ARCA, xA, yP + 56, { width: 250 })
+    doc.fillColor(NEGRO).font('Helvetica-Bold').fontSize(26).text('ARCA', xA, yP + 6, { lineBreak: false })
+    doc.fillColor('#555555').font('Helvetica').fontSize(4.5)
+       .text('AGENCIA DE RECAUDACIÓN', xA + 1, yP + 31, { lineBreak: false })
+       .text('Y CONTROL ADUANERO', xA + 1, yP + 36.5, { lineBreak: false })
+    doc.fillColor(NEGRO).font('Helvetica-BoldOblique').fontSize(9.5).text('Comprobante Autorizado', xA, yP + 48, { lineBreak: false })
+    doc.font('Helvetica-Oblique').fontSize(6).text(DESCARGO_ARCA, xA, yP + 64, { width: 300, lineBreak: false })
 
     const xC = W - M - 190
     campo(doc, 'CAE N°', digitos(c.cae), xC, yP + 22, 190, 9.5)
