@@ -44,16 +44,6 @@ const DESCARGO_ARCA = 'Esta Agencia no se responsabiliza por los datos ingresado
 // La que Marblock pone en sus facturas de la web de ARCA.
 const LEYENDA_MERCADERIA = '"LA MERCADERIA VIAJA POR CUENTA Y RIESGO DEL COMPRADOR."'
 
-// Tabla "Otros Tributos" de la A, como la de ARCA. Hoy un comprobante con percepciones no se emite
-// (§1), pero un borrador puede tenerlas.
-const OTROS_TRIBUTOS: [string, string | null][] = [
-  ['Per./Ret. de Impuesto a las Ganancias', 'ganancias'],
-  ['Per./Ret. de IVA',                      'iva'],
-  ['Per./Ret. Ingresos Brutos',             'iibb'],
-  ['Impuestos Internos',                    null],
-  ['Impuestos Municipales',                 null],
-]
-
 // Como el PDF de ARCA: el comprobante completo tres veces.
 const COPIAS = ['ORIGINAL', 'DUPLICADO', 'TRIPLICADO']
 
@@ -273,44 +263,6 @@ function columnas(letra: string, ancho: number) {
   return cols
 }
 
-function dibujarOtrosTributos(doc: any, x: number, y: number, percepciones: any[], total: number) {
-  const cols = [
-    { label: 'Descripción', w: 128, align: 'left'  },
-    { label: 'Detalle',     w: 42,  align: 'left'  },
-    { label: 'Alíc. %',     w: 32,  align: 'right' },
-    { label: 'Importe',     w: 46,  align: 'right' },
-  ]
-  const ancho = cols.reduce((a, col) => a + col.w, 0)
-  doc.fillColor(NEGRO).font('Helvetica-Bold').fontSize(8).text('Otros Tributos', x, y, { lineBreak: false })
-  let yF = y + 11
-  doc.rect(x, yF, ancho, 12).fillAndStroke(GRIS, NEGRO)
-  doc.fillColor(NEGRO).font('Helvetica').fontSize(7)
-  let xc = x
-  for (const col of cols) {
-    doc.text(col.label, xc + 3, yF + 3, { width: col.w - 6, align: col.align, lineBreak: false })
-    xc += col.w
-  }
-  yF += 15
-  for (const [descripcion, tipo] of OTROS_TRIBUTOS) {
-    const ps = tipo ? percepciones.filter((p: any) => p.tipo_percepcion === tipo) : []
-    const valores = [
-      descripcion,
-      ps.map((p: any) => p.jurisdiccion).filter(Boolean).join(', '),
-      ps.length === 1 ? fPct(num(ps[0].alicuota)) : '',
-      nAr(ps.reduce((a: number, p: any) => a + num(p.monto), 0)),
-    ]
-    xc = x
-    cols.forEach((col, i) => {
-      doc.text(valores[i], xc + 3, yF, { width: col.w - 6, align: col.align, lineBreak: false })
-      xc += col.w
-    })
-    yF += 10.5
-  }
-  doc.fontSize(8)
-     .text('Importe Otros Tributos: $', x, yF + 3, { width: ancho - 52, align: 'right', lineBreak: false })
-     .text(nAr(total), x + ancho - 49, yF + 3, { width: 46, align: 'right', lineBreak: false })
-}
-
 function dibujarCabeceraItems(doc: any, y: number, cols: any[]) {
   const ancho = cols.reduce((a, col) => a + col.w, 0)
   doc.font('Helvetica-Bold').fontSize(7.5)
@@ -436,14 +388,15 @@ export async function generarComprobanteFiscal(
     // Cada bloque es un recuadro del ancho de la hoja; van pegados salvo los `separado`.
     const bloques: { h: number; separado?: boolean; color?: string; dibujar: (y: number) => void }[] = []
 
-    // 1) Totales, con la tabla de otros tributos a la izquierda en la A.
+    // 1) Totales. Otros tributos va sólo como línea del total, en la A y en la B: la tabla de ARCA
+    // de la A sale únicamente en la factura a monotributista del ejemplo de 2021.
     const hLinea = 13
     const xEtq = W / 2 + 10
     const wEtq = 150
     const xVal = xEtq + wEtq + 6
     const wVal = W - M - 8 - xVal
     bloques.push({
-      h: Math.max(lineas.length * hLinea + 14, letra === 'A' ? 104 : 50),
+      h: Math.max(lineas.length * hLinea + 14, 50),
       dibujar: (y) => {
         let yL = y + 8
         for (const [etiqueta, valor, fuerte] of lineas) {
@@ -453,7 +406,6 @@ export async function generarComprobanteFiscal(
              .text(nAr(valor), xVal, yL, { width: wVal, align: 'right', lineBreak: false })
           yL += hLinea
         }
-        if (letra === 'A') dibujarOtrosTributos(doc, M + 4, y + 5, percepciones, otros)
       },
     })
 
