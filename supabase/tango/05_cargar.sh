@@ -84,7 +84,8 @@ RESTAURAR_FKS_CUENTA2="
     FOREIGN KEY (material_id) REFERENCES materiales(id) ON DELETE SET NULL;"
 
 # Contadores: el último número emitido por serie, POR FECHA (no el máximo: H4, el recibo 00041189 es
-# un error de carga de Tango). Los valores son del .bak del 25/09 y los recalcula
+# un error de carga de Tango). Los valores son del .bak del cutover (16/10, 09:00; el remito, del
+# talonario físico) y los recalcula
 # `python3 -m etl.contadores`; el día del cutover hay que reconfirmarlos contra ARCA (facturas y
 # notas) y contra el talonario físico (remitos) — D5.
 #   * NC/ND tienen un contador por letra (H16): la serie B es fiscalmente independiente de la A.
@@ -96,16 +97,16 @@ RESTAURAR_FKS_CUENTA2="
 #     usar, hay que modelarla aparte.
 CONTADORES="
   INSERT INTO contadores (tipo, punto_venta, ultimo_numero, descripcion) VALUES
-    ('factura_a',      '00002',  2321, 'Factura A'),
+    ('factura_a',      '00002',  2337, 'Factura A'),
     ('factura_b',      '00002',    63, 'Factura B'),
     ('nota_credito',   '00002',   165, 'Nota de crédito A'),
     ('nota_credito_b', '00002',     1, 'Nota de crédito B'),
     ('nota_debito',    '00002',    41, 'Nota de débito A'),
     ('nota_debito_b',  '00002',     0, 'Nota de débito B'),
-    ('recibo',         '00001',  4288, 'Recibo'),
+    ('recibo',         '00001',  4301, 'Recibo'),
     ('presupuesto',    '00002',     0, 'Presupuesto'),
-    ('remito',         '00001', 10366, 'Remitos de venta — numeración del talonario preimpreso'),
-    ('pago_proveedor', '00000',  3358, 'Pago a Proveedor')
+    ('remito',         '00001', 10392, 'Remitos de venta — numeración del talonario preimpreso'),
+    ('pago_proveedor', '00000',  3368, 'Pago a Proveedor')
   ON CONFLICT (tipo) DO UPDATE
     SET punto_venta = EXCLUDED.punto_venta, ultimo_numero = EXCLUDED.ultimo_numero;"
 
