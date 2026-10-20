@@ -73,13 +73,13 @@ BEGIN
   RETURN v_id;
 END $$;
 
--- Nota de crédito A histórica (PV 09999) de una factura.
-CREATE FUNCTION pg_temp.nc(p_factura int, p_comp int, p_items jsonb)
+-- Nota de crédito o de débito ('NC' / 'ND') A histórica (PV 09999) de una factura.
+CREATE FUNCTION pg_temp.nota(p_tipo text, p_factura int, p_comp int, p_items jsonb)
 RETURNS int LANGUAGE plpgsql AS $$
 DECLARE v_id int;
 BEGIN
   INSERT INTO notas (numero, punto_venta, numero_comp, tipo, tipo_letra, fecha, factura_id, cliente_id, estado_fiscal)
-  SELECT '09999-' || lpad(p_comp::text, 8, '0'), '09999', p_comp, 'NC', 'A', CURRENT_DATE, f.id, f.cliente_id, 'historico'
+  SELECT '09999-' || lpad(p_comp::text, 8, '0'), '09999', p_comp, p_tipo, 'A', CURRENT_DATE, f.id, f.cliente_id, 'historico'
   FROM facturas f WHERE f.id = p_factura
   RETURNING id INTO v_id;
   INSERT INTO nota_items (nota_id, producto_id, descripcion, cantidad, precio_unitario, subtotal, orden)
@@ -87,6 +87,9 @@ BEGIN
   FROM pg_temp.renglones(p_items) r;
   RETURN v_id;
 END $$;
+
+CREATE FUNCTION pg_temp.nc(p_factura int, p_comp int, p_items jsonb) RETURNS int LANGUAGE sql AS $$
+  SELECT pg_temp.nota('NC', p_factura, p_comp, p_items) $$;
 
 -- Remito del PV 09999 al cliente de la factura, con factura_id = esa factura y una asignación por
 -- renglón (cantidad > 0) con el origen dado: INSERT directo, sin pasar por las RPC.
@@ -160,7 +163,7 @@ END $$;
 
 \echo '── 1) Tabla, permisos y backfill'
 DO $$
-DECLARE v_esperado bigint;
+DECLARE v_esperado bigint; v_sobran bigint; v_faltan bigint;
 BEGIN
   PERFORM pg_temp.ok(
     (SELECT relrowsecurity AND NOT relforcerowsecurity FROM pg_class WHERE oid = 'remito_item_facturas'::regclass)
@@ -176,14 +179,28 @@ BEGIN
     AND NOT has_function_privilege('anon', 'crm_remito_recalcular(integer)', 'EXECUTE'),
     '1.2 facturas_pendientes_remitir: authenticated sí, anon no; crm_remito_recalcular: ninguno de los dos');
 
-  -- Los remitos con asignaciones 'remito' o 'factura' los armaron las RPC después del backfill.
-  SELECT count(*) INTO v_esperado
+  -- Fila por fila (EXCEPT ALL en los dos sentidos, para que también cuenten los duplicados): las
+  -- asignaciones 'tango' contra los renglones > 0 de remitos no anulados con factura. Los remitos
+  -- con asignaciones 'remito' o 'factura' los armaron las RPC después del backfill. En ensayo.sql
+  -- la semilla (semilla_backfill.sql) pone al menos dos renglones y un remito anulado.
+  CREATE TEMP TABLE esperado_tango AS
+  SELECT ri.id AS remito_item_id, r.factura_id, ri.cantidad::numeric AS cantidad
   FROM remito_items ri JOIN remitos r ON r.id = ri.remito_id
   WHERE ri.cantidad > 0 AND r.estado <> 'anulado' AND r.factura_id IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM remito_item_facturas x JOIN remito_items xi ON xi.id = x.remito_item_id
                     WHERE xi.remito_id = r.id AND x.origen IN ('remito','factura'));
-  PERFORM pg_temp.ok((SELECT count(*) FROM remito_item_facturas WHERE origen = 'tango') = v_esperado,
-    format('1.3 backfill: una asignación ''tango'' por renglón de remito no anulado con factura (%s)', v_esperado));
+  SELECT count(*) INTO v_esperado FROM esperado_tango;
+  SELECT count(*) INTO v_sobran FROM (
+    SELECT remito_item_id, factura_id, cantidad FROM remito_item_facturas WHERE origen = 'tango'
+    EXCEPT ALL
+    SELECT remito_item_id, factura_id, cantidad FROM esperado_tango) x;
+  SELECT count(*) INTO v_faltan FROM (
+    SELECT remito_item_id, factura_id, cantidad FROM esperado_tango
+    EXCEPT ALL
+    SELECT remito_item_id, factura_id, cantidad FROM remito_item_facturas WHERE origen = 'tango') x;
+  PERFORM pg_temp.ok(v_sobran = 0 AND v_faltan = 0,
+    format('1.3 backfill: una asignación ''tango'' por renglón > 0 de remito no anulado con factura, '
+           'con su factura y su cantidad (%s filas comparadas; sobran %s, faltan %s)', v_esperado, v_sobran, v_faltan));
 END $$;
 
 \echo '── 2) Cálculo de lo pendiente'
@@ -212,6 +229,15 @@ BEGIN
   PERFORM pg_temp.ok(pg_temp.pend(f1) = jsonb_build_object(
       pg_temp.k('bloque'), 21630, pg_temp.k('pallet'), 216, pg_temp.k('transp'), 10),
     '2.3 NC sin producto (Gastos Bancarios): no cambia nada');
+  -- Las dos de abajo tienen la clave de un renglón pendiente: si se contaran, también fallarían
+  -- 2.7 y 2.9 (F6) y 2.8 (F1).
+  PERFORM pg_temp.nc(f6, 3, '[{"d":"Bloque Hueco 12","c":5}]');
+  PERFORM pg_temp.ok(pg_temp.pend(f6) = '{"dbloque hueco 12": 100}',
+    '2.3 NC sin producto con la descripción del renglón de F6 (Bloque Hueco 12 por 5): no cambia nada');
+  PERFORM pg_temp.nota('ND', f1, 1, '[{"p":"bloque","c":100}]');
+  PERFORM pg_temp.ok(pg_temp.pend(f1) = jsonb_build_object(
+      pg_temp.k('bloque'), 21630, pg_temp.k('pallet'), 216, pg_temp.k('transp'), 10),
+    '2.3 ND con producto (100 bloques en F1): no cambia nada');
 
   PERFORM pg_temp.ok(pg_temp.fila(pg_temp.id('f2')) IS NULL AND pg_temp.fila(pg_temp.id('f3')) IS NULL,
     '2.4 F2 (borrador) y F3 (anulada) no aparecen');
