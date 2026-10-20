@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { NotasAPI, FacturasAPI, ProductosAPI, AlicuotasIvaAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Badge, Loading, EmptyState, Modal, RowActions } from '../../components/UI'
-import { FiscalBadge, PanelArca, BandejaArca, FILTROS_ARCA, estadosDeFiltro, esFiscal, esEditable, emitirEnArca, FISCALES } from '../../components/Arca'
+import { FiscalBadge, PanelArca, BandejaArca, FILTROS_ARCA, estadosDeFiltro, esEditable, emitirEnArca, FISCALES } from '../../components/Arca'
 import NotaForm from './NotaForm'
 import VentaDetalle from '../../components/Consultas/VentaDetalle'
 import PDFModal from '../../components/PDFModal'
@@ -126,7 +126,7 @@ export default function Notas() {
     load()
   }
 
-  const verPdf = (n) => setPdfModal({ url: `/api/pdf/nota/${n.id}`, titulo: `${nombreNota(n)} ${n.numero}` })
+  const verPdf = (n) => setPdfModal({ url: `/api/pdf/nota/${n.id}`, titulo: `${nombreNota(n)} ${n.numero || `borrador #${n.id}`}` })
 
   const accionPrincipal = (n) => {
     switch (n.estado_fiscal) {
@@ -192,7 +192,7 @@ export default function Notas() {
                     <td>
                       <RowActions
                         primary={accionPrincipal(n)}
-                        onPdf={esFiscal(n) ? () => verPdf(n) : null}
+                        onPdf={() => verPdf(n)}
                         items={[
                           { label: 'Ver detalle', icon: '👁', onClick: () => setDetalle({ _doc: 'nota', ...n }) },
                           { label: 'Editar borrador', icon: '✎', onClick: () => editar(n), hidden: !esEditable(n) },

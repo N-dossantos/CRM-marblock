@@ -202,7 +202,7 @@ export default function Facturas() {
                     <td>
                       <RowActions
                         primary={accionPrincipal(f)}
-                        onPdf={fiscal ? () => setPdfModal({ url: `/api/pdf/factura/${f.id}`, titulo: `Factura ${f.numero}` }) : null}
+                        onPdf={() => setPdfModal({ url: `/api/pdf/factura/${f.id}`, titulo: `Factura ${f.numero || `borrador #${f.id}`}` })}
                         items={[
                           { label: 'Ver detalle', icon: '👁', onClick: () => setDetalle({ _doc: 'factura', ...f }) },
                           { label: 'Editar borrador', icon: '✎', onClick: () => editar(f), hidden: !editable },

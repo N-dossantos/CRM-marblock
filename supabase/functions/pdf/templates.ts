@@ -7,8 +7,9 @@ import { Buffer } from 'node:buffer'
 import {
   COLORES, $ar, fFecha, fDoc,
   dibujarHeader, dibujarCliente, dibujarCabeceraTabla,
-  dibujarFilaItem, dibujarTotales, dibujarFooter, calcularDetalleAlicuotas, textoTenue,
+  dibujarFilaItem, dibujarTotales, dibujarFooter, textoTenue,
 } from './base.ts'
+import { generarComprobanteFiscal, type ContextoFiscal } from './fiscal.ts'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COLUMNAS PARA TABLA DE ÍTEMS
@@ -29,79 +30,10 @@ const COLS_ITEMS_REMITO = (ancho: number) => [
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FACTURA
+// FACTURA — formato del comprobante de ARCA, en fiscal.ts
 // ─────────────────────────────────────────────────────────────────────────────
-export async function generarFactura(factura: any, empresa: any): Promise<Uint8Array> {
-  return await new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
-    const buffers: any[] = []
-    doc.on('data', (b: any) => buffers.push(b))
-    doc.on('end',  () => resolve(Buffer.concat(buffers)))
-    doc.on('error', reject)
-
-    const W = doc.page.width
-    const M = 45
-    const ancho = W - M * 2
-    const tipoLabel = `FACTURA ${factura.tipo}`
-
-    let y = dibujarHeader(doc, empresa, tipoLabel, factura.numero, factura.fecha)
-
-    // Datos del cliente
-    y = dibujarCliente(doc, y + 6, factura, {
-      'Remito vinculado': factura.remito_numero || null,
-      'Presupuesto orig.': factura.presupuesto_numero || null,
-    })
-
-    // Tabla de ítems
-    y += 8
-    const cols = COLS_ITEMS(ancho)
-    y = dibujarCabeceraTabla(doc, y, cols)
-
-    const items = factura.items || []
-    items.forEach((it: any, i: number) => {
-      const sub = parseFloat(it.cantidad) * parseFloat(it.precio_unitario) * (1 - (parseFloat(it.descuento_item) || 0) / 100)
-      y = dibujarFilaItem(doc, y, [
-        it.codigo || '—',
-        it.descripcion,
-        it.cantidad,
-        $ar(it.precio_unitario),
-        `${it.descuento_item || 0}%`,
-        $ar(sub),
-      ], cols, i % 2 === 1)
-    })
-
-    // Totales
-    y += 12
-    const totales = {
-      subtotal:         parseFloat(factura.subtotal),
-      descuento_monto:  parseFloat(factura.descuento_monto),
-      descuento_porcentaje: parseFloat(factura.descuento_general),
-      neto_gravado:     parseFloat(factura.neto_gravado),
-      iva_monto:        parseFloat(factura.iva_monto),
-      iva_alicuota:     parseFloat(factura.iva_alicuota),
-      detalle:          calcularDetalleAlicuotas(items, factura.descuento_general),
-      percepciones:     factura.percepciones || [],
-      total:            parseFloat(factura.total),
-    }
-    y = dibujarTotales(doc, y, totales)
-
-    // Observaciones
-    if (factura.observaciones) {
-      y += 10
-      doc.rect(M, y, ancho, 34).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
-      doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('OBSERVACIONES', M + 8, y + 6)
-      doc.fillColor(COLORES.gris_oscuro).font('Helvetica').fontSize(8.5).text(factura.observaciones, M + 8, y + 16, { width: ancho - 16 })
-    }
-
-    // Leyenda CAE / firma (placeholder)
-    const yLey = doc.page.height - 95
-    doc.rect(M, yLey, ancho, 32).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
-    doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(7.5)
-       .text('Comprobante no fiscal — Pendiente de homologación AFIP/ARCA', M + 8, yLey + 12, { width: ancho - 16, align: 'center' })
-
-    dibujarFooter(doc, empresa)
-    doc.end()
-  })
+export async function generarFactura(factura: any, empresa: any, ctx: ContextoFiscal): Promise<Uint8Array> {
+  return await generarComprobanteFiscal(factura, empresa, ctx, 'factura')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -240,68 +172,10 @@ export async function generarPresupuesto(presupuesto: any, empresa: any): Promis
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NOTA DE CRÉDITO / DÉBITO
+// NOTA DE CRÉDITO / DÉBITO — formato del comprobante de ARCA, en fiscal.ts
 // ─────────────────────────────────────────────────────────────────────────────
-export async function generarNota(nota: any, empresa: any): Promise<Uint8Array> {
-  return await new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
-    const buffers: any[] = []
-    doc.on('data', (b: any) => buffers.push(b))
-    doc.on('end',  () => resolve(Buffer.concat(buffers)))
-    doc.on('error', reject)
-
-    const W = doc.page.width
-    const M = 45
-    const ancho = W - M * 2
-    const tipoLabel = nota.tipo === 'NC'
-      ? `NOTA DE CRÉDITO ${nota.tipo_letra || 'A'}`
-      : `NOTA DE DÉBITO ${nota.tipo_letra || 'A'}`
-
-    let y = dibujarHeader(doc, empresa, tipoLabel, nota.numero, nota.fecha)
-
-    y = dibujarCliente(doc, y + 6, nota, {
-      'Factura de referencia': nota.factura_numero,
-    })
-
-    // Motivo
-    if (nota.motivo) {
-      y += 6
-      doc.rect(M, y, ancho, 26).fill('#fef3c7').stroke('#f59e0b')
-      doc.fillColor('#92400e').font('Helvetica-Bold').fontSize(7.5).text('MOTIVO:', M + 8, y + 7)
-      doc.fillColor('#78350f').font('Helvetica').fontSize(9).text(nota.motivo, M + 60, y + 7, { width: ancho - 70 })
-      y += 32
-    }
-
-    y += 4
-    const cols = COLS_ITEMS(ancho)
-    y = dibujarCabeceraTabla(doc, y, cols)
-
-    ;(nota.items || []).forEach((it: any, i: number) => {
-      const sub = parseFloat(it.cantidad) * parseFloat(it.precio_unitario) * (1 - (parseFloat(it.descuento_item) || 0) / 100)
-      y = dibujarFilaItem(doc, y, [
-        it.codigo || '—',
-        it.descripcion,
-        it.cantidad,
-        $ar(it.precio_unitario),
-        `${it.descuento_item || 0}%`,
-        $ar(sub),
-      ], cols, i % 2 === 1)
-    })
-
-    y += 12
-    const totales = {
-      subtotal:     parseFloat(nota.subtotal),
-      neto_gravado: parseFloat(nota.neto_gravado),
-      iva_monto:    parseFloat(nota.iva_monto),
-      detalle:      calcularDetalleAlicuotas(nota.items || [], 0),
-      percepciones: nota.percepciones || [],
-      total:        parseFloat(nota.total),
-    }
-    y = dibujarTotales(doc, y, totales)
-
-    dibujarFooter(doc, empresa)
-    doc.end()
-  })
+export async function generarNota(nota: any, empresa: any, ctx: ContextoFiscal): Promise<Uint8Array> {
+  return await generarComprobanteFiscal(nota, empresa, ctx, 'nota')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

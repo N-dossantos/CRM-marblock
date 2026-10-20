@@ -77,6 +77,16 @@ Deno.serve(async (req) => {
       return (data ?? []).reduce((acc: any, r: any) => ({ ...acc, [r.clave]: r.valor }), {})
     }
 
+    // Factura y notas: CUIT del emisor para el QR y ambiente, de los mismos secrets que usa la función
+    // `arca` (PLAN_ARCA §2). Sin ARCA_CUIT, el de config_empresa.
+    const contextoFiscal = (empresa: any) => ({
+      cuitEmisor: Deno.env.get('ARCA_CUIT') || empresa.cuit || null,
+      ambiente:   Deno.env.get('ARCA_AMBIENTE') || null,
+    })
+
+    // Mientras no tiene número fiscal (borrador, rechazado…), el archivo lleva el id interno.
+    const nombreFiscal = (doc: any) => doc.numero || `borrador-${doc.id}`
+
     const rpcOne = async (fn: string, args: any) => {
       const { data, error } = await supabase.rpc(fn, args)
       if (error) throw error
@@ -88,8 +98,9 @@ Deno.serve(async (req) => {
       case 'factura': {
         const factura = await rpcOne('facturas_list', { p_id: Number(id) })
         if (!factura) return jsonError('Factura no encontrada', 404)
-        const buffer = await generarFactura(factura, await getEmpresa())
-        return enviarPDF(buffer, `Factura-${factura.numero}`)
+        const empresa = await getEmpresa()
+        const buffer  = await generarFactura(factura, empresa, contextoFiscal(empresa))
+        return enviarPDF(buffer, `Factura-${nombreFiscal(factura)}`)
       }
       case 'remito': {
         // `id` = 'calibracion' imprime la grilla milimetrada en vez de un remito: se pasa
@@ -118,9 +129,10 @@ Deno.serve(async (req) => {
       case 'nota': {
         const nota = await rpcOne('notas_list', { p_id: Number(id) })
         if (!nota) return jsonError('Nota no encontrada', 404)
-        const buffer = await generarNota(nota, await getEmpresa())
-        const tipo   = nota.tipo === 'NC' ? 'NotaCredito' : 'NotaDebito'
-        return enviarPDF(buffer, `${tipo}-${nota.numero}`)
+        const empresa = await getEmpresa()
+        const buffer  = await generarNota(nota, empresa, contextoFiscal(empresa))
+        const tipo    = nota.tipo === 'NC' ? 'NotaCredito' : 'NotaDebito'
+        return enviarPDF(buffer, `${tipo}-${nombreFiscal(nota)}`)
       }
       case 'recibo': {
         const recibo = await rpcOne('recibos_list', { p_id: Number(id) })
