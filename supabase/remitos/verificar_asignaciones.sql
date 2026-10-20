@@ -133,11 +133,13 @@ CREATE FUNCTION pg_temp.pend(p_factura int, p_excluir int DEFAULT NULL) RETURNS 
   SELECT jsonb_object_agg(i->>'clave', (i->>'pendiente')::numeric)
   FROM jsonb_array_elements(pg_temp.fila(p_factura, p_excluir)->'items') i $$;
 
+-- 'cli' tiene un CUIT válido: la sección 4 simula el CAE de una de sus facturas y
+-- arca_comprobante_para_emitir controla el dígito verificador.
 DO $$
 DECLARE cli int; otro int;
 BEGIN
   INSERT INTO clientes (razon_social, doc_tipo, doc_nro, condicion_iva_afip_id)
-  VALUES ('PRUEBA REMITOS', 80, '20999999990', 1) RETURNING id INTO cli;
+  VALUES ('PRUEBA REMITOS', 80, '20999999973', 1) RETURNING id INTO cli;
   INSERT INTO clientes (razon_social, doc_tipo, doc_nro, condicion_iva_afip_id)
   VALUES ('PRUEBA OTRO', 80, '20999999981', 1) RETURNING id INTO otro;
   INSERT INTO ids VALUES
@@ -439,4 +441,198 @@ BEGIN
   v_err := pg_temp.error(format('SELECT pg_temp.anular(%s)', r1));
   PERFORM pg_temp.ok(v_err = 'Remito no encontrado o ya anulado.',
     format('3.9 remito_anular(R1) otra vez → %s', v_err));
+END $$;
+
+-- ── Helpers de la sección 4: las RPC de facturas, como las llama el frontend (authenticated) ──
+-- Ítems para crear_factura / actualizar_factura a partir de [{"p": "bloque", "c": 1050}], con
+-- precio_unitario (1000 si no se da).
+CREATE FUNCTION pg_temp.items_factura(p_items jsonb) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT jsonb_agg(jsonb_build_object('producto_id', r.producto_id, 'descripcion', r.descripcion,
+                                      'cantidad', r.cantidad, 'precio_unitario', r.precio) ORDER BY r.orden)
+  FROM pg_temp.renglones(p_items) r $$;
+
+-- crear_factura A (queda en borrador) para el cliente 'cli', armada desde los remitos dados.
+-- Devuelve el id.
+CREATE FUNCTION pg_temp.crear_factura(p_items jsonb, p_remitos int[]) RETURNS int LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN (pg_temp.como('authenticated', format(
+    $q$SELECT to_jsonb(f) FROM crear_factura(p_cliente_id => %s, p_items => %L::jsonb, p_remito_ids => %L::int[]) f$q$,
+    pg_temp.id('cli'), pg_temp.items_factura(p_items), p_remitos))->>'id')::int;
+END $$;
+
+-- actualizar_factura con los ítems dados, sin cambiar el cliente.
+CREATE FUNCTION pg_temp.actualizar_factura(p_factura int, p_items jsonb) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_temp.como('authenticated', format(
+    $q$SELECT to_jsonb(f) FROM actualizar_factura(%s, %s, %L::jsonb) f$q$,
+    p_factura, (SELECT cliente_id FROM facturas WHERE id = p_factura), pg_temp.items_factura(p_items)));
+END $$;
+
+CREATE FUNCTION pg_temp.descartar(p_factura int) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_temp.como('authenticated', format('SELECT null::jsonb FROM factura_borrador_descartar(%s)', p_factura));
+END $$;
+
+CREATE FUNCTION pg_temp.anular_factura(p_factura int) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_temp.como('authenticated', format('SELECT to_jsonb(f) FROM factura_anular(%s) f', p_factura));
+END $$;
+
+-- Simula el CAE de un borrador con la secuencia de la Edge Function (supabase/arca/verificar_fase3.sql),
+-- como service_role, en el PV 09999 de la fixture y con un número que no usó ninguna factura.
+-- Devuelve lo que devuelve arca_registrar_cae.
+CREATE FUNCTION pg_temp.cae(p_factura int) RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE
+  nro int := (SELECT COALESCE(max(numero_comp), 0) + 1000 FROM facturas WHERE tipo = 'A' AND punto_venta = '09999');
+  req jsonb := '{"FeCabReq":{"CantReg":1},"FECAEDetRequest":{}}';
+BEGIN
+  PERFORM pg_temp.como('service_role', format($q$SELECT arca_reclamar_serie('facturas', %s, 9999)$q$, p_factura));
+  PERFORM pg_temp.como('service_role', format($q$SELECT null::jsonb FROM arca_reservar_numero('facturas', %s, %s)$q$, p_factura, nro));
+  RETURN pg_temp.como('service_role', format(
+    $q$SELECT arca_registrar_cae('facturas', %s, %s, '75000000000001', CURRENT_DATE + 10, 1, 80, %L, %L, '{"Resultado":"A"}')$q$,
+    p_factura, nro, (SELECT c.doc_nro FROM facturas f JOIN clientes c ON c.id = f.cliente_id WHERE f.id = p_factura), req));
+END $$;
+
+-- Lo asignado de un remito: a una factura (NULL = a cualquiera) y con un origen (NULL = cualquiera).
+CREATE FUNCTION pg_temp.asignado(p_remito int, p_factura int, p_origen text DEFAULT NULL) RETURNS numeric LANGUAGE sql AS $$
+  SELECT COALESCE(sum(a.cantidad), 0)
+  FROM remito_item_facturas a JOIN remito_items ri ON ri.id = a.remito_item_id
+  WHERE ri.remito_id = p_remito AND (p_factura IS NULL OR a.factura_id = p_factura)
+    AND (p_origen IS NULL OR a.origen = p_origen) $$;
+
+-- Lo asignado de cada renglón de un remito, en orden: {300,200}.
+CREATE FUNCTION pg_temp.por_renglon(p_remito int) RETURNS numeric[] LANGUAGE sql AS $$
+  SELECT array_agg(asignado ORDER BY remito_item_id) FROM crm_remito_items_sin_facturar(p_remito) $$;
+
+-- Lo que le falta facturar a un remito, sumando sus renglones.
+CREATE FUNCTION pg_temp.sin_facturar(p_remito int) RETURNS numeric LANGUAGE sql AS $$
+  SELECT sum(sin_facturar) FROM crm_remito_items_sin_facturar(p_remito) $$;
+
+-- Estado y factura_id de un remito: 'pendiente/1234', 'facturado/-' (sin factura_id).
+CREATE FUNCTION pg_temp.estado(p_remito int) RETURNS text LANGUAGE sql AS $$
+  SELECT estado || '/' || COALESCE(factura_id::text, '-') FROM remitos WHERE id = p_remito $$;
+
+\echo '── 4) Facturas armadas desde remitos: crear, editar, descartar, CAE y anular'
+-- Sigue del estado en que terminó la sección 3: F8 tiene el remito de Tango de 3.8 (bloque 100),
+-- R1 está anulado y F2 es un borrador sin remitos. Los remitos nuevos salen de crear_remito sin
+-- asignaciones: todo pendiente de facturar.
+DO $$
+DECLARE
+  f2 int := pg_temp.id('f2');
+  f8 int := pg_temp.id('f8');
+  r4 int; r5 int; r6 int; r7 int; r8 int; rr int; rt int;
+  fa int; fb5 int; fr int;
+  v jsonb;
+  v_err text;
+BEGIN
+  r4 := pg_temp.crear('[{"p":"bloque","c":1050}]');
+  fa := pg_temp.crear_factura('[{"p":"bloque","c":1050}]', ARRAY[r4]);
+  PERFORM pg_temp.ok(
+    (SELECT count(*) = 1 AND bool_and(a.factura_id = fa AND a.origen = 'factura' AND a.cantidad = 1050)
+     FROM remito_item_facturas a JOIN remito_items ri ON ri.id = a.remito_item_id WHERE ri.remito_id = r4)
+    AND pg_temp.estado(r4) = 'pendiente/' || fa
+    AND (SELECT remito_id = r4 AND estado_fiscal = 'borrador' FROM facturas WHERE id = fa),
+    '4.1 FA (bloque 1050) armada desde R4 (bloque 1050): una asignación ''factura'' de 1050; '
+    'R4 sigue pendiente, con factura_id FA; FA es borrador con remito_id R4');
+  v_err := pg_temp.error(format('SELECT pg_temp.actualizar(%s, %L)', r4, '[{"p":"bloque","c":10}]'));
+  PERFORM pg_temp.ok(v_err = format('El remito %s se usó para armar una factura: no se puede editar.',
+      (SELECT numero FROM remitos WHERE id = r4)) AND pg_temp.sin_facturar(r4) = 0,
+    format('4.1 R4 no tiene nada sin facturar y actualizar_remito(R4) da E5 → %s', v_err));
+
+  r5 := pg_temp.crear('[{"p":"bloque","c":1050}]');
+  fb5 := pg_temp.crear_factura('[{"p":"bloque","c":525}]', ARRAY[r5]);
+  PERFORM pg_temp.ok(pg_temp.asignado(r5, fb5, 'factura') = 525 AND pg_temp.asignado(r5, NULL) = 525
+      AND pg_temp.sin_facturar(r5) = 525 AND pg_temp.estado(r5) = 'pendiente/' || fb5,
+    '4.2 FB5 (bloque 525) armada desde R5 (bloque 1050): asigna 525 y quedan 525 sin facturar');
+  PERFORM pg_temp.actualizar_factura(fb5, '[{"p":"bloque","c":1050}]');
+  PERFORM pg_temp.ok(pg_temp.asignado(r5, fb5, 'factura') = 1050 AND pg_temp.asignado(r5, NULL) = 1050
+      AND pg_temp.sin_facturar(r5) = 0,
+    '4.2 actualizar_factura(FB5) con bloque 1050: asigna 1050 (reemplaza los 525) y no queda nada sin facturar');
+
+  -- El reparto: remitos por número y renglones por orden, aunque la lista venga al revés. El
+  -- pallet de R8 no está en la factura: queda sin facturar.
+  r7 := pg_temp.crear('[{"p":"bloque","c":300},{"p":"bloque","c":200}]');
+  r8 := pg_temp.crear('[{"p":"bloque","c":400},{"p":"pallet","c":5}]');
+  fr := pg_temp.crear_factura('[{"p":"bloque","c":600}]', ARRAY[r8, r7]);
+  PERFORM pg_temp.ok(pg_temp.por_renglon(r7) = '{300,200}' AND pg_temp.por_renglon(r8) = '{100,0}'
+      AND pg_temp.asignado(r7, fr, 'factura') = 500 AND pg_temp.asignado(r8, fr, 'factura') = 100,
+    '4.2 FR (bloque 600) desde [R8, R7]: R7 (300 + 200) se lleva 500 y R8 (400 + pallet 5) 100; el pallet queda sin facturar');
+
+  v_err := pg_temp.error(format('SELECT pg_temp.descartar(%s)', fb5));
+  PERFORM pg_temp.ok(v_err IS NULL AND NOT EXISTS (SELECT 1 FROM facturas WHERE id = fb5)
+      AND pg_temp.asignado(r5, NULL) = 0 AND pg_temp.estado(r5) = 'pendiente/-',
+    format('4.3 factura_borrador_descartar(FB5): se borra; R5 sin asignaciones, pendiente y sin factura_id%s', ' → ' || v_err));
+  v_err := pg_temp.error(format('SELECT pg_temp.actualizar(%s, %L)', r5, '[{"p":"bloque","c":1000}]'));
+  PERFORM pg_temp.ok(v_err IS NULL AND (SELECT sum(cantidad) FROM remito_items WHERE remito_id = r5) = 1000,
+    format('4.3 actualizar_remito(R5) ya funciona%s', ' → ' || v_err));
+  -- El backfill dio asignaciones 'tango' a los remitos que tenía tomados un borrador: descartarlo
+  -- también las borra (si no, el DELETE de la factura choca con la FK de remito_item_facturas).
+  rt := pg_temp.remito_tango(f2, '[{"p":"bloque","c":100}]');
+  v_err := pg_temp.error(format('SELECT pg_temp.descartar(%s)', f2));
+  PERFORM pg_temp.ok(v_err IS NULL AND NOT EXISTS (SELECT 1 FROM facturas WHERE id = f2)
+      AND pg_temp.asignado(rt, NULL) = 0 AND pg_temp.estado(rt) = 'pendiente/-',
+    format('4.3 descartar F2 (borrador) con un remito de Tango asignado: se borra; el remito queda '
+           'pendiente, sin factura_id ni asignaciones%s', ' → ' || v_err));
+
+  v := pg_temp.cae(fa);
+  PERFORM pg_temp.ok((v->>'registrado')::boolean AND (SELECT estado_fiscal FROM facturas WHERE id = fa) = 'autorizado',
+    format('4.4 CAE simulado de FA: registrado → %s', v));
+  PERFORM pg_temp.ok(pg_temp.estado(r4) = 'facturado/' || fa AND pg_temp.fila(fa) IS NULL,
+    '4.4 R4 pasa a facturado; FA no queda pendiente de remitir (R4 le remitió todo)');
+  -- Con el CAE se recalcula: R8 tiene parte sin facturar y sigue pendiente.
+  v := pg_temp.cae(fr);
+  PERFORM pg_temp.ok((v->>'registrado')::boolean
+      AND pg_temp.estado(r7) = 'facturado/' || fr AND pg_temp.estado(r8) = 'pendiente/' || fr
+      AND pg_temp.sin_facturar(r8) = 305,
+    format('4.4 CAE simulado de FR: R7 facturado; R8 sigue pendiente, con 300 de bloque y 5 de pallet sin facturar → %s', v));
+
+  -- F8: bloque 500, con el remito de Tango de 3.8 (100). R6 es de Tango (200) y RR descuenta 100
+  -- con "Lleva" (asignación 'remito'): queda facturado.
+  r6 := pg_temp.remito_tango(f8, '[{"p":"bloque","c":200}]');
+  rr := pg_temp.crear('[{"p":"bloque","c":100,"a":[{"f":"f8","c":100}]}]');
+  PERFORM pg_temp.ok(pg_temp.estado(rr) = 'facturado/' || f8, '4.5 RR (bloque 100, todo de F8 con "Lleva"): facturado');
+  PERFORM pg_temp.anular_factura(f8);
+  PERFORM pg_temp.ok(NOT EXISTS (SELECT 1 FROM remito_item_facturas WHERE factura_id = f8)
+      AND pg_temp.estado(r6) = 'pendiente/-' AND pg_temp.sin_facturar(r6) = 200,
+    '4.5 factura_anular(F8): no quedan asignaciones a F8; R6 queda pendiente, sin factura_id y con 200 sin facturar');
+  PERFORM pg_temp.ok(pg_temp.estado(rr) = 'pendiente/-' AND pg_temp.sin_facturar(rr) = 100,
+    '4.5 RR (asignación ''remito'' a F8) también queda pendiente, con 100 sin facturar');
+
+  v_err := pg_temp.error(format('SELECT pg_temp.crear_factura(%L, %L)', '[{"p":"bloque","c":1050}]', ARRAY[r4]));
+  PERFORM pg_temp.ok(v_err = format('El remito %s no tiene nada pendiente de facturar.', (SELECT numero FROM remitos WHERE id = r4)),
+    format('4.6 crear_factura desde R4 (ya facturado): E6 → %s', v_err));
+  -- Lo reservado por un borrador tampoco está pendiente: R5 vuelve a un borrador entero.
+  PERFORM pg_temp.crear_factura('[{"p":"bloque","c":1000}]', ARRAY[r5]);
+  v_err := pg_temp.error(format('SELECT pg_temp.crear_factura(%L, %L)', '[{"p":"bloque","c":1000}]', ARRAY[r5]));
+  PERFORM pg_temp.ok(v_err = format('El remito %s no tiene nada pendiente de facturar.', (SELECT numero FROM remitos WHERE id = r5)),
+    format('4.6 crear_factura desde R5, reservado entero por otro borrador: E6 → %s', v_err));
+  v_err := pg_temp.error(format('SELECT pg_temp.crear_factura(%L, %L)', '[{"p":"bloque","c":10}]', ARRAY[pg_temp.id('r1')]));
+  PERFORM pg_temp.ok(v_err = format('No se puede facturar: el remito %s no está pendiente (anulado).',
+      (SELECT numero FROM remitos WHERE id = pg_temp.id('r1'))),
+    format('4.6 crear_factura desde R1 (anulado): el mensaje de siempre → %s', v_err));
+
+  PERFORM pg_temp.ok(
+    (SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN
+       ('crear_factura','actualizar_factura','factura_borrador_descartar','factura_anular','arca_registrar_cae')) = 5
+    AND has_function_privilege('authenticated', 'crear_factura(integer, jsonb, varchar, numeric, integer[], integer, text, jsonb)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'crear_factura(integer, jsonb, varchar, numeric, integer[], integer, text, jsonb)', 'EXECUTE')
+    AND has_function_privilege('authenticated', 'actualizar_factura(integer, integer, jsonb, numeric, text, jsonb)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'actualizar_factura(integer, integer, jsonb, numeric, text, jsonb)', 'EXECUTE')
+    AND has_function_privilege('authenticated', 'factura_borrador_descartar(integer)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'factura_borrador_descartar(integer)', 'EXECUTE')
+    AND has_function_privilege('authenticated', 'factura_anular(integer)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'factura_anular(integer)', 'EXECUTE')
+    AND has_function_privilege('service_role', 'arca_registrar_cae(text, integer, integer, text, date, integer, integer, text, jsonb, jsonb, jsonb)', 'EXECUTE')
+    AND NOT has_function_privilege('authenticated', 'arca_registrar_cae(text, integer, integer, text, date, integer, integer, text, jsonb, jsonb, jsonb)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'arca_registrar_cae(text, integer, integer, text, date, integer, integer, text, jsonb, jsonb, jsonb)', 'EXECUTE'),
+    '4.7 permisos: una sola firma de cada RPC de facturas, authenticated sí y anon no; arca_registrar_cae sólo service_role');
+  PERFORM pg_temp.ok(
+    (SELECT count(*) = 3 AND bool_and(p.prosecdef) AND bool_and(p.proconfig @> '{"search_path=public, pg_temp"}')
+       AND bool_and(NOT has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+       AND bool_and(NOT has_function_privilege('anon', p.oid, 'EXECUTE'))
+     FROM pg_proc p
+     WHERE p.pronamespace = 'public'::regnamespace
+       AND p.proname IN ('crm_factura_asignar_remitos','crm_factura_soltar_remitos','crm_remitos_recalcular_de_factura')),
+    '4.7 crm_factura_asignar_remitos, crm_factura_soltar_remitos y crm_remitos_recalcular_de_factura: '
+    'SECURITY DEFINER con search_path fijo; ni authenticated ni anon');
 END $$;

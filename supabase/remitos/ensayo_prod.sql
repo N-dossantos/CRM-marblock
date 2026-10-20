@@ -13,6 +13,7 @@
 BEGIN;
 \ir ../migrations/20261020160000_remito_factura_asignaciones.sql
 \ir ../migrations/20261020160001_rpc_remitos_asignaciones.sql
+\ir ../migrations/20261020160002_rpc_facturas_asignaciones.sql
 \ir verificar_backfill.sql
 ROLLBACK;
 \echo '── Fin: ROLLBACK (no se aplicó nada)'
