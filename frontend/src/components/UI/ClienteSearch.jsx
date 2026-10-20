@@ -1,23 +1,24 @@
 // src/components/UI/ClienteSearch.jsx
 // Combobox de clientes: reemplaza al <select> plano de los comprobantes. Se escribe razón social o
-// CUIT y filtra; con la cartera real un desplegable de cientos de opciones es inusable.
+// documento y filtra; con la cartera real un desplegable de cientos de opciones es inusable.
 //
 // Mantiene la interfaz de un <select>: `value` es el id (string, como el value de un <option>) y
 // `onChange` recibe el id como string — o '' al limpiar. Así los formularios que ya tenían un
 // handler para el select no necesitan cambiarlo.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { fDocNro, clienteCoincide } from '../../utils'
 
 // Tope de filas renderizadas. No es paginación: es para no volcar la cartera entera en el DOM
 // cuando todavía no se escribió nada. Al cliente 51 se llega escribiendo, que es el punto.
 const MAX_OPCIONES = 50
 
-const etiqueta = (c) => (c.cuit ? `${c.razon_social} — ${c.cuit}` : c.razon_social)
+const etiqueta = (c) => `${c.razon_social} — ${fDocNro(c.doc_tipo, c.doc_nro)}`
 
 export default function ClienteSearch({
   clientes = [],
   value,
   onChange,
-  placeholder = 'Buscar por razón social o CUIT…',
+  placeholder = 'Buscar por razón social, CUIT o DNI…',
   disabled = false,
 }) {
   const [query, setQuery] = useState(null) // null = mostrando el seleccionado; string = tipeando
@@ -33,11 +34,8 @@ export default function ClienteSearch({
   )
 
   const opciones = useMemo(() => {
-    const term = (query || '').trim().toLowerCase()
-    if (!term) return activos.slice(0, MAX_OPCIONES)
-    return activos
-      .filter(c => `${c.razon_social} ${c.cuit || ''}`.toLowerCase().includes(term))
-      .slice(0, MAX_OPCIONES)
+    if (!(query || '').trim()) return activos.slice(0, MAX_OPCIONES)
+    return activos.filter(c => clienteCoincide(c, query)).slice(0, MAX_OPCIONES)
   }, [activos, query])
 
   // Con el desplegable abierto el input muestra lo tipeado; cerrado, el cliente elegido.
@@ -122,7 +120,7 @@ export default function ClienteSearch({
               onMouseDown={e => { e.preventDefault(); elegir(c) }}
             >
               <span className="cli-search-nom">{c.razon_social}</span>
-              {c.cuit && <span className="cli-search-cuit">{c.cuit}</span>}
+              <span className="cli-search-cuit">{fDocNro(c.doc_tipo, c.doc_nro)}</span>
             </div>
           ))}
           {opciones.length === MAX_OPCIONES && (

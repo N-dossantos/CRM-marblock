@@ -34,6 +34,20 @@ export const fFecha = (s: any) => {
   return d.toLocaleDateString('es-AR')
 }
 
+// Documento del cliente con los códigos de ARCA (clientes.doc_tipo / doc_nro, sólo dígitos).
+// Mismo formato que fDocNro / fDoc de frontend/src/utils.
+const TIPOS_DOC: Record<number, string> = { 80: 'CUIT', 96: 'DNI' }
+
+// Número tal como se lee: CUIT con guiones, DNI tal cual.
+export const fDocNro = (tipo: any, nro: any) => {
+  const d = String(nro ?? '')
+  return +tipo === 80 && /^\d{11}$/.test(d) ? `${d.slice(0, 2)}-${d.slice(2, 10)}-${d.slice(10)}` : d
+}
+
+// Con el tipo adelante: "CUIT 30-12345678-9" / "DNI 12345678".
+export const fDoc = (tipo: any, nro: any) =>
+  nro ? `${TIPOS_DOC[+tipo] || 'Doc.'} ${fDocNro(tipo, nro)}` : '—'
+
 // Texto blanco semitransparente sobre una franja oscura. Reemplaza a fillColor('rgba(…)'), que
 // pdfkit no soporta; save/restore vuelve la opacidad a 1 para lo que sigue.
 export function textoTenue(doc: any, opacidad: number, dibujar: () => void) {
@@ -116,7 +130,7 @@ export function dibujarCliente(doc: any, y: number, cliente: any, extra: Record<
   doc.fillColor(COLORES.gris_texto)
      .font('Helvetica')
      .fontSize(8.5)
-     .text(`CUIT: ${cliente.cuit || '—'}  ·  ${cliente.condicion_iva || '—'}`, M + 10, y + 36)
+     .text(`${fDoc(cliente.doc_tipo, cliente.doc_nro)}  ·  ${cliente.condicion_iva || '—'}`, M + 10, y + 36)
      .text(cliente.direccion || '', M + 10, y + 47)
 
   // Columna derecha: datos extra (ej: remito vinculado, presupuesto, etc.)

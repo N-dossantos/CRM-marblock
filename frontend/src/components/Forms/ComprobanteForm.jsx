@@ -5,6 +5,7 @@ import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal, ClienteSearch, agregarP
 import { ElegirProductosBtn } from '../UI/ProductoPicker'
 import { calcTotalesMulti, renglonesDeRemito } from '../../utils'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
+import { revisarEmision } from '../Arca'
 import toast from 'react-hot-toast'
 
 const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
@@ -14,13 +15,6 @@ const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitar
 // "la mercadería viaja por cuenta y riesgo del comprador" (y=230 mm). Tiene que coincidir con
 // MAPA.items.renglones en supabase/functions/pdf/preimpreso.ts.
 const RENGLONES_TALONARIO = 19
-
-// Letra de factura según la condición de IVA del receptor: A a Responsables Inscriptos y, desde
-// 2021, también a Monotributistas (con la leyenda "Receptor del comprobante – Responsable
-// Monotributo"); B a Consumidor Final y Exento. El CUIT genérico de consumidor final nunca va en A.
-const CUIT_CONSUMIDOR_FINAL = '00-00000000-0'
-const tipoFacturaPara = (cl) =>
-  cl && ['Resp. Inscripto', 'Monotributista'].includes(cl.condicion_iva) && cl.cuit !== CUIT_CONSUMIDOR_FINAL ? 'A' : 'B'
 
 export default function ComprobanteForm({
   title,
@@ -33,7 +27,7 @@ export default function ComprobanteForm({
   onClienteChange,  // avisa al padre para que traiga los remitos pendientes de ese cliente
   alicuotas = [], // [{ id, porcentaje }] — activa el IVA multi-alícuota (sólo en facturas)
   numeroSugerido = null, // { punto_venta, numero, numero_formateado } — sólo para remitos nuevos
-  onSave,
+  onSave,         // (payload, { emitir }) — en facturas, `emitir` pide además el CAE a ARCA
   onClose,
   warnVencido = false,
 }) {
@@ -43,8 +37,9 @@ export default function ComprobanteForm({
   // anular y reemitir, no renumerar.
   const esRemito     = tipo === 'remito'
   const esRemitoNuevo = esRemito && !initial.id
-  // En una factura ya emitida los remitos quedan 'facturado' y no salen en los pendientes:
-  // se muestran como dato, no como selector.
+  // Una factura sólo se edita mientras es borrador o rechazada (sin CAE). Sus remitos ya están
+  // tomados por ella y no salen en los pendientes: se muestran como dato, no como selector. El
+  // cliente tampoco cambia: de él dependen la letra y esos remitos.
   const esFacturaNueva = tipo === 'factura' && !initial.id
   // IVA multi-alícuota: sólo en facturas (presupuesto/remito siguen en 21% por defecto).
   const multiIva = tipo === 'factura' && alicuotas.length > 0
@@ -67,8 +62,12 @@ export default function ComprobanteForm({
     telefono_entrega:  initial.telefono_entrega || '',
     ...initial,
   })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(null)   // null | 'guardar' | 'emitir'
   const [showWarn, setShowWarn] = useState(warnVencido)
+  // Para "Continuar con precios actuales" del presupuesto vencido: repite el botón que se tocó.
+  const emitirPedido = useRef(false)
+  // Mientras guarda o emite (3–15 s contra ARCA) no se cierra: el resultado se perdería de vista.
+  const cerrar = () => { if (!loading) onClose() }
 
   // El 4º argumento son los campos que dependen del comprobante: en facturas multi-alícuota la
   // línea automática debe traer alicuota_iva_id como cualquier ítem de "+ Agregar ítem", si no el
@@ -121,17 +120,6 @@ export default function ComprobanteForm({
     if (cl.descuento_porcentaje != null) setForm(f => ({ ...f, descuento_general: +cl.descuento_porcentaje }))
   }, [tipo, clientes, form.cliente_id])
 
-  // Misma idea para la letra: si la factura nueva llega con el cliente ya elegido (desde un remito
-  // o un presupuesto), se propone A o B según su condición de IVA, una sola vez.
-  const tipoClienteAplicado = useRef(!esFacturaNueva || !!initial.tipo)
-  useEffect(() => {
-    if (tipoClienteAplicado.current || !form.cliente_id) return
-    const cl = clientes.find(c => c.id === +form.cliente_id)
-    if (!cl) return
-    tipoClienteAplicado.current = true
-    setForm(f => ({ ...f, tipo_fac: tipoFacturaPara(cl) }))
-  }, [clientes, form.cliente_id])
-
   // Auto-aplicar descuento del cliente al seleccionarlo
   const onCliChange = (cliId) => {
     const cl = clientes.find(c => c.id === +cliId)
@@ -143,13 +131,11 @@ export default function ComprobanteForm({
       remito_ids: [],
       items: f.items.filter(it => !it._remito_id),
       descuento_general: cl?.descuento_porcentaje ?? f.descuento_general,
-      ...(esFacturaNueva && cl && { tipo_fac: tipoFacturaPara(cl) }),
       // El teléfono del remito se prellena con el del cliente pero queda editable: el de la
       // obra suele ser otro (capataz/obrador) y es el que sirve si hay que llamar en la entrega.
       ...(esRemito && !f.telefono_entrega && cl?.telefono ? { telefono_entrega: cl.telefono } : {}),
     }))
     dtoClienteAplicado.current = true
-    tipoClienteAplicado.current = true
     onClienteChange?.(cliId)
   }
 
@@ -190,11 +176,19 @@ export default function ComprobanteForm({
     return Math.abs(dif) > UMBRAL_DESVIO ? dif : null
   })()
 
-  // Letra distinta de la que corresponde al cliente: avisa, no bloquea (el operador decide).
+  // La letra la decide la clase de la condición IVA del cliente en el catálogo de ARCA (A: Resp.
+  // Inscripto y monotributos; B: el resto). No se elige: el servidor rechaza cualquier otra.
   const clienteSel = tipo === 'factura' ? clientes.find(c => c.id === +form.cliente_id) : null
-  const letraDesvio = esFacturaNueva && clienteSel && form.tipo_fac !== tipoFacturaPara(clienteSel)
+  const letra = esFacturaNueva ? clienteSel?.clase : form.tipo_fac
 
-  const save = async (forzar = false) => {
+  // Validación previa a ARCA (§5): lo que impediría emitir se avisa acá, y sólo deja guardar el
+  // borrador. La base lo vuelve a controlar al emitir.
+  const bloqueosArca = tipo === 'factura' && clienteSel
+    ? revisarEmision('facturas', { ...clienteSel, tipo: letra, percepciones_monto: initial.percepciones_monto || 0 }).bloqueos
+    : []
+
+  const save = async (forzar = false, emitir = emitirPedido.current) => {
+    emitirPedido.current = emitir
     if (!form.cliente_id)   { toast.error('Seleccione un cliente'); return }
     if (!form.items.length) { toast.error('Agregue al menos un ítem'); return }
     if (esRemitoNuevo && !/^\d{5}-\d{8}$/.test((form.numero || '').trim())) {
@@ -219,18 +213,18 @@ export default function ComprobanteForm({
         domicilio_obra:    form.domicilio_obra?.trim() || null,
         telefono_entrega:  form.telefono_entrega?.trim() || null,
       }),
-      ...(tipo === 'factura' && { tipo: form.tipo_fac, remito_ids: form.remito_ids }),
+      ...(tipo === 'factura' && { tipo: letra, remito_ids: form.remito_ids }),
       ...(tipo === 'factura' && form.presupuesto_id && { presupuesto_id: +form.presupuesto_id }),
       ...(forzar && { forzar_vencido: true }),
     }
-    setLoading(true)
+    setLoading(emitir ? 'emitir' : 'guardar')
     try {
-      await onSave(payload)
+      await onSave(payload, { emitir })
     } catch (err) {
       // 422 = presupuesto vencido, mostrar advertencia
       if (err.response?.status === 422) setShowWarn(true)
     } finally {
-      setLoading(false)
+      setLoading(null)
     }
   }
 
@@ -247,15 +241,31 @@ export default function ComprobanteForm({
     <Modal
       title={title}
       size="xl"
-      onClose={onClose}
-      footer={
+      onClose={cerrar}
+      footer={tipo === 'factura' ? (
         <>
-          <button className="btn btn-secondary" onClick={onClose} disabled={loading}>Cancelar</button>
-          <button className="btn btn-primary" onClick={() => save(false)} disabled={loading}>
+          {loading === 'emitir' && (
+            <span className="arca-ocupado" style={{ marginRight: 'auto' }}>
+              <span className="arca-spinner" aria-hidden />Emitiendo en ARCA… puede tardar hasta 15 segundos.
+            </span>
+          )}
+          <button className="btn btn-secondary" onClick={cerrar} disabled={!!loading}>Cancelar</button>
+          <button className="btn btn-secondary" onClick={() => save(false, false)} disabled={!!loading}>
+            {loading === 'guardar' ? 'Guardando…' : 'Guardar borrador'}
+          </button>
+          <button className="btn btn-primary" onClick={() => save(false, true)} disabled={!!loading || bloqueosArca.length > 0}
+            title={bloqueosArca.length ? 'Hay datos que impiden emitir: ver el aviso' : 'Guarda la factura y pide el CAE a ARCA'}>
+            {loading === 'emitir' ? 'Emitiendo…' : '⚡ Guardar y emitir en ARCA'}
+          </button>
+        </>
+      ) : (
+        <>
+          <button className="btn btn-secondary" onClick={cerrar} disabled={!!loading}>Cancelar</button>
+          <button className="btn btn-primary" onClick={() => save(false)} disabled={!!loading}>
             {loading ? 'Guardando…' : '✓ Guardar'}
           </button>
         </>
-      }
+      )}
     >
       {showWarn && (
         <div className="warn-box">
@@ -275,7 +285,8 @@ export default function ComprobanteForm({
         {/* Cliente */}
         <div className="field" style={{ gridColumn: tipo === 'factura' ? '1 / 3' : '1 / 3' }}>
           <label className="lbl">Cliente *</label>
-          <ClienteSearch clientes={clientes} value={form.cliente_id} onChange={onCliChange} />
+          <ClienteSearch clientes={clientes} value={form.cliente_id} onChange={onCliChange}
+            disabled={tipo === 'factura' && !esFacturaNueva} />
         </div>
 
         {/* Número de la hoja del talonario preimpreso (solo remitos) */}
@@ -297,13 +308,27 @@ export default function ComprobanteForm({
         {tipo === 'factura' && (
           <div className="field">
             <label className="lbl">Tipo</label>
-            <select className="sel" value={form.tipo_fac} onChange={e => setForm(f => ({ ...f, tipo_fac: e.target.value }))}>
-              <option value="A">Factura A</option>
-              <option value="B">Factura B</option>
-            </select>
+            <input
+              className="inp"
+              readOnly
+              value={letra ? `Factura ${letra}` : '—'}
+              title={clienteSel ? `Cliente ${clienteSel.condicion_iva}` : 'Depende de la condición IVA del cliente'}
+              style={{ background: 'var(--gray-50)', color: 'var(--gray-500)' }}
+            />
           </div>
         )}
       </div>
+
+      {bloqueosArca.length > 0 && (
+        <div className="warn-box" style={{ marginBottom: 14 }}>
+          <span>⚠️</span>
+          <div>
+            <strong>Esta factura no se va a poder emitir en ARCA</strong> hasta resolver:
+            <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{bloqueosArca.map((b, i) => <li key={i}>{b}</li>)}</ul>
+            Se puede guardar como borrador.
+          </div>
+        </div>
+      )}
 
       {/* Desvío respecto del número sugerido — advierte, no bloquea: puede ser legítimo
           (talonario salteado) o un error de tipeo que la base no puede detectar. */}
@@ -314,17 +339,6 @@ export default function ComprobanteForm({
             El número está <strong>{Math.abs(desvio)} hoja(s) {desvio > 0 ? 'adelante' : 'atrás'}</strong> del
             sugerido (<span style={{ fontFamily: 'monospace' }}>{numeroSugerido.numero_formateado}</span>).
             Verificá que coincida con la hoja que pusiste en la impresora.
-          </div>
-        </div>
-      )}
-
-      {letraDesvio && (
-        <div className="warn-box" style={{ marginBottom: 14 }}>
-          <span>⚠️</span>
-          <div>
-            {form.tipo_fac === 'A'
-              ? <>El cliente es <strong>{clienteSel.cuit === CUIT_CONSUMIDOR_FINAL ? 'consumidor final genérico (sin CUIT)' : clienteSel.condicion_iva}</strong>: le corresponde <strong>Factura B</strong>. Una Factura A necesita un receptor Responsable Inscripto o Monotributista con CUIT.</>
-              : <>El cliente es <strong>{clienteSel.condicion_iva}</strong>: le corresponde <strong>Factura A</strong>. Con una Factura B no puede computar el IVA.</>}
           </div>
         </div>
       )}
@@ -398,7 +412,7 @@ export default function ComprobanteForm({
 
       {tipo === 'factura' && !esFacturaNueva && initial.remitos?.length > 0 && (
         <div className="field" style={{ marginBottom: 14 }}>
-          <label className="lbl">Remitos facturados</label>
+          <label className="lbl">Remitos vinculados</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {initial.remitos.map(r => <span key={r.id} className="code">{r.numero}</span>)}
           </div>

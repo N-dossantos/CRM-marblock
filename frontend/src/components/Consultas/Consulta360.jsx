@@ -21,8 +21,8 @@ export default function Consulta360({
   header = null,       // JSX de cabecera (lo arma el padre con `data`)
   tabs = [],           // [{ id, label, count, render: () => JSX }]
   // Accessors opcionales (Fase D): permiten reusar el shell con entidades que no
-  // tienen razon_social/cuit (p. ej. una cuenta de tesorería). Los defaults preservan
-  // el comportamiento de ConsultaCliente/ConsultaProveedor sin tocarlos.
+  // tienen razon_social/cuit (p. ej. una cuenta de tesorería). Los defaults son los de
+  // ConsultaProveedor; ConsultaCliente pasa los suyos (documento = doc_tipo + doc_nro).
   getLabel    = (e) => e.razon_social,
   getSubtitle = (e) => e.cuit,
   matchFn     = (e, search) => {

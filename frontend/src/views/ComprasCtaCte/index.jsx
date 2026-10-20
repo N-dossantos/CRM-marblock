@@ -112,7 +112,7 @@ export default function ComprasCtaCte() {
                   <button
                     className="btn btn-secondary btn-sm"
                     style={{ marginTop: 10, background: 'var(--green-50)', color: 'var(--green-700)', borderColor: 'var(--green-100)' }}
-                    onClick={() => exportarCtaCte(data, data.proveedor, 'Proveedor')}
+                    onClick={() => exportarCtaCte(data, data.proveedor, 'Proveedor', `CUIT ${data.proveedor.cuit || '—'}`)}
                   >
                     📊 Excel
                   </button>

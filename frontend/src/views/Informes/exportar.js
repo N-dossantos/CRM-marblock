@@ -3,7 +3,7 @@
 // dibuja la pantalla y los filtros, y devuelve { archivo, hojas } para exportarXlsx(). Las columnas
 // siguen las de la tabla en pantalla; los libros IVA suman lo que el contador necesita (neto e IVA
 // por alícuota, percepciones por tipo).
-import { $ar, fFecha } from '../../utils'
+import { $ar, fFecha, fDocNro } from '../../utils'
 import { nombreArchivo } from '../../utils/excel'
 
 const periodo = ({ desde, hasta }) =>
@@ -82,7 +82,7 @@ function libroIvaVentas(data, f) {
     col('Letra',          c => c.letra, 'texto', 6),
     col('Número',         c => c.numero, 'texto', 16),
     col('Cliente',        c => c.razon_social, 'texto', 34),
-    col('CUIT',           c => c.cuit, 'texto', 14),
+    col('CUIT / DNI',      c => fDocNro(c.doc_tipo, c.doc_nro), 'texto', 14),
     col('Condición IVA',  c => c.condicion_iva, 'texto', 16),
     col('Neto gravado',   c => c.neto_gravado, 'importe'),
     col('IVA 21%',        c => c.iva_monto, 'importe'),

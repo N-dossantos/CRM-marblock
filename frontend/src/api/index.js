@@ -14,9 +14,10 @@ const pagina = (limit, offset) => (limit ? { p_limit: limit, p_offset: offset ||
 
 // Normalizadores (trim / defaults / tipos) equivalentes a los del backend.
 const cli = (d) => ({
-  razon_social:         d.razon_social?.trim(),
-  cuit:                 d.cuit?.trim(),
-  condicion_iva:        d.condicion_iva || 'Resp. Inscripto',
+  razon_social:          d.razon_social?.trim(),
+  doc_tipo:              +d.doc_tipo,
+  doc_nro:               String(d.doc_nro ?? '').replace(/\D/g, ''),
+  condicion_iva_afip_id: +d.condicion_iva_afip_id,
   direccion:            d.direccion ?? null,
   localidad:            d.localidad ?? null,
   provincia:            d.provincia || 'Buenos Aires',
@@ -93,7 +94,14 @@ export const ClientesAPI = {
       p_q: q || null,
       p_activo: activo === undefined ? null : (activo === true || activo === 'true'),
     }),
-  get:    (id)      => supabase.from('clientes').select('*').eq('id', id).maybeSingle().then(unwrap),
+  // Misma forma que clientes_list: la condición IVA como descripción del catálogo, más su clase.
+  get:    (id)      => supabase.from('clientes').select('*, cond:condiciones_iva_afip(descripcion, clase)')
+    .eq('id', id).maybeSingle().then(unwrap)
+    .then((c) => {
+      if (!c) return c
+      const { cond, ...r } = c
+      return { ...r, condicion_iva: cond.descripcion, clase: cond.clase }
+    }),
   create: (data)    => supabase.from('clientes').insert(cli(data)).select().single().then(unwrap),
   update: (id,data) => supabase.from('clientes').update(cli(data)).eq('id', id).select().single().then(unwrap),
   delete: (id)      => supabase.from('clientes').update({ activo: false }).eq('id', id).then(unwrap).then(() => ({ ok: true })),
@@ -173,9 +181,11 @@ export const RemitosAPI = {
 
 // ── FACTURAS ─────────────────────────────────────────────────────────
 export const FacturasAPI = {
-  list: ({ q, estado, tipo, cliente_id, desde, hasta, limit, offset } = {}) => rpc('facturas_list', {
+  // `estado_fiscal`: lista de estados de ARCA (['borrador','rechazado',…]); vacío = todos.
+  list: ({ q, estado, estado_fiscal, tipo, cliente_id, desde, hasta, limit, offset } = {}) => rpc('facturas_list', {
     p_q: q || null, p_estado: estado || null, p_tipo: tipo || null,
     p_cliente_id: cliente_id || null, p_desde: desde || null, p_hasta: hasta || null,
+    p_estado_fiscal: estado_fiscal?.length ? estado_fiscal : null,
     ...pagina(limit, offset),
   }),
   pendientesRemitir: () => rpc('facturas_list', { p_solo_sin_remito: true }),
@@ -189,8 +199,19 @@ export const FacturasAPI = {
     p_presupuesto_id:    data.presupuesto_id ?? null,
     p_observaciones:     data.observaciones ?? null,
   }),
-  // Sin `update`: una factura emitida no se edita (se corrige con NC/ND o se anula y reemite).
-  // `actualizar_factura` sigue en la base, pero la app ya no la llama.
+  // Sólo un borrador o un rechazado (actualizar_factura rechaza el resto): una factura con CAE se
+  // corrige con NC/ND. `percepciones` viaja de vuelta tal cual: sin ella la RPC las borra.
+  update: (id, data) => rpc('actualizar_factura', {
+    p_id:                id,
+    p_cliente_id:        data.cliente_id,
+    p_items:             data.items,
+    p_descuento_general: data.descuento_general || 0,
+    p_observaciones:     data.observaciones ?? null,
+    p_percepciones:      data.percepciones ?? null,
+  }),
+  // Borra un borrador o rechazado que nunca llegó a ARCA y libera sus remitos.
+  descartar: (id) => rpc('factura_borrador_descartar', { p_id: id }),
+  // Sólo histórico: ARCA no permite anular una factura autorizada.
   anular: (id) => rpc('factura_anular', { p_id: id }),
 }
 
@@ -203,6 +224,54 @@ export const NotasAPI = {
     p_factura_id: data.factura_id, p_tipo: data.tipo, p_items: data.items,
     p_motivo: data.motivo ?? null, p_observaciones: data.observaciones ?? null,
   }),
+  // Como en facturas: sólo borrador o rechazado; el tipo y la factura no cambian.
+  update: (id, data) => rpc('actualizar_nota', {
+    p_id: id, p_items: data.items,
+    p_motivo: data.motivo ?? null, p_observaciones: data.observaciones ?? null,
+    p_percepciones: data.percepciones ?? null,
+  }),
+  descartar: (id) => rpc('nota_borrador_descartar', { p_id: id }),
+}
+
+// ── ARCA (facturación electrónica, PLAN_ARCA.md §5) ──────────────────
+// La Edge Function `arca` emite y reconcilia. Responde siempre JSON con el estado fiscal y un
+// mensaje para el usuario, también en los 4xx/5xx de negocio (422 validación del CRM, 503 falla
+// antes de enviar, 409 todavía en emisión, 500 CAE sin registrar). Por eso no pasa por fail(): cada
+// llamada devuelve { status, ...cuerpo } y el panel de emisión decide qué mostrar. status 0 = sin
+// respuesta (la emisión pudo haber llegado igual: se mira el estado en la base).
+const ARCA_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/arca`
+
+async function arca(ruta, body) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { status: 401, error: 'Sesión expirada — iniciá sesión nuevamente.' }
+  let res
+  try {
+    res = await fetch(`${ARCA_BASE}/${ruta}`, {
+      method: body ? 'POST' : 'GET',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        ...(body && { 'Content-Type': 'application/json' }),
+      },
+      body: body && JSON.stringify(body),
+    })
+  } catch {
+    return { status: 0, error: 'Se cortó la comunicación con el servidor.' }
+  }
+  const cuerpo = await res.json().catch(() => ({}))
+  return { status: res.status, ...(res.ok || cuerpo.error ? {} : { error: `Error ${res.status} del servidor` }), ...cuerpo }
+}
+
+export const ArcaAPI = {
+  // Ambiente y PV del despliegue + FEDummy y WSAA (para el banner y el indicador de la barra).
+  estado:           ()          => arca('estado'),
+  ultimoAutorizado: (tipo)      => arca(`ultimo?tipo=${tipo}`),
+  emitir:           (tabla, id) => arca('emitir', { tabla, id }),
+  reconciliar:      (tabla, id) => arca('reconciliar', { tabla, id }),
+  // Estado fiscal, CAE y el último intento con los errores de ARCA (sin request/response).
+  solicitud:        (tabla, id) => rpc('arca_solicitud_ultimo', { p_tabla: tabla, p_id: id }),
+  // Comprobantes sin CAE por estado: { facturas: {borrador, rechazado, …}, notas: {…} }.
+  bandeja:          ()          => rpc('arca_bandeja'),
 }
 
 // ── RECIBOS ──────────────────────────────────────────────────────────
@@ -359,6 +428,11 @@ export const MaterialesAPI = {
 // ── ALÍCUOTAS IVA (catálogo p/ selects) ──────────────────────────────
 export const AlicuotasIvaAPI = {
   list: () => supabase.from('alicuotas_iva').select('*').eq('activo', true).order('porcentaje').then(unwrap),
+}
+
+// ── CONDICIONES IVA DEL RECEPTOR (catálogo de ARCA, RG 5616; sólo lectura) ──
+export const CondicionesIvaAPI = {
+  list: () => supabase.from('condiciones_iva_afip').select('*').order('clase').order('id').then(unwrap),
 }
 
 // ── FACTURAS DE COMPRA ───────────────────────────────────────────────

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { fechaLarga } from '../../utils'
 import { useAuth } from '../../lib/auth'
 import ThemeToggle from '../UI/ThemeToggle'
+import { useArcaEstado, BannerAmbiente, IndicadorArca } from '../Arca'
 
 const NAV = [
   { section: null,       items: [{ to: '/', icon: '📊', label: 'Dashboard' }] },
@@ -117,6 +118,7 @@ export default function Layout({ children }) {
   const { pathname } = useLocation()
   const { user, signOut } = useAuth()
   const title = VIEW_TITLES[pathname] || 'CRM Marblock'
+  const arca = useArcaEstado()
 
   async function handleLogout() {
     await signOut()
@@ -156,9 +158,11 @@ export default function Layout({ children }) {
       </aside>
 
       <div className="main-area">
+        <BannerAmbiente estado={arca} />
         <header className="topbar">
           <span className="topbar-title">{title}</span>
           <div className="topbar-right">
+            <IndicadorArca estado={arca} />
             <ThemeToggle />
             <span className="topbar-date">{fechaLarga()}</span>
             {user?.email && <span className="topbar-user">{user.email}</span>}

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { RecibosAPI, ClientesAPI } from '../../api'
-import { $ar, fFecha } from '../../utils'
+import { $ar, fFecha, fDoc } from '../../utils'
 import { Loading, EmptyState, Modal, Paginador } from '../../components/UI'
 import ReciboForm from '../../components/Forms/ReciboForm'
 import PDFModal from '../../components/PDFModal'
@@ -134,7 +134,7 @@ export default function Recibos() {
           <div className="form-row2" style={{ marginBottom: 16 }}>
             <div><span className="lbl">Fecha</span><p>{fFecha(detalle.fecha)}</p></div>
             <div><span className="lbl">Cliente</span><p className="td-bold">{detalle.razon_social}</p></div>
-            <div><span className="lbl">CUIT</span><p className="td-mono">{detalle.cuit}</p></div>
+            <div><span className="lbl">Documento</span><p className="td-mono">{fDoc(detalle.doc_tipo, detalle.doc_nro)}</p></div>
             <div><span className="lbl">Observaciones</span><p style={{ color: 'var(--gray-500)', fontSize: 12 }}>{detalle.observaciones || '—'}</p></div>
           </div>
 
