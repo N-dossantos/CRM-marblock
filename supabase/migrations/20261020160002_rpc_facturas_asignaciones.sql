@@ -9,7 +9,8 @@
 --      recalcula los remitos;
 --    - crm_remitos_recalcular_de_factura: recalcula los remitos asignados a la factura.
 -- 2) crear_factura / actualizar_factura con p_remito_ids: un remito parcial entra con lo que le
---    falta facturar; uno sin nada pendiente se rechaza (E6). El borrador reserva lo asignado.
+--    falta facturar; uno sin nada pendiente se rechaza (E6). El borrador reserva lo asignado, y
+--    facturas.remito_id es el primer remito con alguna asignación a la factura.
 -- 3) factura_borrador_descartar y factura_anular liberan los remitos; arca_registrar_cae los
 --    recalcula (facturado sólo si todo el remito está en facturas con CAE o históricas).
 --
@@ -24,42 +25,55 @@
 --   min(sin facturar, tope − lo que ya se llevaron los anteriores de la misma clave).
 -- Lo que no entra queda pendiente de facturar. Supone que la factura no tiene otras asignaciones:
 -- es nueva (crear_factura) o actualizar_factura acaba de borrarlas. Un remito anulado no aporta.
+-- Al final fija facturas.remito_id (denormalización de compatibilidad, §2.3): el primer remito,
+-- por número, que tiene alguna asignación a la factura, o NULL. Un remito que no comparte
+-- productos con la factura no recibe nada y no queda como su remito.
 CREATE FUNCTION crm_factura_asignar_remitos(p_factura_id integer, p_remito_ids integer[])
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
-  IF COALESCE(array_length(p_remito_ids, 1), 0) = 0 THEN
-    RETURN;
+  IF COALESCE(array_length(p_remito_ids, 1), 0) > 0 THEN
+    -- Bloquea los remitos, siempre en el mismo orden. Va en su propia sentencia, antes de leer lo
+    -- que les falta facturar: dos facturas armadas a la vez desde el mismo remito no asignan dos
+    -- veces lo mismo (la segunda espera y, en READ COMMITTED, la lectura de abajo ve lo que grabó
+    -- la primera).
+    PERFORM 1 FROM remitos WHERE id = ANY(p_remito_ids) ORDER BY id FOR UPDATE;
+
+    INSERT INTO remito_item_facturas (remito_item_id, factura_id, cantidad, origen)
+    SELECT x.remito_item_id, p_factura_id, x.cantidad, 'factura'
+    FROM (
+      SELECT s.remito_item_id,
+             least(s.sin_facturar, greatest(t.tope - COALESCE(sum(s.sin_facturar) OVER (
+               PARTITION BY s.clave ORDER BY r.numero, r.id, ri.orden, ri.id
+               ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0), 0)) AS cantidad,
+             row_number() OVER (ORDER BY r.numero, r.id, ri.orden, ri.id) AS n
+      FROM remitos r
+      CROSS JOIN LATERAL crm_remito_items_sin_facturar(r.id) s
+      JOIN remito_items ri ON ri.id = s.remito_item_id
+      JOIN (
+        SELECT crm_clave_item(fi.producto_id, fi.descripcion) AS clave, sum(fi.cantidad) AS tope
+        FROM factura_items fi
+        WHERE fi.factura_id = p_factura_id
+        GROUP BY 1
+      ) t ON t.clave = s.clave
+      WHERE r.id = ANY(p_remito_ids) AND r.estado <> 'anulado' AND s.sin_facturar > 0
+    ) x
+    WHERE x.cantidad > 0
+    ORDER BY x.n;
+
+    PERFORM crm_remito_recalcular(r.id) FROM remitos r WHERE r.id = ANY(p_remito_ids) ORDER BY r.id;
   END IF;
 
-  -- Bloquea los remitos, siempre en el mismo orden. Va en su propia sentencia, antes de leer lo que
-  -- les falta facturar: dos facturas armadas a la vez desde el mismo remito no asignan dos veces lo
-  -- mismo (la segunda espera y, en READ COMMITTED, la lectura de abajo ve lo que grabó la primera).
-  PERFORM 1 FROM remitos WHERE id = ANY(p_remito_ids) ORDER BY id FOR UPDATE;
-
-  INSERT INTO remito_item_facturas (remito_item_id, factura_id, cantidad, origen)
-  SELECT x.remito_item_id, p_factura_id, x.cantidad, 'factura'
-  FROM (
-    SELECT s.remito_item_id,
-           least(s.sin_facturar, greatest(t.tope - COALESCE(sum(s.sin_facturar) OVER (
-             PARTITION BY s.clave ORDER BY r.numero, r.id, ri.orden, ri.id
-             ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0), 0)) AS cantidad,
-           row_number() OVER (ORDER BY r.numero, r.id, ri.orden, ri.id) AS n
-    FROM remitos r
-    CROSS JOIN LATERAL crm_remito_items_sin_facturar(r.id) s
-    JOIN remito_items ri ON ri.id = s.remito_item_id
-    JOIN (
-      SELECT crm_clave_item(fi.producto_id, fi.descripcion) AS clave, sum(fi.cantidad) AS tope
-      FROM factura_items fi
-      WHERE fi.factura_id = p_factura_id
-      GROUP BY 1
-    ) t ON t.clave = s.clave
-    WHERE r.id = ANY(p_remito_ids) AND r.estado <> 'anulado' AND s.sin_facturar > 0
-  ) x
-  WHERE x.cantidad > 0
-  ORDER BY x.n;
-
-  PERFORM crm_remito_recalcular(r.id) FROM remitos r WHERE r.id = ANY(p_remito_ids) ORDER BY r.id;
+  UPDATE facturas f SET remito_id = x.remito_id
+  FROM (SELECT (
+    SELECT r.id
+    FROM remito_item_facturas a
+    JOIN remito_items ri ON ri.id = a.remito_item_id
+    JOIN remitos r ON r.id = ri.remito_id
+    WHERE a.factura_id = p_factura_id
+    ORDER BY r.numero, r.id
+    LIMIT 1) AS remito_id) x
+  WHERE f.id = p_factura_id AND f.remito_id IS DISTINCT FROM x.remito_id;
 END;
 $$;
 
@@ -229,7 +243,8 @@ BEGIN
   PERFORM crm_insert_percepciones(v_fac.id, NULL, v_perc->'detalle');
 
   -- Asignaciones 'factura': el borrador reserva lo que tomó de cada remito, que pasa a `facturado`
-  -- cuando la factura tiene CAE (si quedó entero facturado).
+  -- cuando la factura tiene CAE (si quedó entero facturado). remito_id arrancó en el primer remito
+  -- por número; si ése no recibió nada, crm_factura_asignar_remitos lo corrige.
   IF v_cant > 0 THEN
     PERFORM crm_factura_asignar_remitos(v_fac.id, v_rems);
   END IF;
@@ -241,7 +256,7 @@ $$;
 -- ── actualizar_factura ───────────────────────────────────────────
 -- Misma firma y cuerpo que 20261015140000, más las asignaciones: los remitos de los que se armó
 -- se vuelven a repartir con los ítems nuevos (si se baja una cantidad, lo demás queda pendiente
--- de facturar).
+-- de facturar) y remito_id pasa al primero que conserva alguna asignación.
 CREATE OR REPLACE FUNCTION actualizar_factura(
   p_id integer, p_cliente_id integer, p_items jsonb, p_descuento_general numeric DEFAULT 0,
   p_observaciones text DEFAULT NULL, p_percepciones jsonb DEFAULT NULL

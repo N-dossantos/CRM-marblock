@@ -500,6 +500,11 @@ CREATE FUNCTION pg_temp.asignado(p_remito int, p_factura int, p_origen text DEFA
   WHERE ri.remito_id = p_remito AND (p_factura IS NULL OR a.factura_id = p_factura)
     AND (p_origen IS NULL OR a.origen = p_origen) $$;
 
+-- Cuántas asignaciones (filas) tiene un remito, de cualquier origen y a cualquier factura.
+CREATE FUNCTION pg_temp.n_asig(p_remito int) RETURNS bigint LANGUAGE sql AS $$
+  SELECT count(*) FROM remito_item_facturas a JOIN remito_items ri ON ri.id = a.remito_item_id
+  WHERE ri.remito_id = p_remito $$;
+
 -- Lo asignado de cada renglón de un remito, en orden: {300,200}.
 CREATE FUNCTION pg_temp.por_renglon(p_remito int) RETURNS numeric[] LANGUAGE sql AS $$
   SELECT array_agg(asignado ORDER BY remito_item_id) FROM crm_remito_items_sin_facturar(p_remito) $$;
@@ -520,8 +525,8 @@ DO $$
 DECLARE
   f2 int := pg_temp.id('f2');
   f8 int := pg_temp.id('f8');
-  r4 int; r5 int; r6 int; r7 int; r8 int; rr int; rt int;
-  fa int; fb5 int; fr int;
+  r4 int; r5 int; r6 int; r7 int; r8 int; r9 int; rr int; rt int; rs int; ra int; rb int;
+  fa int; fb5 int; fr int; fm int; fx int;
   v jsonb;
   v_err text;
 BEGIN
@@ -545,9 +550,14 @@ BEGIN
       AND pg_temp.sin_facturar(r5) = 525 AND pg_temp.estado(r5) = 'pendiente/' || fb5,
     '4.2 FB5 (bloque 525) armada desde R5 (bloque 1050): asigna 525 y quedan 525 sin facturar');
   PERFORM pg_temp.actualizar_factura(fb5, '[{"p":"bloque","c":1050}]');
-  PERFORM pg_temp.ok(pg_temp.asignado(r5, fb5, 'factura') = 1050 AND pg_temp.asignado(r5, NULL) = 1050
+  PERFORM pg_temp.ok(pg_temp.asignado(r5, fb5, 'factura') = 1050 AND pg_temp.n_asig(r5) = 1
       AND pg_temp.sin_facturar(r5) = 0,
-    '4.2 actualizar_factura(FB5) con bloque 1050: asigna 1050 (reemplaza los 525) y no queda nada sin facturar');
+    '4.2 actualizar_factura(FB5) con bloque 1050: una sola asignación, de 1050 (reemplaza la de 525); '
+    'no queda nada sin facturar');
+  PERFORM pg_temp.actualizar_factura(fb5, '[{"p":"bloque","c":300}]');
+  PERFORM pg_temp.ok(pg_temp.asignado(r5, fb5, 'factura') = 300 AND pg_temp.n_asig(r5) = 1
+      AND pg_temp.sin_facturar(r5) = 750 AND pg_temp.estado(r5) = 'pendiente/' || fb5,
+    '4.2 actualizar_factura(FB5) baja a bloque 300: una sola asignación, de 300; quedan 750 sin facturar');
 
   -- El reparto: remitos por número y renglones por orden, aunque la lista venga al revés. El
   -- pallet de R8 no está en la factura: queda sin facturar.
@@ -557,6 +567,31 @@ BEGIN
   PERFORM pg_temp.ok(pg_temp.por_renglon(r7) = '{300,200}' AND pg_temp.por_renglon(r8) = '{100,0}'
       AND pg_temp.asignado(r7, fr, 'factura') = 500 AND pg_temp.asignado(r8, fr, 'factura') = 100,
     '4.2 FR (bloque 600) desde [R8, R7]: R7 (300 + 200) se lleva 500 y R8 (400 + pallet 5) 100; el pallet queda sin facturar');
+
+  -- Varios productos: el tope es por producto. RS (sólo transporte) no comparte nada con la
+  -- factura: no recibe nada ni da E6, y no queda como remito_id aunque tenga el número más bajo.
+  rs := pg_temp.crear('[{"p":"transp","c":1}]');
+  r9 := pg_temp.crear('[{"p":"bloque","c":1050},{"p":"pallet","c":10},{"p":"transp","c":1}]');
+  fm := pg_temp.crear_factura('[{"p":"bloque","c":1050},{"p":"pallet","c":10}]', ARRAY[rs, r9]);
+  PERFORM pg_temp.ok(pg_temp.por_renglon(r9) = '{1050,10,0}' AND pg_temp.sin_facturar(r9) = 1
+      AND pg_temp.estado(r9) = 'pendiente/' || fm,
+    '4.2 FM (bloque 1050 y pallet 10) desde R9 (bloque 1050, pallet 10 y transporte 1): bloque y pallet '
+    'enteros; el transporte queda sin facturar');
+  PERFORM pg_temp.ok(pg_temp.n_asig(rs) = 0 AND pg_temp.estado(rs) = 'pendiente/-'
+      AND (SELECT remito_id FROM facturas WHERE id = fm) = r9,
+    '4.2 FM desde [RS, R9]: RS (sólo transporte, número más bajo) no recibe nada ni da E6; FM.remito_id es R9');
+
+  -- Al editar, remito_id pasa al primero que conserva asignaciones: RA (pallet 4, número más bajo)
+  -- sale de la factura cuando se le saca el pallet.
+  ra := pg_temp.crear('[{"p":"pallet","c":4}]');
+  rb := pg_temp.crear('[{"p":"bloque","c":200}]');
+  fx := pg_temp.crear_factura('[{"p":"bloque","c":200},{"p":"pallet","c":4}]', ARRAY[ra, rb]);
+  PERFORM pg_temp.ok((SELECT remito_id FROM facturas WHERE id = fx) = ra,
+    '4.2 FX (bloque 200 y pallet 4) desde [RA (pallet 4), RB (bloque 200)]: remito_id RA');
+  PERFORM pg_temp.actualizar_factura(fx, '[{"p":"bloque","c":200}]');
+  PERFORM pg_temp.ok((SELECT remito_id FROM facturas WHERE id = fx) = rb AND pg_temp.n_asig(ra) = 0
+      AND pg_temp.estado(ra) = 'pendiente/-' AND pg_temp.sin_facturar(ra) = 4,
+    '4.2 actualizar_factura(FX) sin el pallet: RA queda sin asignaciones, pendiente; FX.remito_id pasa a RB');
 
   v_err := pg_temp.error(format('SELECT pg_temp.descartar(%s)', fb5));
   PERFORM pg_temp.ok(v_err IS NULL AND NOT EXISTS (SELECT 1 FROM facturas WHERE id = fb5)
