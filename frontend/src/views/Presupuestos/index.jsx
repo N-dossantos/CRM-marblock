@@ -67,7 +67,8 @@ export default function Presupuestos() {
     // Navega a facturas con datos pre-cargados — pasamos por sessionStorage
     sessionStorage.setItem('crm_desde_presupuesto', JSON.stringify({
       cliente_id: p.cliente_id, items: p.items, descuento_general: p.descuento_general, presupuesto_id: p.id,
-      observaciones: [!p.cliente_id && `Presupuesto a nombre de: ${p.razon_social}`, p.observaciones].filter(Boolean).join('\n'),
+      // Observaciones de la factura es un campo de una línea: un '\n' pegaría el nombre a la leyenda.
+      observaciones: [!p.cliente_id && `Presupuesto a nombre de: ${p.razon_social}`, p.observaciones].filter(Boolean).join(' · '),
     }))
     window.location.href = '/facturas'
   }

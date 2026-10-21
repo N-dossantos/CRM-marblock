@@ -130,8 +130,11 @@ export function dibujarCliente(doc: any, y: number, cliente: any, extra: Record<
   doc.fillColor(COLORES.gris_texto)
      .font('Helvetica')
      .fontSize(8.5)
-     .text(`${fDoc(cliente.doc_tipo, cliente.doc_nro)}  ·  ${cliente.condicion_iva || '—'}`, M + 10, y + 36)
-     .text(cliente.direccion || '', M + 10, y + 47)
+  // Un presupuesto a nombre de alguien que no es cliente no tiene documento ni condición de IVA:
+  // sin la línea, en vez de "—  ·  —".
+  if (cliente.doc_nro || cliente.condicion_iva)
+    doc.text(`${fDoc(cliente.doc_tipo, cliente.doc_nro)}  ·  ${cliente.condicion_iva || '—'}`, M + 10, y + 36)
+  doc.text(cliente.direccion || '', M + 10, y + 47)
 
   // Columna derecha: datos extra (ej: remito vinculado, presupuesto, etc.)
   const colDer = M + ancho * 0.65
