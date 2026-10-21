@@ -671,3 +671,110 @@ BEGIN
     '4.7 crm_factura_asignar_remitos, crm_factura_soltar_remitos y crm_remitos_recalcular_de_factura: '
     'SECURITY DEFINER con search_path fijo; ni authenticated ni anon');
 END $$;
+
+-- ── Helpers de la sección 5: listados e informes, como los llama el frontend (authenticated) ──
+-- Las filas de p_from (una función SETOF jsonb con sus argumentos) como un arreglo jsonb.
+CREATE FUNCTION pg_temp.lista(p_from text) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT pg_temp.como('authenticated', format('SELECT COALESCE(jsonb_agg(x), ''[]'') FROM %s x', p_from)) $$;
+
+-- La fila de p_from con ese id, o NULL si no aparece.
+CREATE FUNCTION pg_temp.en_lista(p_from text, p_id int) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT e FROM jsonb_array_elements(pg_temp.lista(p_from)) e WHERE (e->>'id')::int = p_id $$;
+
+-- Un remito tal como lo devuelve remitos_list(p_id => …).
+CREATE FUNCTION pg_temp.remito_de(p_remito int) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT pg_temp.en_lista(format('remitos_list(p_id => %s)', p_remito), p_remito) $$;
+
+-- Los ids de los remitos de una factura, según facturas_list(p_id => …).
+CREATE FUNCTION pg_temp.remitos_de(p_factura int) RETURNS int[] LANGUAGE sql AS $$
+  SELECT ARRAY(SELECT (e->>'id')::int FROM jsonb_array_elements(
+    pg_temp.en_lista(format('facturas_list(p_id => %s)', p_factura), p_factura)->'remitos') e) $$;
+
+-- Las claves de una fila, en orden.
+CREATE FUNCTION pg_temp.claves(p_fila jsonb) RETURNS text[] LANGUAGE sql AS $$
+  SELECT array_agg(k ORDER BY k COLLATE "C") FROM jsonb_object_keys(p_fila) k $$;
+
+\echo '── 5) Listados e informes'
+-- Sigue del estado en que terminaron las secciones anteriores: F1 tiene pendiente de sobra, F4
+-- está remitida de más (2.5) y a F7 le quedan 290 bloques (3.5).
+DO $$
+DECLARE
+  cli int := pg_temp.id('cli');
+  f1 int := pg_temp.id('f1');
+  f7 int := pg_temp.id('f7');
+  f10 int;
+  r7 int; r8 int; r9 int; r10 int; r11 int; r12 int; r13 int;
+  por_facturar text := format('remitos_list(p_estado => %L, p_cliente_id => %s)', 'por_facturar', pg_temp.id('cli'));
+  sin_remito text := format('facturas_list(p_solo_sin_remito => true, p_cliente_id => %s)', pg_temp.id('cli'));
+  inf_facturas text := 'informe_facturas_pendientes_remitir()';
+  inf_remitos text := 'informe_remitos_pendientes_facturar()';
+  v jsonb;
+BEGIN
+  r7 := pg_temp.crear('[{"p":"bloque","c":2520,"a":[{"f":"f1","c":1470}]}]');
+  r8 := pg_temp.crear('[{"p":"bloque","c":100,"a":[{"f":"f1","c":100}]}]');
+  -- R12 queda reservado entero por un borrador: pendiente, pero sin nada para facturar.
+  r12 := pg_temp.crear('[{"p":"bloque","c":50}]');
+  PERFORM pg_temp.crear_factura('[{"p":"bloque","c":50}]', ARRAY[r12]);
+
+  PERFORM pg_temp.ok(pg_temp.en_lista(por_facturar, r7) IS NOT NULL AND pg_temp.en_lista(por_facturar, r8) IS NULL
+      AND pg_temp.en_lista(por_facturar, r12) IS NULL,
+    '5.1 remitos_list por_facturar: R7 (2520, 1470 a F1) sí; R8 (100, todo a F1) y R12 (reservado entero '
+    'por un borrador) no');
+  v := pg_temp.en_lista(por_facturar, r7);
+  PERFORM pg_temp.ok((v->'items'->0->>'asignado')::numeric = 1470 AND (v->'items'->0->>'sin_facturar')::numeric = 1050
+      AND v->'items'->0->'asignaciones' = jsonb_build_array(jsonb_build_object(
+            'factura_id', f1, 'factura_numero', '09999-00000001', 'cantidad', 1470, 'origen', 'remito'))
+      AND (v->>'sin_facturar_total')::numeric = 1050,
+    '5.1 el ítem de R7: asignado 1470, sin_facturar 1050 y la asignación ''remito'' a F1; sin_facturar_total 1050');
+
+  r9 := pg_temp.remito_tango(pg_temp.id('f5'), '[{"p":"bloque","c":10}]');
+  PERFORM pg_temp.ok((pg_temp.remito_de(r9)->>'bloqueado')::boolean AND (pg_temp.remito_de(r12)->>'bloqueado')::boolean
+      AND NOT (pg_temp.remito_de(r7)->>'bloqueado')::boolean,
+    '5.2 bloqueado: R9 (de Tango) y R12 (en un borrador) sí; R7 (asignación ''remito'') no');
+
+  r10 := pg_temp.crear('[{"p":"bloque","c":300,"a":[{"f":"f1","c":200},{"f":"f7","c":100}]}]');
+  PERFORM pg_temp.ok(r10 = ANY (pg_temp.remitos_de(f1)) AND r10 = ANY (pg_temp.remitos_de(f7)),
+    '5.3 R10 (300: 200 a F1 y 100 a F7) aparece en los remitos de F1 y en los de F7');
+  PERFORM pg_temp.ok(pg_temp.remito_de(r10)->'facturas' = jsonb_build_array(
+      jsonb_build_object('id', f1, 'numero', '09999-00000001'), jsonb_build_object('id', f7, 'numero', '09999-00000007'))
+      AND pg_temp.remito_de(r12)->'facturas' = '[]',
+    '5.3 facturas de R10: F1 y F7, por número; las de R12 (sólo en un borrador): ninguna');
+
+  -- F10 sólo recibe una asignación de R13, cuyo factura_id queda en F1 (su primera asignación).
+  f10 := pg_temp.factura(cli, 10, 'historico', '[{"p":"bloque","c":100}]');
+  INSERT INTO ids VALUES ('f10', f10);
+  PERFORM pg_temp.ok(pg_temp.en_lista(sin_remito, f10) IS NOT NULL AND pg_temp.en_lista(sin_remito, f1) IS NULL,
+    '5.3 facturas_list sin remito: F10 (sin remitos) sí, F1 no');
+  r13 := pg_temp.crear('[{"p":"bloque","c":30,"a":[{"f":"f1","c":10},{"f":"f10","c":20}]}]');
+  PERFORM pg_temp.ok(pg_temp.en_lista(sin_remito, f10) IS NULL AND pg_temp.remitos_de(f10) = ARRAY[r13]
+      AND pg_temp.en_lista(format('facturas_list(p_id => %s)', f10), f10)->>'remito_numero'
+          = (SELECT numero FROM remitos WHERE id = r13),
+    '5.3 R13 (10 a F1 y 20 a F10, factura_id F1): F10 deja de estar sin remito y su remito es R13');
+
+  v := pg_temp.en_lista(inf_facturas, f1);
+  PERFORM pg_temp.ok(pg_temp.claves(v) = ARRAY['dias_pendiente','doc_nro','doc_tipo','estado','fecha','id','numero',
+                                               'razon_social','total']
+      AND pg_temp.en_lista(inf_facturas, pg_temp.id('f4')) IS NULL,
+    '5.4 informe de facturas pendientes de remitir: las claves de siempre; F1 está y F4 (remitida de más) no');
+  v := pg_temp.en_lista(inf_remitos, r7);
+  PERFORM pg_temp.ok(pg_temp.claves(v) = ARRAY['cantidad_items','dias_pendiente','doc_nro','doc_tipo','fecha','id',
+                                               'numero','razon_social']
+      AND pg_temp.en_lista(inf_remitos, r8) IS NULL AND pg_temp.en_lista(inf_remitos, r12) IS NULL,
+    '5.4 informe de remitos pendientes de facturar: las claves de siempre; R7 está, R8 y R12 (reservado '
+    'por un borrador) no');
+  r11 := pg_temp.crear('[{"p":"bloque","c":100,"a":[{"f":"f1","c":100}]},{"p":"transp","c":1}]');
+  PERFORM pg_temp.ok((pg_temp.en_lista(inf_remitos, r11)->>'cantidad_items')::int = 1,
+    '5.4 R11 (bloque 100, todo a F1, y transporte 1 sin facturar): cantidad_items 1, sólo el renglón con '
+    'algo sin facturar');
+
+  PERFORM pg_temp.ok(
+    (SELECT count(*) = 4 AND bool_and(NOT p.prosecdef) AND bool_and(p.proconfig @> '{"search_path=public, pg_temp"}')
+       AND bool_and(has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+       AND bool_and(NOT has_function_privilege('anon', p.oid, 'EXECUTE'))
+     FROM pg_proc p
+     WHERE p.pronamespace = 'public'::regnamespace
+       AND p.proname IN ('remitos_list','facturas_list','informe_facturas_pendientes_remitir',
+                         'informe_remitos_pendientes_facturar')),
+    '5.5 permisos: una sola firma de cada lista e informe, sin SECURITY DEFINER y con search_path fijo; '
+    'authenticated sí y anon no');
+END $$;
