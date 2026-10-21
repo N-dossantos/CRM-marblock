@@ -71,6 +71,7 @@ export default function AsientoForm({ cuentas = [], onClose, onSaved }) {
 
   return (
     <Modal
+      almanaque={false}
       title="Nuevo asiento contable"
       size="lg"
       onClose={onClose}

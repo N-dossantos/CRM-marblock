@@ -1,6 +1,6 @@
 // src/components/UI/index.jsx
 import { useEffect, useId, useState } from 'react'
-import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem } from '../../utils'
+import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem, parseDecimal, limpiarDecimal } from '../../utils'
 import { useEscape } from '../../hooks/useEscape'
 import { AlmanaqueBoton } from '../Almanaque/Panel'
 
@@ -8,6 +8,7 @@ import { AlmanaqueBoton } from '../Almanaque/Panel'
 // formularios lo importen desde '../UI' como al resto.
 export { default as ClienteSearch } from './ClienteSearch'
 export { default as RowActions } from './RowActions'
+export { default as Vinculados } from './Vinculados'
 
 // ── BADGE ────────────────────────────────────────────────────────────
 export function Badge({ estado }) {
@@ -19,7 +20,9 @@ export function Badge({ estado }) {
 }
 
 // ── MODAL ────────────────────────────────────────────────────────────
-export function Modal({ title, size = 'md', onClose, footer, children }) {
+// `almanaque={false}` en los formularios de carga: ahí el 📅 de la cabecera estorba (sigue en la
+// barra superior y en las ventanas de detalle).
+export function Modal({ title, size = 'md', onClose, footer, almanaque = true, children }) {
   useEscape(onClose)
   return (
     <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -27,7 +30,7 @@ export function Modal({ title, size = 'md', onClose, footer, children }) {
         <div className="modal-header">
           <h2>{title}</h2>
           <div className="almanaque-modal-acciones">
-            <AlmanaqueBoton />
+            {almanaque && <AlmanaqueBoton />}
             <button className="btn-close" onClick={onClose}>×</button>
           </div>
         </div>
@@ -35,6 +38,30 @@ export function Modal({ title, size = 'md', onClose, footer, children }) {
         {footer && <div className="modal-footer">{footer}</div>}
       </div>
     </div>
+  )
+}
+
+// ── CAMPO DECIMAL ────────────────────────────────────────────────────
+// Precio, cantidad y descuento de las grillas de ítems. Es texto y no type="number": el campo
+// numérico del navegador en español no toma el punto, y acá el punto y la coma valen los dos como
+// decimal. Un 0 se ve vacío, así que se escribe directo sin borrar nada. El texto vive acá mientras
+// se escribe ("12." todavía no es un número); al padre le llega siempre el número.
+export function DecimalInput({ value, onChange, decimales = true, ...props }) {
+  const textoDe = (v) => (+v ? String(+v) : '')
+  const [texto, setTexto] = useState(() => textoDe(value))
+  // Un valor que llega de afuera (elegir un producto trae su precio, la cantidad entera se trunca,
+  // se borra un renglón de arriba) reemplaza al texto; si es lo mismo que se escribió, no se toca.
+  useEffect(() => {
+    if (parseDecimal(texto) !== (+value || 0)) setTexto(textoDe(value))
+  }, [value])
+  return (
+    <input {...props} type="text" inputMode="decimal" placeholder="0" value={texto}
+      onChange={(e) => {
+        const t = limpiarDecimal(e.target.value, { decimales })
+        if (t === null) return
+        setTexto(t)
+        onChange(parseDecimal(t))
+      }} />
   )
 }
 
@@ -447,19 +474,19 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
               <td className="td-right">
                 {readonly
                   ? Number(it.cantidad || 0).toLocaleString('es-AR', { maximumFractionDigits: 3 })
-                  : <input type="number" className="inp inp-sm inp-right" style={{ width: 70 }} value={it.cantidad ?? ''} min="0" step={cantidadDecimal ? '0.001' : '1'} onChange={(e) => update(i, 'cantidad', e.target.value)} />
+                  : <DecimalInput className="inp inp-sm inp-right" style={{ width: 70 }} value={it.cantidad} decimales={cantidadDecimal} onChange={(n) => update(i, 'cantidad', n)} />
                 }
               </td>
               <td className="td-right">
                 {readonly
                   ? $ar(it.precio_unitario)
-                  : <input type="number" className="inp inp-sm inp-right" style={{ width: 110 }} value={it.precio_unitario} min="0" onChange={(e) => update(i, 'precio_unitario', e.target.value)} />
+                  : <DecimalInput className="inp inp-sm inp-right" style={{ width: 110 }} value={it.precio_unitario} onChange={(n) => update(i, 'precio_unitario', n)} />
                 }
               </td>
               <td className="td-right">
                 {readonly
                   ? `${it.descuento_item || 0}%`
-                  : <input type="number" className="inp inp-sm inp-right" style={{ width: 58 }} value={it.descuento_item || 0} min="0" max="100" onChange={(e) => update(i, 'descuento_item', e.target.value)} />
+                  : <DecimalInput className="inp inp-sm inp-right" style={{ width: 58 }} value={it.descuento_item} onChange={(n) => update(i, 'descuento_item', n)} />
                 }
               </td>
               {showIva && (

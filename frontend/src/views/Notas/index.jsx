@@ -210,7 +210,7 @@ export default function Notas() {
 
       {/* Modal selector de factura → abre el form */}
       {nueva && !nueva.facturaObj && (
-        <Modal title="Seleccionar factura de referencia" size="lg" onClose={() => setNueva(null)}>
+        <Modal almanaque={false} title="Seleccionar factura de referencia" size="lg" onClose={() => setNueva(null)}>
           <div className="field">
             <label className="lbl">Buscar factura *</label>
             <input className="search-inp" style={{ width: '100%' }} autoFocus

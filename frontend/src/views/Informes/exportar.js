@@ -3,7 +3,7 @@
 // dibuja la pantalla y los filtros, y devuelve { archivo, hojas } para exportarXlsx(). Las columnas
 // siguen las de la tabla en pantalla; los libros IVA suman lo que el contador necesita (neto e IVA
 // por alícuota, percepciones por tipo).
-import { $ar, fFecha, fDocNro } from '../../utils'
+import { $ar, fFecha, fDocNro, subdiarioDelPeriodo } from '../../utils'
 import { nombreArchivo } from '../../utils/excel'
 
 const periodo = ({ desde, hasta }) =>
@@ -179,13 +179,15 @@ export const EXCEL = {
       col('Concepto',    m => (m.anulado ? `${m.concepto || ''} (anulado)` : m.concepto), 'texto', 40),
       col('Entrada',     m => (m.signo === 1 ? m.monto : null), 'importe'),
       col('Salida',      m => (m.signo === -1 ? m.monto : null), 'importe'),
-      col('Saldo',       m => m.saldo_corrido, 'importe'),
+      col('Saldo',       m => m.saldo, 'importe'),
     ]
     const cuenta = data.cuenta?.descripcion || 'Cuenta'
+    // Igual que la pantalla: sólo el movimiento del mes, con el saldo arrancando en 0.
+    const sub = subdiarioDelPeriodo(data.movimientos)
     return {
       archivo: nombreArchivo('Subdiario', cuenta, f.desde, f.hasta),
-      hojas: [{ nombre: 'Subdiario', columnas: cols, filas: data.movimientos || [],
-        encabezado: [`Subdiario — ${cuenta}`, periodo(f), `Saldo inicial: ${$ar(data.saldo_inicial)}  ·  Saldo final: ${$ar(data.saldo_final)}`],
+      hojas: [{ nombre: 'Subdiario', columnas: cols, filas: sub.movimientos,
+        encabezado: [`Subdiario — ${cuenta}`, periodo(f), `Entradas: ${$ar(sub.entradas)}  ·  Salidas: ${$ar(sub.salidas)}  ·  Neto del mes: ${$ar(sub.neto)}`],
         total: { titulo: 'Totales', columnas: ['Entrada', 'Salida'] } }],
     }
   },

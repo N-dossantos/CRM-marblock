@@ -1,7 +1,7 @@
 // src/views/Informes/index.jsx
 import { useState, useEffect, useRef } from 'react'
 import { InformesAPI, ClientesAPI, CuentasBancariasAPI, MovimientosTesoreriaAPI, PlanCuentasAPI, pdfUrl } from '../../api'
-import { $ar, fFecha, hoy, fDocNro } from '../../utils'
+import { $ar, fFecha, hoy, fDocNro, rangoMes, subdiarioDelPeriodo } from '../../utils'
 import { Loading } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
 import { exportarXlsx } from '../../utils/excel'
@@ -63,6 +63,10 @@ const TES_FECHA_TABS = ['subdiario_tes', 'mayor_tes', 'oper_tes', 'cheques_tes',
 // tabs contables (Fase E) — todas van por rango de fechas; el mayor además pide cuenta
 const CTB_FECHA_TABS = ['libro_diario', 'libro_mayor', 'sumas_saldos']
 
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+// Del año en curso hacia atrás hasta 2011, el primer movimiento de tesorería que trajo Tango.
+const anios = Array.from({ length: Number(hoy().slice(0, 4)) - 2010 }, (_, i) => String(Number(hoy().slice(0, 4)) - i))
+
 const primerDiaMes = () => {
   const d = new Date(); d.setDate(1)
   return d.toISOString().split('T')[0]
@@ -72,6 +76,8 @@ export default function Informes() {
   const [tab, setTab]           = useState('ventas')
   const [desde, setDesde]       = useState(primerDiaMes())
   const [hasta, setHasta]       = useState(hoy())
+  // El subdiario por cuenta se mira de a un mes ('AAAA-MM'), no con Desde/Hasta.
+  const [mes, setMes]           = useState(() => hoy().slice(0, 7))
   const [filtroCli, setFiltroCli] = useState('')
   const [qMaterial, setQMaterial] = useState('')
   const [clientes, setClientes] = useState([])
@@ -110,7 +116,8 @@ export default function Informes() {
   const cargar = async () => {
     const id = ++pedido.current
     const tabPedida = tab
-    const filtros = { desde, hasta, estado: estadoCheque }
+    const rango = tab === 'subdiario_tes' ? rangoMes(mes) : { desde, hasta }
+    const filtros = { ...rango, estado: estadoCheque }
     const setData = (d) => { if (id === pedido.current) setRes({ tab: tabPedida, data: d, filtros }) }
     setLoading(true)
     setRes({ tab: null, data: null, filtros: null })
@@ -152,7 +159,7 @@ export default function Informes() {
           break
         case 'subdiario_tes':
           if (!cuentaTes) { setData(null); break }
-          setData(await InformesAPI.subdiarioCuenta(Number(cuentaTes), { desde, hasta }))
+          setData(await InformesAPI.subdiarioCuenta(Number(cuentaTes), rango))
           break
         case 'mayor_tes':
           setData(await InformesAPI.mayorTesoreria({ desde, hasta }))
@@ -255,14 +262,34 @@ export default function Informes() {
 
       {(tab === 'ventas' || tab === 'clientes' || tab === 'iva_compras' || tab === 'iva_ventas' || tab === 'retenciones_sufridas' || TES_FECHA_TABS.includes(tab) || CTB_FECHA_TABS.includes(tab)) && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div>
-            <label className="lbl">Desde</label>
-            <input type="date" className="inp" style={{ width: 150 }} value={desde} onChange={e => setDesde(e.target.value)} />
-          </div>
-          <div>
-            <label className="lbl">Hasta</label>
-            <input type="date" className="inp" style={{ width: 150 }} value={hasta} onChange={e => setHasta(e.target.value)} />
-          </div>
+          {tab === 'subdiario_tes' ? (
+            // Mes y año en dos listas: el <input type="month"> no existe en Safari ni en Firefox.
+            <>
+              <div>
+                <label className="lbl">Mes</label>
+                <select className="sel" style={{ width: 130 }} value={mes.slice(5)} onChange={e => setMes(`${mes.slice(0, 4)}-${e.target.value}`)}>
+                  {MESES.map((nombre, i) => <option key={nombre} value={String(i + 1).padStart(2, '0')}>{nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="lbl">Año</label>
+                <select className="sel" style={{ width: 90 }} value={mes.slice(0, 4)} onChange={e => setMes(`${e.target.value}-${mes.slice(5)}`)}>
+                  {anios.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="lbl">Desde</label>
+                <input type="date" className="inp" style={{ width: 150 }} value={desde} onChange={e => setDesde(e.target.value)} />
+              </div>
+              <div>
+                <label className="lbl">Hasta</label>
+                <input type="date" className="inp" style={{ width: 150 }} value={hasta} onChange={e => setHasta(e.target.value)} />
+              </div>
+            </>
+          )}
           {tab === 'ventas' && (
             <div>
               <label className="lbl">Cliente (opcional)</label>
@@ -324,7 +351,7 @@ export default function Informes() {
             <button
               className="btn btn-secondary btn-sm"
               style={{ marginTop: 2, background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
-              onClick={() => setPdfModal({ url: pdfUrl.subdiarioTesoreria(Number(cuentaTes), desde, hasta), titulo: 'Subdiario por cuenta' })}
+              onClick={() => setPdfModal({ url: pdfUrl.subdiarioTesoreria(data.cuenta.id, res.filtros.desde, res.filtros.hasta), titulo: 'Subdiario por cuenta' })}
             >
               📄 Exportar PDF
             </button>
@@ -921,46 +948,50 @@ export default function Informes() {
             </div>
           )}
 
-          {/* SUBDIARIO POR CUENTA (saldo corrido) */}
-          {tab === 'subdiario_tes' && data.movimientos && (
-            <div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 20 }}>
-                {[
-                  { label: 'Cuenta',        val: data.cuenta?.descripcion || '—', color: 'var(--gray-700)' },
-                  { label: 'Saldo inicial', val: $ar(data.saldo_inicial || 0),    color: 'var(--gray-600)' },
-                  { label: 'Saldo final',   val: $ar(data.saldo_final || 0),      color: 'var(--blue-600)' },
-                ].map(k => (
-                  <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
-                    <div className="kpi-label">{k.label}</div>
-                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
-                  </div>
-                ))}
+          {/* SUBDIARIO POR CUENTA — sólo el movimiento del mes: el saldo corrido arranca en 0 */}
+          {tab === 'subdiario_tes' && data.movimientos && (() => {
+            const sub = subdiarioDelPeriodo(data.movimientos)
+            return (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
+                  {[
+                    { label: 'Cuenta',       val: data.cuenta?.descripcion || '—', color: 'var(--gray-700)' },
+                    { label: 'Entradas',     val: $ar(sub.entradas),               color: 'var(--green-600)' },
+                    { label: 'Salidas',      val: $ar(sub.salidas),                color: 'var(--red-500)' },
+                    { label: 'Neto del mes', val: $ar(sub.neto),                   color: 'var(--blue-600)' },
+                  ].map(k => (
+                    <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
+                      <div className="kpi-label">{k.label}</div>
+                      <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="tbl-wrap">
+                  <table>
+                    <thead><tr>
+                      <th>Fecha</th><th>Tipo</th><th>Concepto</th>
+                      <th className="th-right">Débito</th><th className="th-right">Crédito</th><th className="th-right">Saldo</th>
+                    </tr></thead>
+                    <tbody>
+                      {sub.movimientos.length === 0
+                        ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos en el mes</td></tr>
+                        : sub.movimientos.map(m => (
+                          <tr key={m.id} style={{ opacity: m.anulado ? 0.4 : 1 }}>
+                            <td>{fFecha(m.fecha)}</td>
+                            <td style={{ fontSize: 12 }}><span className="code">{m.tipo_codigo}</span> {m.tipo_descripcion}</td>
+                            <td style={{ fontSize: 12 }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
+                            <td className="td-right" style={{ color: 'var(--red-500)' }}>{m.signo === -1 ? $ar(m.monto) : ''}</td>
+                            <td className="td-right" style={{ color: 'var(--green-600)' }}>{m.signo === 1 ? $ar(m.monto) : ''}</td>
+                            <td className="td-right td-bold">{$ar(m.saldo)}</td>
+                          </tr>
+                        ))
+                      }
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="tbl-wrap">
-                <table>
-                  <thead><tr>
-                    <th>Fecha</th><th>Tipo</th><th>Concepto</th>
-                    <th className="th-right">Débito</th><th className="th-right">Crédito</th><th className="th-right">Saldo</th>
-                  </tr></thead>
-                  <tbody>
-                    {data.movimientos.length === 0
-                      ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos en el período</td></tr>
-                      : data.movimientos.map(m => (
-                        <tr key={m.id} style={{ opacity: m.anulado ? 0.4 : 1 }}>
-                          <td>{fFecha(m.fecha)}</td>
-                          <td style={{ fontSize: 12 }}><span className="code">{m.tipo_codigo}</span> {m.tipo_descripcion}</td>
-                          <td style={{ fontSize: 12 }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
-                          <td className="td-right" style={{ color: 'var(--red-500)' }}>{m.signo === -1 ? $ar(m.monto) : ''}</td>
-                          <td className="td-right" style={{ color: 'var(--green-600)' }}>{m.signo === 1 ? $ar(m.monto) : ''}</td>
-                          <td className="td-right td-bold">{$ar(m.saldo_corrido || 0)}</td>
-                        </tr>
-                      ))
-                    }
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* MAYOR TESORERÍA — sólo el período: entradas, salidas y su diferencia por cuenta.
               El saldo inicial/final que trae el RPC es histórico (desde el alta de la cuenta) y no

@@ -8,11 +8,11 @@
 //   * puede traer percepciones sufridas (§3.9): el proveedor las devuelve con signo contrario en
 //     una NC, así que el monto se carga tal cual figura en el papel y no se recalcula.
 import { useState } from 'react'
-import { Modal, TotalesBoxMulti, PercepcionesTable } from '../UI'
+import { Modal, TotalesBoxMulti, PercepcionesTable, DecimalInput } from '../UI'
 import { calcTotalesMulti, calcSubtotalItem, $ar, fFecha, hoy } from '../../utils'
 import toast from 'react-hot-toast'
 
-const ITEM_BASE = { material_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, alicuota_iva_id: '' }
+const ITEM_BASE = { material_id: '', descripcion: '', cantidad: 0, precio_unitario: 0, descuento_item: 0, alicuota_iva_id: '' }
 
 export default function NotaCompraForm({ factura, materiales = [], alicuotas = [], onSave, onClose }) {
   const alic21 = alicuotas.find(a => +a.porcentaje === 21)
@@ -99,6 +99,7 @@ export default function NotaCompraForm({ factura, materiales = [], alicuotas = [
 
   return (
     <Modal
+      almanaque={false}
       title={`Nueva Nota de ${form.tipo === 'NC' ? 'Crédito' : 'Débito'} — Fac. ${factura.numero}`}
       size="xl"
       onClose={onClose}
@@ -189,9 +190,9 @@ export default function NotaCompraForm({ factura, materiales = [], alicuotas = [
                   </select>
                 </td>
                 <td><input className="inp inp-sm" value={it.descripcion || ''} onChange={e => updItem(i, 'descripcion', e.target.value)} /></td>
-                <td className="td-right"><input type="number" className="inp inp-sm inp-right" style={{ width: 60 }} value={it.cantidad} min="0.001" step="0.001" onChange={e => updItem(i, 'cantidad', e.target.value)} /></td>
-                <td className="td-right"><input type="number" className="inp inp-sm inp-right" style={{ width: 105 }} value={it.precio_unitario} min="0" onChange={e => updItem(i, 'precio_unitario', e.target.value)} /></td>
-                <td className="td-right"><input type="number" className="inp inp-sm inp-right" style={{ width: 52 }} value={it.descuento_item || 0} min="0" max="100" onChange={e => updItem(i, 'descuento_item', e.target.value)} /></td>
+                <td className="td-right"><DecimalInput className="inp inp-sm inp-right" style={{ width: 60 }} value={it.cantidad} onChange={n => updItem(i, 'cantidad', n)} /></td>
+                <td className="td-right"><DecimalInput className="inp inp-sm inp-right" style={{ width: 105 }} value={it.precio_unitario} onChange={n => updItem(i, 'precio_unitario', n)} /></td>
+                <td className="td-right"><DecimalInput className="inp inp-sm inp-right" style={{ width: 52 }} value={it.descuento_item} onChange={n => updItem(i, 'descuento_item', n)} /></td>
                 <td>
                   <select className="inp inp-sm sel" value={it.alicuota_iva_id || ''} onChange={e => updItem(i, 'alicuota_iva_id', +e.target.value)}>
                     {alicuotas.map(a => <option key={a.id} value={a.id}>{a.porcentaje}%</option>)}

@@ -69,6 +69,7 @@ export default function TransferenciaForm({ cuentas = [], onClose, onSaved }) {
 
   return (
     <Modal
+      almanaque={false}
       title="Nueva transferencia entre cuentas"
       size="md"
       onClose={onClose}

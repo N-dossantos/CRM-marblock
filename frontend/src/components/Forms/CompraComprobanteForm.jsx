@@ -7,12 +7,12 @@
 //   * la factura puede traer percepciones sufridas (§3.9): el monto es el del papel del
 //     proveedor y se suma al total, no se recalcula.
 import { useState, useEffect } from 'react'
-import { Modal, TotalesBoxMulti, PercepcionesTable } from '../UI'
+import { Modal, TotalesBoxMulti, PercepcionesTable, DecimalInput } from '../UI'
 import { calcTotalesMulti, calcSubtotalItem, $ar, hoy } from '../../utils'
 import { RemitosCompraAPI } from '../../api'
 import toast from 'react-hot-toast'
 
-const ITEM_BASE = { material_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, alicuota_iva_id: '' }
+const ITEM_BASE = { material_id: '', descripcion: '', cantidad: 0, precio_unitario: 0, descuento_item: 0, alicuota_iva_id: '' }
 
 export default function CompraComprobanteForm({
   title,
@@ -163,6 +163,7 @@ export default function CompraComprobanteForm({
 
   return (
     <Modal
+      almanaque={false}
       title={title}
       size="xl"
       onClose={onClose}
@@ -279,9 +280,9 @@ export default function CompraComprobanteForm({
                   </select>
                 </td>
                 <td><input className="inp inp-sm" value={it.descripcion || ''} onChange={e => updItem(i, 'descripcion', e.target.value)} /></td>
-                <td className="td-right"><input type="number" className="inp inp-sm inp-right" style={{ width: 60 }} value={it.cantidad} min="0.001" step="0.001" onChange={e => updItem(i, 'cantidad', e.target.value)} /></td>
-                <td className="td-right"><input type="number" className="inp inp-sm inp-right" style={{ width: 105 }} value={it.precio_unitario} min="0" onChange={e => updItem(i, 'precio_unitario', e.target.value)} /></td>
-                <td className="td-right"><input type="number" className="inp inp-sm inp-right" style={{ width: 52 }} value={it.descuento_item || 0} min="0" max="100" onChange={e => updItem(i, 'descuento_item', e.target.value)} /></td>
+                <td className="td-right"><DecimalInput className="inp inp-sm inp-right" style={{ width: 60 }} value={it.cantidad} onChange={n => updItem(i, 'cantidad', n)} /></td>
+                <td className="td-right"><DecimalInput className="inp inp-sm inp-right" style={{ width: 105 }} value={it.precio_unitario} onChange={n => updItem(i, 'precio_unitario', n)} /></td>
+                <td className="td-right"><DecimalInput className="inp inp-sm inp-right" style={{ width: 52 }} value={it.descuento_item} onChange={n => updItem(i, 'descuento_item', n)} /></td>
                 {esFactura && (
                   <td>
                     <select className="inp inp-sm sel" value={it.alicuota_iva_id || ''} onChange={e => updItem(i, 'alicuota_iva_id', +e.target.value)}>
