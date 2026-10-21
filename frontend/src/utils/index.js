@@ -223,17 +223,26 @@ export const fechaLarga = () =>
 // remitos que vienen de Tango no traen `pallets` en los renglones — su línea "Pallets" es el único
 // dato —, así que ahí se conserva, marcada como manual para que el hook no la borre al ver total 0.
 // Si los renglones traen `sin_facturar` (remitos_list), entra sólo lo que falta facturar: un
-// renglón ya facturado entero se descarta y los pallets se recalculan.
+// renglón ya facturado entero se descarta y los pallets se recalculan. La línea de pallets vacíos
+// se descarta sólo si el hook la vuelve a armar igual; si no (p. ej. los pallets de bloque salieron
+// de una factura con "Lleva" y los de madera no), entra con lo que le falta facturar, como manual.
 export const renglonesDeRemito = (rem) => {
+  const parcial = (rem?.items || []).some(it => it.sin_facturar != null)
   const items = (rem?.items || []).flatMap(({ asignaciones, asignado, sin_facturar, ...it }) => {
     if (sin_facturar == null) return [it]
     const cantidad = +sin_facturar
     if (!(cantidad > 0)) return []
-    return [{ ...it, cantidad, pallets: palletsParaRenglon(cantidad, it.unidades_por_pallet) ?? it.pallets }]
+    const pallets = it.es_pallet_vacio ? cantidad : (palletsParaRenglon(cantidad, it.unidades_por_pallet) ?? it.pallets)
+    return [{ ...it, cantidad, pallets }]
   })
-  const regenerable = items.some(it => !it.es_pallet_vacio && (parseInt(it.pallets, 10) || 0) > 0)
+  const conPallets = items.some(it => !it.es_pallet_vacio && (parseInt(it.pallets, 10) || 0) > 0)
+  // El total con el que usePalletsVacios arma la línea.
+  const totalHook = items.reduce((s, it) => (
+    it.producto_id && !it.es_pallet_vacio && !it.es_transporte ? s + (parseInt(it.pallets, 10) || 0) : s
+  ), 0)
+  const regenerable = (linea) => conPallets && (!parcial || +linea.cantidad === totalHook)
   return items
-    .filter(it => !(it.es_pallet_vacio && regenerable))
+    .filter(it => !(it.es_pallet_vacio && regenerable(it)))
     .map(it => ({
       ...it,
       _remito_id: rem.id,

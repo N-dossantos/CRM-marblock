@@ -175,8 +175,14 @@ export const PresupuestosAPI = {
 export const RemitosAPI = {
   list: ({ q, estado, cliente_id, limit, offset } = {}) =>
     rpc('remitos_list', { p_q: q || null, p_estado: estado || null, p_cliente_id: cliente_id || null, ...pagina(limit, offset) }),
-  pendientes: (cliId) => rpc('remitos_list', { p_estado: 'pendiente', p_cliente_id: cliId }),
+  // Los que tienen algo sin facturar (no los reservados enteros por un borrador): cada renglón trae
+  // sin_facturar y renglonesDeRemito arma la factura sólo con eso.
+  pendientes: (cliId) => rpc('remitos_list', { p_estado: 'por_facturar', p_cliente_id: cliId }),
   get:        (id)    => rpc('remitos_list', { p_id: id }).then(one),
+  // "Facturas pendientes de remitir" del cliente; al editar un remito, sin contar lo que ya le
+  // asignó ese remito.
+  facturasPendientes: (cliId, excluirRemitoId = null) =>
+    rpc('facturas_pendientes_remitir', { p_cliente_id: cliId, p_excluir_remito_id: excluirRemitoId }),
   // El número de los remitos de venta lo da el talonario preimpreso, no el sistema:
   // esto sólo SUGIERE el siguiente (peek de sólo lectura, no consume numeración).
   numeroSugerido: () => rpc('remito_numero_sugerido').then(one),

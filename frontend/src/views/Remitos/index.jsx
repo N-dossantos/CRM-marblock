@@ -113,19 +113,23 @@ export default function Remitos() {
                   <td className="td-bold">{r.razon_social}</td>
                   <td style={{ color: 'var(--gray-500)' }}>{r.items?.length || 0} ítem(s)</td>
                   <td>
-                    {r.factura_numero
-                      ? <span className="code" style={{ color: 'var(--green-600)' }}>{r.factura_numero}</span>
+                    {/* Las facturas emitidas de las que sale algo de este remito (pueden ser varias). */}
+                    {r.facturas?.length
+                      ? <span className="code" style={{ color: 'var(--green-600)' }}>{r.facturas.map(f => f.numero).join(', ')}</span>
                       : <Badge estado="pendiente" />}
                   </td>
                   <td><Badge estado={r.estado} /></td>
                   <td>
                     <RowActions
-                      primary={r.estado === 'pendiente' && { label: 'Facturar', icon: '→', onClick: () => irAFacturar(r) }}
+                      // "Facturar" mientras le quede algo sin facturar: lleva sólo eso (renglonesDeRemito).
+                      primary={r.estado !== 'anulado' && r.sin_facturar_total > 0 && { label: 'Facturar', icon: '→', onClick: () => irAFacturar(r) }}
                       onPdf={() => setPdfModal({ url: pdfUrl.remito(r.id), titulo: `Remito ${r.numero}` })}
                       items={[
                         { label: 'Ver', icon: '👁', onClick: () => setForm({ data: r, isNew: false }) },
                         { label: 'Imprimir en talonario', icon: '🖨', onClick: () => setPdfModal({ url: pdfUrl.remitoTalonario(r.id), titulo: `Remito ${r.numero} — talonario`, talonario: true }) },
-                        { label: 'Anular', icon: '⛔', danger: true, onClick: () => anular(r.id), hidden: r.estado !== 'pendiente' },
+                        // Un remito que descuenta de facturas con "Lleva" se puede anular aunque esté
+                        // facturado (lo pendiente vuelve); uno de Tango o tomado por una factura, no.
+                        { label: 'Anular', icon: '⛔', danger: true, onClick: () => anular(r.id), hidden: r.bloqueado || r.estado === 'anulado' },
                       ]}
                     />
                   </td>
@@ -139,6 +143,8 @@ export default function Remitos() {
 
       {form && (
         <ComprobanteForm
+          // Un formulario por remito: si se pasa de uno a otro sin cerrar, no hereda "Lleva" ni ítems.
+          key={form.isNew ? 'nuevo' : form.data?.id}
           title={form.isNew ? 'Nuevo remito' : `Remito ${form.data?.numero || ''}`}
           tipo="remito"
           initial={form.data || {}}

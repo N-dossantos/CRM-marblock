@@ -137,6 +137,25 @@ test('renglonesDeRemito_usa_sin_facturar: entra lo que falta facturar, sin las c
   for (const k of ['asignaciones', 'asignado', 'sin_facturar']) assert.equal(k in renglones[0], false, k)
 })
 
+test('renglonesDeRemito: los pallets de madera sin facturar entran tal cual si el hook no los puede regenerar', () => {
+  // 14 de los 24 pallets de bloque salieron de una factura con "Lleva"; los 24 de madera, no.
+  const rem = {
+    id: 78,
+    items: [
+      { id: 1, producto_id: 8, descripcion: BLOQUE, cantidad: 2520, pallets: 24, unidades_por_pallet: 105, sin_facturar: 1050 },
+      { id: 2, producto_id: 28, descripcion: PALLET, cantidad: 24, pallets: 24, unidades_por_pallet: 1, es_pallet_vacio: true, sin_facturar: 24 },
+    ],
+  }
+  const pallets = renglonesDeRemito(rem).filter(it => it.es_pallet_vacio)
+  assert.equal(pallets.length, 1)
+  assert.equal(pallets[0].cantidad, 24)
+  assert.equal(pallets[0].pallets, 24)
+  assert.equal(pallets[0].pallets_auto, false)
+  // Si coinciden con los pallets del resto, la línea la vuelve a armar el hook (consolidada).
+  rem.items[1].sin_facturar = 10
+  assert.equal(renglonesDeRemito(rem).some(it => it.es_pallet_vacio), false)
+})
+
 test('renglonesDeRemito sin sin_facturar: el remito entero, como antes', () => {
   const rem = { id: 5, items: [{ id: 1, producto_id: 8, cantidad: 2520, pallets: 24, unidades_por_pallet: 105 }] }
   assert.deepEqual(renglonesDeRemito(rem), [{ id: 1, producto_id: 8, cantidad: 2520, pallets: 24, unidades_por_pallet: 105, _remito_id: 5 }])
