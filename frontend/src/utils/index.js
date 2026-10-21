@@ -72,6 +72,41 @@ export const addDias = (dateStr, n) => {
   return fechaLocal(d)
 }
 
+// Primer y último día de un mes 'AAAA-MM' (el día 0 del mes siguiente es el último de éste).
+export const rangoMes = (mes) => {
+  const [a, m] = mes.split('-').map(Number)
+  return { desde: `${mes}-01`, hasta: `${mes}-${String(new Date(a, m, 0).getDate()).padStart(2, '0')}` }
+}
+
+// Subdiario de una cuenta sólo con el movimiento del período: el saldo corrido arranca en 0
+// (no arrastra lo anterior) y los anulados se muestran pero no suman.
+export const subdiarioDelPeriodo = (movimientos = []) => {
+  const r2 = (n) => Math.round(n * 100) / 100
+  let saldo = 0, entradas = 0, salidas = 0
+  const movs = (movimientos || []).map(m => {
+    if (!m.anulado) {
+      const monto = +m.monto || 0
+      if (+m.signo === 1) entradas = r2(entradas + monto)
+      else salidas = r2(salidas + monto)
+      saldo = r2(saldo + (+m.signo === 1 ? monto : -monto))
+    }
+    return { ...m, saldo }
+  })
+  return { movimientos: movs, entradas, salidas, neto: r2(entradas - salidas) }
+}
+
+// Importes y cantidades escritos a mano: el punto y la coma valen los dos como decimal (no hay
+// separador de miles). Vacío es 0.
+export const parseDecimal = (texto) => parseFloat(String(texto ?? '').replace(',', '.')) || 0
+
+// Lo que queda en el campo mientras se escribe: dígitos y un solo separador decimal; null = la
+// tecla no vale (un segundo separador) y no se toma. En una cantidad entera (unidades de venta) un
+// punto o una coma sólo pueden ser de miles: se descartan y "1.500" queda 1500.
+export const limpiarDecimal = (texto, { decimales = true } = {}) => {
+  const t = String(texto ?? '').replace(decimales ? /[^\d.,]/g : /\D/g, '')
+  return (t.match(/[.,]/g) || []).length > 1 ? null : t
+}
+
 // ¿Está vencido?
 export const isVencido = (dateStr) =>
   dateStr ? new Date(dateStr + 'T23:59:59') < new Date() : false

@@ -144,7 +144,7 @@ export default function TesoreriaMovimientos() {
       </div>
 
       {modal && (
-        <Modal title="Nuevo movimiento manual" size="md" onClose={() => setModal(null)}
+        <Modal almanaque={false} title="Nuevo movimiento manual" size="md" onClose={() => setModal(null)}
           footer={<><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={save}>✓ Registrar</button></>}
         >
           <div className="form-row2">

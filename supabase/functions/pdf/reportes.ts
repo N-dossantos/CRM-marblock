@@ -193,6 +193,8 @@ export async function generarResumenVentas(data: any, empresa: any, desde: any, 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SUBDIARIO DE CUENTA (saldo corrido)  — Tesorería, Fase D
+// Sólo el movimiento del período, como la pantalla (subdiarioDelPeriodo en frontend/src/utils):
+// el saldo corrido arranca en 0, sin arrastrar lo anterior, y los anulados no suman.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function generarSubdiario(data: any, empresa: any, filtros: any = {}): Promise<Uint8Array> {
   return await new Promise((resolve, reject) => {
@@ -205,7 +207,19 @@ export async function generarSubdiario(data: any, empresa: any, filtros: any = {
     const W = doc.page.width
     const M = 45
     const ancho = W - M * 2
-    const { cuenta = {}, saldo_inicial = 0, movimientos = [], saldo_final = 0 } = data
+    const { cuenta = {} } = data
+    const r2 = (n: number) => Math.round(n * 100) / 100
+    let saldo = 0, entradas = 0, salidas = 0
+    const movimientos = (data.movimientos || []).map((m: any) => {
+      if (!m.anulado) {
+        const monto = Number(m.monto) || 0
+        if (Number(m.signo) === 1) entradas = r2(entradas + monto)
+        else salidas = r2(salidas + monto)
+        saldo = r2(saldo + (Number(m.signo) === 1 ? monto : -monto))
+      }
+      return { ...m, saldo }
+    })
+    const neto = r2(entradas - salidas)
 
     let y = dibujarHeader(doc, empresa, 'SUBDIARIO', '', new Date().toISOString().split('T')[0])
 
@@ -214,11 +228,11 @@ export async function generarSubdiario(data: any, empresa: any, filtros: any = {
     doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('CUENTA', M + 10, y + 14)
     doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(12).text(cuenta.descripcion || '—', M + 10, y + 24, { width: ancho * 0.6 })
     doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8.5)
-       .text(`${cuenta.banco ? cuenta.banco + '  ·  ' : ''}Saldo inicial período: ${$ar(saldo_inicial)}`, M + 10, y + 40)
+       .text(`${cuenta.banco ? cuenta.banco + '  ·  ' : ''}Entradas: ${$ar(entradas)}  ·  Salidas: ${$ar(salidas)}`, M + 10, y + 40)
 
-    const saldoColor = saldo_final < 0 ? COLORES.rojo : COLORES.verde
-    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('SALDO FINAL', W - M - 170, y + 14)
-    doc.fillColor(saldoColor).font('Helvetica-Bold').fontSize(16).text($ar(saldo_final), W - M - 170, y + 25, { width: 160, align: 'right' })
+    const netoColor = neto < 0 ? COLORES.rojo : COLORES.verde
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('NETO DEL PERÍODO', W - M - 170, y + 14)
+    doc.fillColor(netoColor).font('Helvetica-Bold').fontSize(16).text($ar(neto), W - M - 170, y + 25, { width: 160, align: 'right' })
     y += 64
 
     if (filtros.desde || filtros.hasta) {
@@ -251,7 +265,7 @@ export async function generarSubdiario(data: any, empresa: any, filtros: any = {
         m.concepto || '—',
         entrada,
         salida,
-        $ar(m.saldo_corrido),
+        $ar(m.saldo),
       ], cols, i % 2 === 1)
 
       if (y > doc.page.height - 120) {
@@ -262,8 +276,8 @@ export async function generarSubdiario(data: any, empresa: any, filtros: any = {
 
     y += 4
     doc.rect(M, y, ancho, 26).fill(COLORES.azul_oscuro)
-    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(9).text('SALDO FINAL:', M + 8, y + 9)
-    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12).text($ar(saldo_final), M + 8, y + 7, { width: ancho - 16, align: 'right' })
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(9).text('NETO DEL PERÍODO:', M + 8, y + 9)
+    doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(12).text($ar(neto), M + 8, y + 7, { width: ancho - 16, align: 'right' })
 
     dibujarFooter(doc, empresa)
     doc.end()

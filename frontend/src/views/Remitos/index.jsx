@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { RemitosAPI, ClientesAPI, ProductosAPI, pdfUrl } from '../../api'
 import { fFecha, renglonesDeRemito } from '../../utils'
-import { Badge, Loading, EmptyState, Paginador, RowActions } from '../../components/UI'
+import { Badge, Loading, EmptyState, Paginador, RowActions, Vinculados } from '../../components/UI'
 import ComprobanteForm from '../../components/Forms/ComprobanteForm'
 import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
@@ -114,9 +114,7 @@ export default function Remitos() {
                   <td style={{ color: 'var(--gray-500)' }}>{r.items?.length || 0} ítem(s)</td>
                   <td>
                     {/* Las facturas emitidas de las que sale algo de este remito (pueden ser varias). */}
-                    {r.facturas?.length
-                      ? <span className="code" style={{ color: 'var(--green-600)' }}>{r.facturas.map(f => f.numero).join(', ')}</span>
-                      : <Badge estado="pendiente" />}
+                    <Vinculados numeros={(r.facturas || []).map(f => f.numero)} vacio={<Badge estado="pendiente" />} />
                   </td>
                   <td><Badge estado={r.estado} /></td>
                   <td>

@@ -205,7 +205,7 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
   // quedar contenida (ni recortada) por su .modal-body con scroll.
   return createPortal(
     <div onKeyDown={onKeyDownVentana}>
-      <Modal title="Elegir productos" size="lg" onClose={onClose} footer={footer}>
+      <Modal almanaque={false} title="Elegir productos" size="lg" onClose={onClose} footer={footer}>
         <input
           ref={searchRef}
           className="inp"

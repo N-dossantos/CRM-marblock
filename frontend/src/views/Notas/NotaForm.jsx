@@ -5,7 +5,7 @@ import { $ar, fFecha, calcTotalesMulti } from '../../utils'
 import { revisarEmision } from '../../components/Arca'
 import toast from 'react-hot-toast'
 
-const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
+const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 0, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
 
 // `nota`: para corregir un borrador o rechazado (actualizar_nota). El tipo y la factura no cambian:
 // para eso se descarta la nota y se crea otra.
@@ -86,6 +86,7 @@ export default function NotaForm({ factura, nota = null, productos = [], alicuot
   const nombre = `Nota de ${form.tipo === 'NC' ? 'Crédito' : 'Débito'} ${factura.tipo}`
   return (
     <Modal
+      almanaque={false}
       title={`${nota ? 'Editar borrador — ' : 'Nueva '}${nombre} — Fac. ${factura.numero}`}
       size="xl"
       onClose={cerrar}

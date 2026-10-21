@@ -17,7 +17,7 @@ const deLleva = (it) => !it.es_pallet_vacio && (it.asignaciones || []).some(a =>
 
 const fCant = (x) => (+x || 0).toLocaleString('es-AR', { maximumFractionDigits: 3 })
 
-const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
+const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 0, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
 
 // Renglones que entran en una hoja del talonario preimpreso de remitos: el área de ítems va de
 // 110,6 a 251,9 mm a 6 mm por renglón (23), pero se corta en 19 para dejar libre la leyenda
@@ -310,6 +310,7 @@ export default function ComprobanteForm({
 
   return (
     <Modal
+      almanaque={false}
       title={title}
       size="xl"
       onClose={cerrar}

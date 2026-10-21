@@ -13,7 +13,7 @@ import { usePalletsVacios } from '../../hooks/usePalletsVacios'
 import ChequeC2Fields, { CHEQUE_C2_BASE, validarChequeC2 } from './ChequeC2Fields'
 import toast from 'react-hot-toast'
 
-const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
+const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 0, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
 
 const MEDIOS = [
   { v: 'efectivo',      l: '💵 Efectivo' },
@@ -160,6 +160,7 @@ export default function RemitoXForm({
 
   return (
     <Modal
+      almanaque={false}
       title={title}
       size="xl"
       onClose={onClose}

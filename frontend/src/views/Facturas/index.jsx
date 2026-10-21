@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { FacturasAPI, NotasAPI, RecibosAPI, ClientesAPI, ProductosAPI, AlicuotasIvaAPI, RemitosAPI } from '../../api'
 import { $ar, fFecha, fDocNro } from '../../utils'
-import { Badge, Loading, EmptyState, Paginador, RowActions } from '../../components/UI'
+import { Badge, Loading, EmptyState, Paginador, RowActions, Vinculados } from '../../components/UI'
 import { FiscalBadge, PanelArca, BandejaArca, FILTROS_ARCA, estadosDeFiltro, esFiscal, esEditable, emitirEnArca } from '../../components/Arca'
 import ComprobanteForm from '../../components/Forms/ComprobanteForm'
 import ReciboForm from '../../components/Forms/ReciboForm'
@@ -189,9 +189,11 @@ export default function Facturas() {
                       <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{fDocNro(f.doc_tipo, f.doc_nro)}</div>
                     </td>
                     <td>
-                      {f.remito_numero
-                        ? <span className="code" style={{ color: 'var(--green-600)' }}>{f.remito_numero}</span>
-                        : <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>—</span>}
+                      {/* Una factura puede cubrir varios remitos: primero el suyo (remito_numero), después el resto. */}
+                      <Vinculados
+                        numeros={[...new Set([f.remito_numero, ...(f.remitos || []).map(r => r.numero)].filter(Boolean))]}
+                        vacio={<span style={{ color: 'var(--gray-400)', fontSize: 12 }}>—</span>}
+                      />
                     </td>
                     <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(f.neto_gravado)}</td>
                     <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(f.iva_monto)}</td>

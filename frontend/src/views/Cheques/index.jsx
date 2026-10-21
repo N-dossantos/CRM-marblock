@@ -191,7 +191,7 @@ export default function Cheques() {
 
       {/* Modal nuevo cheque */}
       {nuevo && (
-        <Modal title="Registrar cheque en cartera" size="md" onClose={() => setNuevo(null)}
+        <Modal almanaque={false} title="Registrar cheque en cartera" size="md" onClose={() => setNuevo(null)}
           footer={<><button className="btn btn-secondary" onClick={() => setNuevo(null)}>Cancelar</button><button className="btn btn-primary" onClick={guardarNuevo}>✓ Guardar</button></>}
         >
           <div className="form-row2">
@@ -247,7 +247,7 @@ export default function Cheques() {
 
       {/* Modal entregar a proveedor */}
       {entregar && (
-        <Modal title={`Entregar cheque ${entregar.cheque.numero}`} size="sm" onClose={() => setEntregar(null)}
+        <Modal almanaque={false} title={`Entregar cheque ${entregar.cheque.numero}`} size="sm" onClose={() => setEntregar(null)}
           footer={
             <>
               <button className="btn btn-secondary" onClick={() => setEntregar(null)}>Cancelar</button>
