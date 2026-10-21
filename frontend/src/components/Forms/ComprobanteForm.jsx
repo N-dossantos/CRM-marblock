@@ -28,6 +28,7 @@ export default function ComprobanteForm({
   alicuotas = [], // [{ id, porcentaje }] — activa el IVA multi-alícuota (sólo en facturas)
   numeroSugerido = null, // { punto_venta, numero, numero_formateado } — sólo para remitos nuevos
   onSave,         // (payload, { emitir }) — en facturas, `emitir` pide además el CAE a ARCA
+  onDelete,       // sólo para presupuestos guardados
   onClose,
   warnVencido = false,
 }) {
@@ -36,6 +37,7 @@ export default function ComprobanteForm({
   // mirando el papel. En edición no se toca — si la hoja se arruinó el flujo es
   // anular y reemitir, no renumerar.
   const esRemito     = tipo === 'remito'
+  const esPresupuesto = tipo === 'presupuesto'
   const esRemitoNuevo = esRemito && !initial.id
   // Una factura sólo se edita mientras es borrador o rechazada (sin CAE). Sus remitos ya están
   // tomados por ella y no salen en los pendientes: se muestran como dato, no como selector. El
@@ -61,8 +63,9 @@ export default function ComprobanteForm({
     domicilio_obra:    initial.domicilio_obra || '',
     telefono_entrega:  initial.telefono_entrega || '',
     ...initial,
+    destinatario: initial.destinatario || initial.razon_social || '',
   })
-  const [loading, setLoading] = useState(null)   // null | 'guardar' | 'emitir'
+  const [loading, setLoading] = useState(null)   // null | 'guardar' | 'emitir' | 'eliminar'
   const [showWarn, setShowWarn] = useState(warnVencido)
   // Para "Continuar con precios actuales" del presupuesto vencido: repite el botón que se tocó.
   const emitirPedido = useRef(false)
@@ -126,6 +129,7 @@ export default function ComprobanteForm({
     setForm(f => ({
       ...f,
       cliente_id: cliId,
+      ...(esPresupuesto && cl ? { destinatario: cl.razon_social } : {}),
       // Los remitos marcados eran del cliente anterior: se sueltan junto con sus renglones.
       // Los ítems cargados a mano (sin _remito_id) se respetan.
       remito_ids: [],
@@ -189,7 +193,10 @@ export default function ComprobanteForm({
 
   const save = async (forzar = false, emitir = emitirPedido.current) => {
     emitirPedido.current = emitir
-    if (!form.cliente_id)   { toast.error('Seleccione un cliente'); return }
+    if (loading) return
+    if (esPresupuesto ? !form.destinatario.trim() : !form.cliente_id) {
+      toast.error(esPresupuesto ? 'Ingrese el nombre del destinatario' : 'Seleccione un cliente'); return
+    }
     if (!form.items.length) { toast.error('Agregue al menos un ítem'); return }
     if (esRemitoNuevo && !/^\d{5}-\d{8}$/.test((form.numero || '').trim())) {
       toast.error('El número del remito debe tener el formato 00001-00012345'); return
@@ -201,7 +208,8 @@ export default function ComprobanteForm({
       return
     }
     const payload = {
-      cliente_id:        +form.cliente_id,
+      cliente_id:        form.cliente_id ? +form.cliente_id : null,
+      ...(esPresupuesto && { destinatario: form.destinatario.trim() }),
       descuento_general: +form.descuento_general || 0,
       // `_remito_id` / `_precio_auto` son marcas de UI (qué renglón vino de qué remito, y si ya
       // tomó el precio de lista): no van al servidor.
@@ -226,6 +234,13 @@ export default function ComprobanteForm({
     } finally {
       setLoading(null)
     }
+  }
+
+  const eliminar = async () => {
+    if (loading) return
+    setLoading('eliminar')
+    try { await onDelete() }
+    finally { setLoading(null) }
   }
 
   // Renglones de remito sin producto del catálogo (artículos de Tango que el CRM no tiene: bloques
@@ -260,9 +275,14 @@ export default function ComprobanteForm({
         </>
       ) : (
         <>
+          {esPresupuesto && onDelete && (
+            <button className="btn btn-danger presupuesto-eliminar" onClick={eliminar} disabled={!!loading}>
+              {loading === 'eliminar' ? 'Eliminando…' : 'Eliminar presupuesto'}
+            </button>
+          )}
           <button className="btn btn-secondary" onClick={cerrar} disabled={!!loading}>Cancelar</button>
           <button className="btn btn-primary" onClick={() => save(false)} disabled={!!loading}>
-            {loading ? 'Guardando…' : '✓ Guardar'}
+            {loading === 'guardar' ? 'Guardando…' : '✓ Guardar'}
           </button>
         </>
       )}
@@ -281,10 +301,20 @@ export default function ComprobanteForm({
         </div>
       )}
 
-      <div className="form-row3" style={{ marginBottom: 14 }}>
+      {esPresupuesto && (
+        <div className="field" style={{ marginBottom: 14 }}>
+          <label className="lbl" htmlFor="presupuesto-destinatario">A nombre de *</label>
+          <input id="presupuesto-destinatario" className="inp" value={form.destinatario}
+            placeholder="Nombre de la persona o empresa" required
+            onChange={e => setForm(f => ({ ...f, destinatario: e.target.value }))} />
+          <span className="form-hint">No hace falta que esté registrado como cliente.</span>
+        </div>
+      )}
+
+      <div className={esPresupuesto ? 'field' : 'form-row3'} style={{ marginBottom: 14 }}>
         {/* Cliente */}
         <div className="field" style={{ gridColumn: tipo === 'factura' ? '1 / 3' : '1 / 3' }}>
-          <label className="lbl">Cliente *</label>
+          <label className="lbl">{esPresupuesto ? 'Vincular a un cliente (opcional)' : 'Cliente *'}</label>
           <ClienteSearch clientes={clientes} value={form.cliente_id} onChange={onCliChange}
             disabled={tipo === 'factura' && !esFacturaNueva} />
         </div>
@@ -430,7 +460,7 @@ export default function ComprobanteForm({
       )}
 
       {/* Descuento general */}
-      <div className="form-row3" style={{ marginBottom: 14 }}>
+      <div className={`form-row3${esPresupuesto ? ' presupuesto-leyenda' : ''}`} style={{ marginBottom: 14 }}>
         <div className="field">
           <label className="lbl">Descuento general (%)</label>
           <select className="sel" value={form.descuento_general} onChange={e => setForm(f => ({ ...f, descuento_general: +e.target.value }))}>
@@ -440,9 +470,11 @@ export default function ComprobanteForm({
             <option value={20}>20%</option>
           </select>
         </div>
-        <div className="field" style={{ gridColumn: '2 / 4' }}>
-          <label className="lbl">Observaciones</label>
-          <input className="inp" value={form.observaciones || ''} onChange={e => setForm(f => ({ ...f, observaciones: e.target.value }))} />
+        <div className="field" style={{ gridColumn: esPresupuesto ? undefined : '2 / 4' }}>
+          <label className="lbl" htmlFor="comprobante-observaciones">{esPresupuesto ? 'Leyenda / contacto' : 'Observaciones'}</label>
+          <input id="comprobante-observaciones" className="inp" value={form.observaciones || ''}
+            placeholder={esPresupuesto ? 'Teléfono, mail u otra aclaración' : undefined}
+            onChange={e => setForm(f => ({ ...f, observaciones: e.target.value }))} />
         </div>
       </div>
 

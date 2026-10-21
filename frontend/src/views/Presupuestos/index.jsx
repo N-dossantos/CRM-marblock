@@ -44,14 +44,27 @@ export default function Presupuestos() {
   }
 
   const cambiarEstado = async (id, estado) => {
-    await PresupuestosAPI.cambiarEstado(id, estado)
-    load()
+    try {
+      await PresupuestosAPI.cambiarEstado(id, estado)
+      load()
+    } catch { /* La API muestra el error. */ }
+  }
+
+  const eliminar = async (p) => {
+    if (!confirm(`¿Eliminar el presupuesto ${p.numero} a nombre de ${p.razon_social}? Se borrarán sus ítems. Esta acción no se puede deshacer.`)) return
+    try {
+      await PresupuestosAPI.delete(p.id)
+      toast.success('Presupuesto eliminado')
+      setForm(null)
+      load()
+    } catch { /* La API muestra el error y conserva el presupuesto abierto. */ }
   }
 
   const convertirAFactura = (p) => {
     // Navega a facturas con datos pre-cargados — pasamos por sessionStorage
     sessionStorage.setItem('crm_desde_presupuesto', JSON.stringify({
-      cliente_id: p.cliente_id, items: p.items, descuento_general: p.descuento_general, presupuesto_id: p.id
+      cliente_id: p.cliente_id, items: p.items, descuento_general: p.descuento_general, presupuesto_id: p.id,
+      observaciones: [!p.cliente_id && `Presupuesto a nombre de: ${p.razon_social}`, p.observaciones].filter(Boolean).join('\n'),
     }))
     window.location.href = '/facturas'
   }
@@ -60,7 +73,7 @@ export default function Presupuestos() {
     <div>
       <div className="page-toolbar">
         <div className="toolbar-left">
-          <input className="search-inp" placeholder="Buscar presupuesto o cliente…" value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="search-inp" placeholder="Buscar número, nombre o contacto…" value={search} onChange={e => setSearch(e.target.value)} />
           <select className="sel" style={{ width: 170 }} value={filtroEst} onChange={e => setFiltroEst(e.target.value)}>
             <option value="">Todos los estados</option>
             {['borrador','enviado','aceptado','vencido','convertido','rechazado'].map(e => <option key={e} value={e}>{e.charAt(0).toUpperCase()+e.slice(1)}</option>)}
@@ -74,7 +87,7 @@ export default function Presupuestos() {
           <table>
             <thead>
               <tr>
-                <th>Número</th><th>Fecha</th><th>Vencimiento</th><th>Cliente</th>
+                <th>Número</th><th>Fecha</th><th>Vencimiento</th><th>Destinatario</th>
                 <th className="th-right">Total</th><th>Estado</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
@@ -91,12 +104,13 @@ export default function Presupuestos() {
                   <td><Badge estado={p.estado} /></td>
                   <td>
                     <RowActions
-                      primary={['borrador', 'enviado', 'vencido'].includes(p.estado) && { label: 'Facturar', icon: '→', onClick: () => convertirAFactura(p) }}
+                      primary={['borrador', 'enviado', 'aceptado', 'vencido'].includes(p.estado) && { label: 'Facturar', icon: '→', onClick: () => convertirAFactura(p) }}
                       onPdf={() => setPdfModal({ url: `/api/pdf/presupuesto/${p.id}`, titulo: `Presupuesto ${p.numero}` })}
                       items={[
                         { label: 'Ver / Editar', icon: '✎', onClick: () => openEdit(p) },
                         { label: 'Marcar aceptado', icon: '✓', onClick: () => cambiarEstado(p.id, 'aceptado'), hidden: !['borrador', 'enviado', 'vencido'].includes(p.estado) },
                         { label: 'Marcar enviado', icon: '✉', onClick: () => cambiarEstado(p.id, 'enviado'), hidden: p.estado !== 'borrador' },
+                        { label: 'Eliminar presupuesto', danger: true, onClick: () => eliminar(p) },
                       ]}
                     />
                   </td>
@@ -116,6 +130,7 @@ export default function Presupuestos() {
           productos={productos}
           warnVencido={form.warnVencido}
           onSave={save}
+          onDelete={!form.isNew ? () => eliminar(form.data) : undefined}
           onClose={() => setForm(null)}
         />
       )}

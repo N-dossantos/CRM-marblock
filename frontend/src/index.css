@@ -596,6 +596,10 @@ tr.tr-click { cursor: pointer; }
 }
 
 /* ── GRIDS DE FORMULARIO ─────────────────────────────────────────── */
+.form-hint { color: var(--gray-600); font-size: 12px; line-height: 1.5; }
+.presupuesto-leyenda > .field:last-child { grid-column: 2 / 4; }
+.presupuesto-eliminar { margin-right: auto; }
+.modal-footer:has(.presupuesto-eliminar) { flex-wrap: wrap; }
 .form-row2 { display: grid; grid-template-columns: 1fr 1fr;     gap: 14px; }
 .form-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
 .form-row4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
@@ -760,6 +764,8 @@ tr.tr-click { cursor: pointer; }
   .search-inp { width: 100%; max-width: 280px; }
   .toolbar-right { flex-wrap: wrap; }
   .form-row2, .form-row3, .form-row4 { grid-template-columns: 1fr; }
+  .presupuesto-leyenda > .field:last-child { grid-column: auto; }
+  .presupuesto-eliminar { flex-basis: 100%; }
 }
 
 /* ── KPI CARDS ───────────────────────────────────────────────────── */

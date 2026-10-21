@@ -133,14 +133,16 @@ export const PresupuestosAPI = {
       .then(rows => cliente_id ? rows.filter(r => r.cliente_id === Number(cliente_id)) : rows),
   get:  (id) => rpc('presupuestos_list', { p_id: id }).then(one),
   create: (data) => rpc('crear_presupuesto', {
-    p_cliente_id:        data.cliente_id,
+    p_cliente_id:        data.cliente_id || null,
+    p_destinatario:      data.destinatario?.trim() || null,
     p_items:             data.items,
     p_descuento_general: data.descuento_general || 0,
     p_observaciones:     data.observaciones ?? null,
   }),
   update: (id, data) => rpc('actualizar_presupuesto', {
     p_id:                id,
-    p_cliente_id:        data.cliente_id,
+    p_cliente_id:        data.cliente_id || null,
+    p_destinatario:      data.destinatario?.trim() || null,
     p_items:             data.items,
     p_descuento_general: data.descuento_general || 0,
     p_observaciones:     data.observaciones ?? null,
@@ -148,6 +150,7 @@ export const PresupuestosAPI = {
     p_forzar_vencido:    data.forzar_vencido ?? false,
   }),
   cambiarEstado: (id, estado) => rpc('presupuesto_set_estado', { p_id: id, p_estado: estado }),
+  delete: (id) => rpc('eliminar_presupuesto', { p_id: id }),
 }
 
 // ── REMITOS ─────────────────────────────────────────────────────────
