@@ -3,7 +3,7 @@
 // dibuja la pantalla y los filtros, y devuelve { archivo, hojas } para exportarXlsx(). Las columnas
 // siguen las de la tabla en pantalla; los libros IVA suman lo que el contador necesita (neto e IVA
 // por alícuota, percepciones por tipo).
-import { $ar, fFecha, fDocNro, subdiarioDelPeriodo } from '../../utils'
+import { $ar, fFecha, fDocNro, subdiarioDelPeriodo, resumenPorMedio } from '../../utils'
 import { nombreArchivo } from '../../utils/excel'
 
 const periodo = ({ desde, hasta }) =>
@@ -174,6 +174,7 @@ export const EXCEL = {
   subdiario_tes: (data, f) => {
     const cols = [
       col('Fecha',       m => m.fecha, 'fecha'),
+      ...(data.todos ? [col('Medio', m => m.cuenta_descripcion, 'texto', 30)] : []),
       col('Comprobante', m => m.numero || `#${m.id}`, 'texto', 16),
       col('Tipo',        m => [m.tipo_codigo, m.tipo_descripcion].filter(Boolean).join(' '), 'texto', 24),
       col('Concepto',    m => (m.anulado ? `${m.concepto || ''} (anulado)` : m.concepto), 'texto', 40),
@@ -181,14 +182,27 @@ export const EXCEL = {
       col('Salida',      m => (m.signo === -1 ? m.monto : null), 'importe'),
       col('Saldo',       m => m.saldo, 'importe'),
     ]
-    const cuenta = data.cuenta?.descripcion || 'Cuenta'
+    const cuenta = data.todos ? 'Todos los medios' : (data.cuenta?.descripcion || 'Cuenta')
     // Igual que la pantalla: sólo el movimiento del mes, con el saldo arrancando en 0.
     const sub = subdiarioDelPeriodo(data.movimientos)
+    const encabezado = [`Subdiario — ${cuenta}`, periodo(f), `Entradas: ${$ar(sub.entradas)}  ·  Salidas: ${$ar(sub.salidas)}  ·  Neto del mes: ${$ar(sub.neto)}`]
+    const movimientos = { nombre: data.todos ? 'Movimientos' : 'Subdiario', columnas: cols, filas: sub.movimientos,
+      encabezado, total: { titulo: 'Totales', columnas: ['Entrada', 'Salida'] } }
+    // Con todos los medios va primero una hoja con una fila por medio y el total.
+    const resumen = data.todos && {
+      nombre: 'Resumen', encabezado,
+      columnas: [
+        col('Medio',    c => c.medio, 'texto', 34),
+        col('Entradas', c => c.entradas, 'importe'),
+        col('Salidas',  c => c.salidas, 'importe'),
+        col('Neto',     c => c.neto, 'importe'),
+      ],
+      filas: resumenPorMedio(data.movimientos, data.orden).medios,
+      total: { titulo: 'Total', columnas: ['Entradas', 'Salidas', 'Neto'] },
+    }
     return {
       archivo: nombreArchivo('Subdiario', cuenta, f.desde, f.hasta),
-      hojas: [{ nombre: 'Subdiario', columnas: cols, filas: sub.movimientos,
-        encabezado: [`Subdiario — ${cuenta}`, periodo(f), `Entradas: ${$ar(sub.entradas)}  ·  Salidas: ${$ar(sub.salidas)}  ·  Neto del mes: ${$ar(sub.neto)}`],
-        total: { titulo: 'Totales', columnas: ['Entrada', 'Salida'] } }],
+      hojas: resumen ? [resumen, movimientos] : [movimientos],
     }
   },
   oper_tes: (data, f) => {
