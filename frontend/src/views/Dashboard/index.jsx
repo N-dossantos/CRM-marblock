@@ -4,8 +4,13 @@ import { useNavigate } from 'react-router-dom'
 import { InformesAPI, ArcaAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Loading, Badge } from '../../components/UI'
+import AlmanaqueDashboard from '../../components/Almanaque/Dashboard'
 
 export default function Dashboard() {
+  return <><AlmanaqueDashboard /><ResumenDashboard /></>
+}
+
+function ResumenDashboard() {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [bandeja, setBandeja] = useState(null)  // comprobantes sin CAE por estado (arca_bandeja)

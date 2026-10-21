@@ -12,6 +12,24 @@ import { unwrap, rpc, one } from './base'
 // `total_filas` = total que cumple el filtro, para armar el "página X de Y".
 const pagina = (limit, offset) => (limit ? { p_limit: limit, p_offset: offset || 0 } : {})
 
+// Anotaciones compartidas: cada escritura es una sola fila, sin RPC.
+export const AlmanaqueAPI = {
+  list: ({ desde, hasta }) => supabase.from('almanaque').select('*')
+    .gte('fecha', desde).lte('fecha', hasta).order('fecha').order('id').then(unwrap),
+  atrasadas: (fecha) => supabase.from('almanaque').select('*')
+    .eq('hecha', false).lt('fecha', fecha).order('fecha').order('id').then(unwrap),
+  pendientes: (fecha) => supabase.from('almanaque').select('id', { count: 'exact', head: true })
+    .eq('hecha', false).lte('fecha', fecha).then(r => { unwrap(r); return r.count }),
+  create: ({ fecha, texto }) => supabase.from('almanaque')
+    .insert({ fecha, texto: texto.trim() }).select().single().then(unwrap),
+  update: (id, { fecha, texto }) => supabase.from('almanaque')
+    .update({ fecha, texto: texto.trim() }).eq('id', id).select().single().then(unwrap),
+  tildar: (id, hecha) => supabase.from('almanaque')
+    .update({ hecha, hecha_en: hecha ? new Date().toISOString() : null })
+    .eq('id', id).select().single().then(unwrap),
+  delete: (id) => supabase.from('almanaque').delete().eq('id', id).select('id').single().then(unwrap),
+}
+
 // Normalizadores (trim / defaults / tipos) equivalentes a los del backend.
 const cli = (d) => ({
   razon_social:          d.razon_social?.trim(),
@@ -133,14 +151,16 @@ export const PresupuestosAPI = {
       .then(rows => cliente_id ? rows.filter(r => r.cliente_id === Number(cliente_id)) : rows),
   get:  (id) => rpc('presupuestos_list', { p_id: id }).then(one),
   create: (data) => rpc('crear_presupuesto', {
-    p_cliente_id:        data.cliente_id,
+    p_cliente_id:        data.cliente_id || null,
+    p_destinatario:      data.destinatario?.trim() || null,
     p_items:             data.items,
     p_descuento_general: data.descuento_general || 0,
     p_observaciones:     data.observaciones ?? null,
   }),
   update: (id, data) => rpc('actualizar_presupuesto', {
     p_id:                id,
-    p_cliente_id:        data.cliente_id,
+    p_cliente_id:        data.cliente_id || null,
+    p_destinatario:      data.destinatario?.trim() || null,
     p_items:             data.items,
     p_descuento_general: data.descuento_general || 0,
     p_observaciones:     data.observaciones ?? null,
@@ -148,6 +168,7 @@ export const PresupuestosAPI = {
     p_forzar_vencido:    data.forzar_vencido ?? false,
   }),
   cambiarEstado: (id, estado) => rpc('presupuesto_set_estado', { p_id: id, p_estado: estado }),
+  delete: (id) => rpc('eliminar_presupuesto', { p_id: id }),
 }
 
 // ── REMITOS ─────────────────────────────────────────────────────────
@@ -279,12 +300,19 @@ export const RecibosAPI = {
   list: ({ q, cliente_id, desde, hasta, limit, offset } = {}) =>
     rpc('recibos_list', { p_q: q || null, p_cliente_id: cliente_id || null, p_desde: desde || null, p_hasta: hasta || null, ...pagina(limit, offset) }),
   get:    (id)   => rpc('recibos_list', { p_id: id }).then(one),
+  facturasPendientes: (clienteId) => rpc('facturas_pendientes_recibo', { p_cliente_id: clienteId }),
+  completarCertificado: (data) => rpc('completar_certificado_retencion', {
+    p_id: data.id, p_tipo_retencion: data.tipo_retencion,
+    p_numero_certificado: data.numero_certificado, p_fecha: data.fecha,
+    p_codigo_regimen: data.codigo_regimen || null, p_jurisdiccion: data.jurisdiccion || null,
+  }),
   // `numero` sólo viaja si el operador lo cambió (hoja tachada / copia perdida del talonario); si no,
   // crear_recibo lo asigna con siguiente_numero('recibo'), así dos operadores con el formulario abierto
   // no chocan por el mismo número sugerido.
   create: (data) => rpc('crear_recibo', {
     p_cliente_id: data.cliente_id, p_medios: data.medios,
-    p_factura_ids: data.factura_ids ?? [], p_observaciones: data.observaciones ?? null,
+    p_imputaciones: data.imputaciones ?? [], p_retenciones: data.retenciones ?? [],
+    p_observaciones: data.observaciones ?? null,
     p_numero: data.numero ?? null,
   }),
   // Sólo MUESTRA el próximo número (lectura de `contadores`, no consume numeración): si no se toca,
@@ -368,6 +396,7 @@ export const InformesAPI = {
     rpc('informe_cta_cte_proveedor', { p_proveedor_id: id, p_desde: desde || null, p_hasta: hasta || null }),
   ivaCompras:        ({ desde, hasta } = {}) => rpc('informe_iva_compras', { p_desde: desde, p_hasta: hasta }),
   libroIvaVentas:    ({ desde, hasta } = {}) => rpc('informe_libro_iva_ventas', { p_desde: desde, p_hasta: hasta }),
+  retencionesSufridas: ({ desde, hasta } = {}) => rpc('informe_retenciones_sufridas', { p_desde: desde, p_hasta: hasta }),
   preciosCompra:     ({ q } = {})            => rpc('informe_precios_compra', { p_q: q || null }),
   nominaProveedores: ()                      => rpc('informe_nomina_proveedores'),
   // ── Tesorería (Fase C) ──

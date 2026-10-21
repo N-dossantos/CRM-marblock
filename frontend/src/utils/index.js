@@ -12,8 +12,10 @@ export const fFecha = (s) => {
   return new Date(s + 'T12:00:00').toLocaleDateString('es-AR')
 }
 
-// Fecha de hoy en formato YYYY-MM-DD
-export const hoy = () => new Date().toISOString().split('T')[0]
+// Fecha de calendario local: UTC adelanta el día después de las 21 h en Argentina.
+export const fechaLocal = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+export const hoy = () => fechaLocal(new Date())
 
 // Documento del cliente con los códigos de ARCA (clientes.doc_tipo / doc_nro, sólo dígitos).
 export const TIPOS_DOC = { 80: 'CUIT', 96: 'DNI' }
@@ -66,7 +68,7 @@ export const telefonoWhatsApp = (tel) => {
 export const addDias = (dateStr, n) => {
   const d = new Date(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
+  return fechaLocal(d)
 }
 
 // ¿Está vencido?
