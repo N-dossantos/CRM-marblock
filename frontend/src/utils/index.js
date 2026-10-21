@@ -1,4 +1,5 @@
 // src/utils/index.js
+import { palletsParaRenglon } from './pendientes.js'
 
 export const IVA = 0.21
 
@@ -221,8 +222,15 @@ export const fechaLarga = () =>
 // usePalletsVacios la regenera UNA sola, consolidada sobre el total de los remitos marcados. Los
 // remitos que vienen de Tango no traen `pallets` en los renglones — su línea "Pallets" es el único
 // dato —, así que ahí se conserva, marcada como manual para que el hook no la borre al ver total 0.
+// Si los renglones traen `sin_facturar` (remitos_list), entra sólo lo que falta facturar: un
+// renglón ya facturado entero se descarta y los pallets se recalculan.
 export const renglonesDeRemito = (rem) => {
-  const items = rem?.items || []
+  const items = (rem?.items || []).flatMap(({ asignaciones, asignado, sin_facturar, ...it }) => {
+    if (sin_facturar == null) return [it]
+    const cantidad = +sin_facturar
+    if (!(cantidad > 0)) return []
+    return [{ ...it, cantidad, pallets: palletsParaRenglon(cantidad, it.unidades_por_pallet) ?? it.pallets }]
+  })
   const regenerable = items.some(it => !it.es_pallet_vacio && (parseInt(it.pallets, 10) || 0) > 0)
   return items
     .filter(it => !(it.es_pallet_vacio && regenerable))
