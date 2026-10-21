@@ -42,8 +42,7 @@ export default function Recibos() {
       setCertificado(null)
       load()
       toast.success('Certificado registrado')
-    } catch (e) {
-      toast.error(e.message || 'No se pudo registrar el certificado')
+    } catch { /* La API muestra el error y el formulario del certificado queda abierto. */
     } finally {
       setGuardandoCertificado(false)
     }
