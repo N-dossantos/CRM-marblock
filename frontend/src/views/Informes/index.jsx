@@ -1,7 +1,7 @@
 // src/views/Informes/index.jsx
 import { useState, useEffect, useRef } from 'react'
 import { InformesAPI, ClientesAPI, CuentasBancariasAPI, MovimientosTesoreriaAPI, PlanCuentasAPI, pdfUrl } from '../../api'
-import { $ar, fFecha, hoy, fDocNro, rangoMes, subdiarioDelPeriodo } from '../../utils'
+import { $ar, fFecha, hoy, fDocNro, rangoMes, subdiarioDelPeriodo, resumenPorMedio } from '../../utils'
 import { Loading } from '../../components/UI'
 import PDFModal from '../../components/PDFModal'
 import { exportarXlsx } from '../../utils/excel'
@@ -81,7 +81,8 @@ export default function Informes() {
   const [filtroCli, setFiltroCli] = useState('')
   const [qMaterial, setQMaterial] = useState('')
   const [clientes, setClientes] = useState([])
-  const [cuentasTes, setCuentasTes] = useState([])
+  // Medios del subdiario agrupados como en "Saldos tesorería": [{ descripcion, cuentas: [...] }].
+  const [gruposTes, setGruposTes] = useState([])
   const [cuentaTes, setCuentaTes]   = useState('')
   const [estadoCheque, setEstadoCheque] = useState('')
   const [cuentasCtb, setCuentasCtb] = useState([])
@@ -98,10 +99,17 @@ export default function Informes() {
   const [pdfModal, setPdfModal] = useState(null)
 
   useEffect(() => { ClientesAPI.list().then(setClientes) }, [])
+  // Todos los medios: las cuentas activas y las inactivas que tienen movimientos (las de
+  // retenciones están inactivas para no ofrecerlas al cargar, pero reciben las de los recibos). Una
+  // inactiva sin movimientos es una cuenta dada de baja: no se ofrece.
   useEffect(() => {
-    CuentasBancariasAPI.list({ activo: true }).then(cs => {
-      setCuentasTes(cs)
-      setCuentaTes(prev => prev || (cs[0] ? String(cs[0].id) : ''))
+    Promise.all([CuentasBancariasAPI.list(), InformesAPI.saldosTesoreria()]).then(([cs, saldos]) => {
+      const activa = new Map(cs.map(c => [c.id, c.activo]))
+      const grupos = (saldos?.agrupaciones || [])
+        .map(g => ({ descripcion: g.descripcion, cuentas: g.cuentas.filter(c => activa.get(c.id) || +c.entradas || +c.salidas) }))
+        .filter(g => g.cuentas.length)
+      setGruposTes(grupos)
+      setCuentaTes(prev => prev || (grupos[0] ? String(grupos[0].cuentas[0].id) : ''))
     })
   }, [])
   // El libro mayor es por cuenta: sólo tiene sentido sobre cuentas imputables activas.
@@ -159,6 +167,16 @@ export default function Informes() {
           break
         case 'subdiario_tes':
           if (!cuentaTes) { setData(null); break }
+          if (cuentaTes === 'todos') {
+            // Los movimientos del mes de todas las cuentas, del más viejo al más nuevo.
+            const movs = await MovimientosTesoreriaAPI.list(rango)
+            setData({
+              todos: true,
+              movimientos: [...movs].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.id - b.id),
+              orden: gruposTes.flatMap(g => g.cuentas.map(c => c.id)),
+            })
+            break
+          }
           setData(await InformesAPI.subdiarioCuenta(Number(cuentaTes), rango))
           break
         case 'mayor_tes':
@@ -302,9 +320,14 @@ export default function Informes() {
           {tab === 'subdiario_tes' && (
             <div>
               <label className="lbl">Cuenta</label>
-              <select className="sel" style={{ width: 220 }} value={cuentaTes} onChange={e => setCuentaTes(e.target.value)}>
+              <select className="sel" style={{ width: 260 }} value={cuentaTes} onChange={e => setCuentaTes(e.target.value)}>
                 <option value="">Seleccionar cuenta…</option>
-                {cuentasTes.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
+                {gruposTes.map(g => (
+                  <optgroup key={g.descripcion} label={g.descripcion}>
+                    {g.cuentas.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
+                  </optgroup>
+                ))}
+                <option value="todos">Todos los medios</option>
               </select>
             </div>
           )}
@@ -351,7 +374,7 @@ export default function Informes() {
             <button
               className="btn btn-secondary btn-sm"
               style={{ marginTop: 2, background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
-              onClick={() => setPdfModal({ url: pdfUrl.subdiarioTesoreria(data.cuenta.id, res.filtros.desde, res.filtros.hasta), titulo: 'Subdiario por cuenta' })}
+              onClick={() => setPdfModal({ url: pdfUrl.subdiarioTesoreria(data.todos ? 'todos' : data.cuenta.id, res.filtros.desde, res.filtros.hasta), titulo: 'Subdiario por cuenta' })}
             >
               📄 Exportar PDF
             </button>
@@ -948,14 +971,18 @@ export default function Informes() {
             </div>
           )}
 
-          {/* SUBDIARIO POR CUENTA — sólo el movimiento del mes: el saldo corrido arranca en 0 */}
+          {/* SUBDIARIO POR CUENTA — sólo el movimiento del mes: el saldo corrido arranca en 0.
+              Con "Todos los medios": arriba una fila por medio con su total, abajo los movimientos
+              de todas las cuentas juntos con la columna Medio. */}
           {tab === 'subdiario_tes' && data.movimientos && (() => {
             const sub = subdiarioDelPeriodo(data.movimientos)
+            const porMedio = data.todos ? resumenPorMedio(data.movimientos, data.orden) : null
+            const cols = data.todos ? 7 : 6
             return (
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
                   {[
-                    { label: 'Cuenta',       val: data.cuenta?.descripcion || '—', color: 'var(--gray-700)' },
+                    { label: data.todos ? 'Medio' : 'Cuenta', val: data.todos ? 'Todos los medios' : (data.cuenta?.descripcion || '—'), color: 'var(--gray-700)' },
                     { label: 'Entradas',     val: $ar(sub.entradas),               color: 'var(--green-600)' },
                     { label: 'Salidas',      val: $ar(sub.salidas),                color: 'var(--red-500)' },
                     { label: 'Neto del mes', val: $ar(sub.neto),                   color: 'var(--blue-600)' },
@@ -966,18 +993,47 @@ export default function Informes() {
                     </div>
                   ))}
                 </div>
+                {porMedio && porMedio.medios.length > 0 && (
+                  <div className="tbl-wrap" style={{ marginBottom: 20 }}>
+                    <table>
+                      <thead><tr>
+                        <th>Medio</th>
+                        <th className="th-right">Entradas</th><th className="th-right">Salidas</th><th className="th-right">Neto</th>
+                      </tr></thead>
+                      <tbody>
+                        {porMedio.medios.map(c => (
+                          <tr key={c.cuenta_id}>
+                            <td className="td-bold">{c.medio}</td>
+                            <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(c.entradas)}</td>
+                            <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(c.salidas)}</td>
+                            <td className="td-right td-bold" style={{ color: c.neto < 0 ? 'var(--red-500)' : 'inherit' }}>{$ar(c.neto)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ fontWeight: 700, borderTop: '2px solid var(--gray-200)' }}>
+                          <td className="td-right">Total</td>
+                          <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(porMedio.total.entradas)}</td>
+                          <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(porMedio.total.salidas)}</td>
+                          <td className="td-right">{$ar(porMedio.total.neto)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
                 <div className="tbl-wrap">
                   <table>
                     <thead><tr>
-                      <th>Fecha</th><th>Tipo</th><th>Concepto</th>
+                      <th>Fecha</th>{data.todos && <th>Medio</th>}<th>Tipo</th><th>Concepto</th>
                       <th className="th-right">Débito</th><th className="th-right">Crédito</th><th className="th-right">Saldo</th>
                     </tr></thead>
                     <tbody>
                       {sub.movimientos.length === 0
-                        ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos en el mes</td></tr>
+                        ? <tr><td colSpan={cols} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin movimientos en el mes</td></tr>
                         : sub.movimientos.map(m => (
                           <tr key={m.id} style={{ opacity: m.anulado ? 0.4 : 1 }}>
                             <td>{fFecha(m.fecha)}</td>
+                            {data.todos && <td style={{ fontSize: 12 }}>{m.cuenta_descripcion}</td>}
                             <td style={{ fontSize: 12 }}><span className="code">{m.tipo_codigo}</span> {m.tipo_descripcion}</td>
                             <td style={{ fontSize: 12 }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
                             <td className="td-right" style={{ color: 'var(--red-500)' }}>{m.signo === -1 ? $ar(m.monto) : ''}</td>

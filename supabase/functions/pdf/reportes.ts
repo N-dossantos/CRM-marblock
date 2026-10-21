@@ -195,10 +195,14 @@ export async function generarResumenVentas(data: any, empresa: any, desde: any, 
 // SUBDIARIO DE CUENTA (saldo corrido)  — Tesorería, Fase D
 // Sólo el movimiento del período, como la pantalla (subdiarioDelPeriodo en frontend/src/utils):
 // el saldo corrido arranca en 0, sin arrastrar lo anterior, y los anulados no suman.
+// Con `data.todos` ("Todos los medios"): A4 apaisado, primero una fila por medio con su total
+// (resumenPorMedio en frontend/src/utils, en el orden de `data.orden`) y después los movimientos de
+// todas las cuentas juntos con la columna Medio.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function generarSubdiario(data: any, empresa: any, filtros: any = {}): Promise<Uint8Array> {
   return await new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true })
+    const todos = !!data.todos
+    const doc = new PDFDocument({ size: 'A4', ...(todos && { layout: 'landscape' }), margin: 0, bufferPages: true })
     const buffers: any[] = []
     doc.on('data', (b: any) => buffers.push(b))
     doc.on('end',  () => resolve(Buffer.concat(buffers)))
@@ -210,23 +214,31 @@ export async function generarSubdiario(data: any, empresa: any, filtros: any = {
     const { cuenta = {} } = data
     const r2 = (n: number) => Math.round(n * 100) / 100
     let saldo = 0, entradas = 0, salidas = 0
+    const porMedio = new Map<number, any>()
     const movimientos = (data.movimientos || []).map((m: any) => {
       if (!m.anulado) {
         const monto = Number(m.monto) || 0
-        if (Number(m.signo) === 1) entradas = r2(entradas + monto)
-        else salidas = r2(salidas + monto)
+        const id = Number(m.cuenta_bancaria_id)
+        const c = porMedio.get(id) || { id, medio: m.cuenta_descripcion, entradas: 0, salidas: 0 }
+        if (Number(m.signo) === 1) { entradas = r2(entradas + monto); c.entradas = r2(c.entradas + monto) }
+        else { salidas = r2(salidas + monto); c.salidas = r2(c.salidas + monto) }
+        porMedio.set(id, c)
         saldo = r2(saldo + (Number(m.signo) === 1 ? monto : -monto))
       }
       return { ...m, saldo }
     })
     const neto = r2(entradas - salidas)
+    const orden = (data.orden || []).map(Number)
+    const pos = (id: number) => { const i = orden.indexOf(id); return i < 0 ? Infinity : i }
+    const medios = [...porMedio.values()]
+      .sort((a, b) => pos(a.id) - pos(b.id) || String(a.medio).localeCompare(String(b.medio)))
 
     let y = dibujarHeader(doc, empresa, 'SUBDIARIO', '', new Date().toISOString().split('T')[0])
 
     // Info cuenta + saldos
     doc.rect(M, y + 6, ancho, 52).fill(COLORES.gris_fondo).stroke(COLORES.gris_borde)
-    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('CUENTA', M + 10, y + 14)
-    doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(12).text(cuenta.descripcion || '—', M + 10, y + 24, { width: ancho * 0.6 })
+    doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text(todos ? 'MEDIO' : 'CUENTA', M + 10, y + 14)
+    doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(12).text(todos ? 'Todos los medios' : (cuenta.descripcion || '—'), M + 10, y + 24, { width: ancho * 0.6 })
     doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8.5)
        .text(`${cuenta.banco ? cuenta.banco + '  ·  ' : ''}Entradas: ${$ar(entradas)}  ·  Salidas: ${$ar(salidas)}`, M + 10, y + 40)
 
@@ -241,14 +253,39 @@ export async function generarSubdiario(data: any, empresa: any, filtros: any = {
       y += 20
     }
 
+    // Resumen por medio (sólo "Todos los medios")
+    if (todos && medios.length > 0) {
+      y += 4
+      const colsRes = [
+        { label: 'Medio',    w: ancho - 3 * 110, align: 'left'  },
+        { label: 'Entradas', w: 110, align: 'right' },
+        { label: 'Salidas',  w: 110, align: 'right' },
+        { label: 'Neto',     w: 110, align: 'right' },
+      ]
+      y = dibujarCabeceraTabla(doc, y, colsRes)
+      medios.forEach((c: any, i: number) => {
+        y = dibujarFilaItem(doc, y, [c.medio, $ar(c.entradas), $ar(c.salidas), $ar(r2(c.entradas - c.salidas))], colsRes, i % 2 === 1)
+      })
+      doc.rect(M, y, ancho, 20).fill(COLORES.gris_fondo)
+      doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(8.5)
+      let x = M
+      ;['TOTAL', $ar(entradas), $ar(salidas), $ar(neto)].forEach((t, i) => {
+        doc.text(t, x + 4, y + 6, { width: colsRes[i].w - 8, align: colsRes[i].align as any })
+        x += colsRes[i].w
+      })
+      y += 30
+      if (y > doc.page.height - 160) { doc.addPage(); y = 50 }
+    }
+
     y += 4
     // Concepto se llevaba lo que sobraba (48 pt) y no entraba ni una palabra: se le da el ancho
     // que liberan Fecha y Tipo; lo que siga sin entrar parte la fila en dos líneas.
     const cols = [
-      { label: 'Fecha',       w: 50,  align: 'left'  },
+      { label: 'Fecha',       w: 56,  align: 'left'  },
+      ...(todos ? [{ label: 'Medio', w: 130, align: 'left' }] : []),
       { label: 'Comprob.',    w: 76,  align: 'left'  },
       { label: 'Tipo',        w: 54,  align: 'left'  },
-      { label: 'Concepto',    w: ancho - 50 - 76 - 54 - 72 - 72 - 80, align: 'left' },
+      { label: 'Concepto',    w: ancho - 56 - (todos ? 130 : 0) - 76 - 54 - 72 - 72 - 80, align: 'left' },
       { label: 'Entrada',     w: 72,  align: 'right' },
       { label: 'Salida',      w: 72,  align: 'right' },
       { label: 'Saldo',       w: 80,  align: 'right' },
@@ -260,6 +297,7 @@ export async function generarSubdiario(data: any, empresa: any, filtros: any = {
       const salida  = Number(m.signo) === -1 ? $ar(m.monto) : '—'
       y = dibujarFilaItem(doc, y, [
         fFecha(m.fecha),
+        ...(todos ? [m.cuenta_descripcion || '—'] : []),
         m.numero || `#${m.id}`,
         m.tipo_descripcion || m.tipo_codigo || '—',
         m.concepto || '—',

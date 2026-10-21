@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { rangoMes, subdiarioDelPeriodo, parseDecimal, limpiarDecimal } from './index.js'
+import { rangoMes, subdiarioDelPeriodo, resumenPorMedio, parseDecimal, limpiarDecimal } from './index.js'
 
 test('rangoMes va del 1 al último día, con años bisiestos y diciembre', () => {
   assert.deepEqual(rangoMes('2026-10'), { desde: '2026-10-01', hasta: '2026-10-31' })
@@ -24,6 +24,27 @@ test('subdiarioDelPeriodo arranca en 0 y no cuenta los anulados', () => {
 
 test('subdiarioDelPeriodo sin movimientos da todo en 0', () => {
   assert.deepEqual(subdiarioDelPeriodo(undefined), { movimientos: [], entradas: 0, salidas: 0, neto: 0 })
+})
+
+test('resumenPorMedio suma por cuenta en el orden pedido, sin anulados, con total', () => {
+  const r = resumenPorMedio([
+    { cuenta_bancaria_id: 3, cuenta_descripcion: 'BANCO', signo: 1,  monto: '500',   anulado: false },
+    { cuenta_bancaria_id: 1, cuenta_descripcion: 'CAJA',  signo: 1,  monto: '100.5', anulado: false },
+    { cuenta_bancaria_id: 1, cuenta_descripcion: 'CAJA',  signo: -1, monto: '40.25', anulado: false },
+    { cuenta_bancaria_id: 3, cuenta_descripcion: 'BANCO', signo: -1, monto: '999',   anulado: true },
+    { cuenta_bancaria_id: 7, cuenta_descripcion: 'RET',   signo: 1,  monto: '10',    anulado: false },
+  ], [1, 3])
+  assert.deepEqual(r.medios, [
+    { cuenta_id: 1, medio: 'CAJA',  entradas: 100.5, salidas: 40.25, neto: 60.25 },
+    { cuenta_id: 3, medio: 'BANCO', entradas: 500,   salidas: 0,     neto: 500 },
+    { cuenta_id: 7, medio: 'RET',   entradas: 10,    salidas: 0,     neto: 10 },
+  ])
+  assert.deepEqual(r.total, { entradas: 610.5, salidas: 40.25, neto: 570.25 })
+})
+
+test('resumenPorMedio deja afuera un medio que sólo tiene anulados', () => {
+  const r = resumenPorMedio([{ cuenta_bancaria_id: 3, cuenta_descripcion: 'BANCO', signo: 1, monto: '5', anulado: true }])
+  assert.deepEqual(r, { medios: [], total: { entradas: 0, salidas: 0, neto: 0 } })
 })
 
 test('parseDecimal toma el punto y la coma como decimal', () => {

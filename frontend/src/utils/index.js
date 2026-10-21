@@ -94,6 +94,28 @@ export const subdiarioDelPeriodo = (movimientos = []) => {
   return { movimientos: movs, entradas, salidas, neto: r2(entradas - salidas) }
 }
 
+// "Todos los medios" del subdiario: una fila por cuenta con movimiento (sin contar anulados) y el
+// total. `orden` = ids de cuenta en el orden del selector; las que no estén van al final por nombre.
+export const resumenPorMedio = (movimientos = [], orden = []) => {
+  const r2 = (n) => Math.round(n * 100) / 100
+  const porCuenta = new Map()
+  for (const m of movimientos || []) {
+    if (m.anulado) continue
+    const id = +m.cuenta_bancaria_id
+    const c = porCuenta.get(id) || { cuenta_id: id, medio: m.cuenta_descripcion, entradas: 0, salidas: 0 }
+    if (+m.signo === 1) c.entradas = r2(c.entradas + (+m.monto || 0))
+    else c.salidas = r2(c.salidas + (+m.monto || 0))
+    porCuenta.set(id, c)
+  }
+  const pos = (id) => { const i = orden.map(Number).indexOf(id); return i < 0 ? Infinity : i }
+  const medios = [...porCuenta.values()]
+    .map(c => ({ ...c, neto: r2(c.entradas - c.salidas) }))
+    .sort((a, b) => pos(a.cuenta_id) - pos(b.cuenta_id) || String(a.medio).localeCompare(String(b.medio)))
+  const entradas = r2(medios.reduce((a, c) => a + c.entradas, 0))
+  const salidas  = r2(medios.reduce((a, c) => a + c.salidas, 0))
+  return { medios, total: { entradas, salidas, neto: r2(entradas - salidas) } }
+}
+
 // Importes y cantidades escritos a mano: el punto y la coma valen los dos como decimal (no hay
 // separador de miles). Vacío es 0.
 export const parseDecimal = (texto) => parseFloat(String(texto ?? '').replace(',', '.')) || 0

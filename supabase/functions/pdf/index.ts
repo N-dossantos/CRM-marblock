@@ -231,6 +231,18 @@ Deno.serve(async (req) => {
       case 'subdiario-tesoreria': {
         const desde = q.get('desde') || null
         const hasta = q.get('hasta') || null
+        // /subdiario-tesoreria/todos: los movimientos de todas las cuentas juntos, con un resumen
+        // por medio en el orden de "Saldos tesorería" (agrupación y nombre), como la pantalla.
+        if (id === 'todos') {
+          const { data: movs, error } = await supabase.rpc('movimientos_tesoreria_list', { p_desde: desde, p_hasta: hasta })
+          if (error) throw error
+          const saldos = await rpcOne('informe_saldos_tesoreria', {})
+          const orden  = (saldos?.agrupaciones ?? []).flatMap((g: any) => g.cuentas.map((c: any) => c.id))
+          const movimientos = [...(movs ?? [])]
+            .sort((a: any, b: any) => String(a.fecha).localeCompare(String(b.fecha)) || a.id - b.id)
+          const buffer = await generarSubdiario({ todos: true, movimientos, orden }, await getEmpresa(), { desde, hasta })
+          return enviarPDF(buffer, 'Subdiario-Todos_los_medios')
+        }
         const data  = await rpcOne('informe_subdiario_cuenta', {
           p_cuenta_id: Number(id), p_desde: desde, p_hasta: hasta,
         })
