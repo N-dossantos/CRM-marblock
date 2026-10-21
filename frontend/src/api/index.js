@@ -279,12 +279,19 @@ export const RecibosAPI = {
   list: ({ q, cliente_id, desde, hasta, limit, offset } = {}) =>
     rpc('recibos_list', { p_q: q || null, p_cliente_id: cliente_id || null, p_desde: desde || null, p_hasta: hasta || null, ...pagina(limit, offset) }),
   get:    (id)   => rpc('recibos_list', { p_id: id }).then(one),
+  facturasPendientes: (clienteId) => rpc('facturas_pendientes_recibo', { p_cliente_id: clienteId }),
+  completarCertificado: (data) => rpc('completar_certificado_retencion', {
+    p_id: data.id, p_tipo_retencion: data.tipo_retencion,
+    p_numero_certificado: data.numero_certificado, p_fecha: data.fecha,
+    p_codigo_regimen: data.codigo_regimen || null, p_jurisdiccion: data.jurisdiccion || null,
+  }),
   // `numero` sólo viaja si el operador lo cambió (hoja tachada / copia perdida del talonario); si no,
   // crear_recibo lo asigna con siguiente_numero('recibo'), así dos operadores con el formulario abierto
   // no chocan por el mismo número sugerido.
   create: (data) => rpc('crear_recibo', {
     p_cliente_id: data.cliente_id, p_medios: data.medios,
-    p_factura_ids: data.factura_ids ?? [], p_observaciones: data.observaciones ?? null,
+    p_imputaciones: data.imputaciones ?? [], p_retenciones: data.retenciones ?? [],
+    p_observaciones: data.observaciones ?? null,
     p_numero: data.numero ?? null,
   }),
   // Sólo MUESTRA el próximo número (lectura de `contadores`, no consume numeración): si no se toca,
@@ -368,6 +375,7 @@ export const InformesAPI = {
     rpc('informe_cta_cte_proveedor', { p_proveedor_id: id, p_desde: desde || null, p_hasta: hasta || null }),
   ivaCompras:        ({ desde, hasta } = {}) => rpc('informe_iva_compras', { p_desde: desde, p_hasta: hasta }),
   libroIvaVentas:    ({ desde, hasta } = {}) => rpc('informe_libro_iva_ventas', { p_desde: desde, p_hasta: hasta }),
+  retencionesSufridas: ({ desde, hasta } = {}) => rpc('informe_retenciones_sufridas', { p_desde: desde, p_hasta: hasta }),
   preciosCompra:     ({ q } = {})            => rpc('informe_precios_compra', { p_q: q || null }),
   nominaProveedores: ()                      => rpc('informe_nomina_proveedores'),
   // ── Tesorería (Fase C) ──

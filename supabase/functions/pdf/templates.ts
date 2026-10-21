@@ -205,10 +205,10 @@ export async function generarRecibo(recibo: any, empresa: any): Promise<Uint8Arr
       doc.fillColor(COLORES.gris_texto).font('Helvetica-Bold').fontSize(7.5).text('COMPROBANTES CANCELADOS', M + 8, y + 8)
       y += 22
       const cols = [
-        { label: 'N° Factura', w: ancho * 0.4, align: 'left' },
+        { label: 'N° Factura / Importe aplicado', w: ancho * 0.8, align: 'left' },
       ]
       facsList.forEach((f: any, i: number) => {
-        y = dibujarFilaItem(doc, y, [f.numero || `Factura ${f.factura_id}`], cols, i % 2 === 1)
+        y = dibujarFilaItem(doc, y, [`${f.numero || `Factura ${f.factura_id}`}${f.importe != null ? `  ·  ${$ar(f.importe)}` : ''}`], cols, i % 2 === 1)
       })
     } else {
       doc.rect(M, y, ancho, 22).fill('#fffbeb').stroke('#f59e0b')
@@ -217,16 +217,17 @@ export async function generarRecibo(recibo: any, empresa: any): Promise<Uint8Arr
       y += 22
     }
 
-    // Medios de pago
+    // Medios de cobro (ingresan en Tesorería o cartera de cheques).
     y += 10
     doc.rect(M, y, ancho, 22).fill(COLORES.azul_oscuro)
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(8)
-       .text('FORMA DE PAGO', M + 8, y + 7)
+       .text('MEDIOS DE COBRO', M + 8, y + 7)
     y += 22
 
     const TIPO_LABELS: Record<string, string> = { efectivo: 'Efectivo (Caja)', transferencia: 'Transferencia bancaria', cheque: 'Cheque físico', echeq: 'E-Cheq' }
     ;(recibo.medios || []).forEach((m: any, i: number) => {
-      const h = (m.tipo === 'cheque' || m.tipo === 'echeq') ? 38 : 22
+      const h = m.detalle || m.tipo === 'cheque' || m.tipo === 'echeq' ? 38 : 22
+      if (y + h > doc.page.height - 140) { doc.addPage(); y = M }
       doc.rect(M, y, ancho, h).fill(i % 2 === 1 ? COLORES.gris_fondo : COLORES.blanco).stroke(COLORES.gris_borde)
 
       doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(9)
@@ -234,7 +235,7 @@ export async function generarRecibo(recibo: any, empresa: any): Promise<Uint8Arr
       doc.fillColor(COLORES.azul_medio).font('Helvetica-Bold').fontSize(11)
          .text($ar(m.monto), M + 10, y + 6, { width: ancho - 20, align: 'right' })
 
-      if (m.tipo === 'transferencia' && m.detalle) {
+      if (m.detalle) {
         doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8)
            .text(m.detalle, M + 10, y + 20)
       }
@@ -245,11 +246,43 @@ export async function generarRecibo(recibo: any, empresa: any): Promise<Uint8Arr
       y += h
     })
 
-    // Total recibido
+    // La retención cancela saldo del cliente, pero no es una entrada de dinero.
+    if ((recibo.retenciones || []).length > 0) {
+      if (y + 70 > doc.page.height - 140) { doc.addPage(); y = M }
+      y += 10
+      doc.rect(M, y, ancho, 22).fill(COLORES.azul_oscuro)
+      doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(8)
+         .text('RETENCIONES SUFRIDAS', M + 8, y + 7)
+      y += 22
+      ;(recibo.retenciones || []).forEach((r: any, i: number) => {
+        if (y + 40 > doc.page.height - 140) { doc.addPage(); y = M }
+        doc.rect(M, y, ancho, 40).fill(i % 2 === 1 ? COLORES.gris_fondo : COLORES.blanco).stroke(COLORES.gris_borde)
+        doc.fillColor(COLORES.gris_oscuro).font('Helvetica-Bold').fontSize(9)
+           .text(`${r.tipo_retencion}${r.jurisdiccion ? ` · ${r.jurisdiccion}` : ''}`, M + 10, y + 7)
+        doc.fillColor(COLORES.azul_medio).font('Helvetica-Bold').fontSize(11)
+           .text($ar(r.monto), M + 10, y + 6, { width: ancho - 20, align: 'right' })
+        doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8)
+           .text(r.pendiente_documentacion
+             ? `Registro histórico · certificado pendiente · CUIT ${r.cuit_agente}${r.detalle_origen ? ` · ${r.detalle_origen}` : ''}`
+             : `Certificado ${r.numero_certificado}${r.codigo_regimen ? ` · Rég. ${r.codigo_regimen}` : ''} · ${fFecha(r.fecha)} · CUIT ${r.cuit_agente}`,
+             M + 10, y + 23, { width: ancho - 20 })
+        y += 40
+      })
+    }
+
+    // Total cancelado: incluye dinero y retenciones.
+    if (y + 75 > doc.page.height - 140) { doc.addPage(); y = M }
+    if ((recibo.retenciones || []).length > 0) {
+      const mediosTotal = (recibo.medios || []).reduce((s: number, m: any) => s + Number(m.monto || 0), 0)
+      const retencionesTotal = (recibo.retenciones || []).reduce((s: number, r: any) => s + Number(r.monto || 0), 0)
+      doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8)
+         .text(`Medios recibidos: ${$ar(mediosTotal)}    Retenciones sufridas: ${$ar(retencionesTotal)}`, M + 4, y + 4)
+      y += 18
+    }
     y += 10
     doc.rect(M, y, ancho, 36).fill(COLORES.azul_oscuro)
     doc.fillColor(COLORES.blanco).font('Helvetica').fontSize(9)
-       .text('TOTAL RECIBIDO:', M + 12, y + 12)
+       .text('TOTAL DEL RECIBO:', M + 12, y + 12)
     doc.fillColor(COLORES.blanco).font('Helvetica-Bold').fontSize(16)
        .text($ar(recibo.total), M + 12, y + 9, { width: ancho - 24, align: 'right' })
     y += 42

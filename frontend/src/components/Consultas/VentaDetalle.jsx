@@ -205,7 +205,7 @@ export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = n
         {tipoDoc === 'recibo' && (
           <>
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 14 }}>
-              <Field label="Total cobrado"><b>{$ar(doc.total)}</b></Field>
+              <Field label="Total del recibo"><b>{$ar(doc.total)}</b></Field>
             </div>
 
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Facturas imputadas</div>
@@ -213,7 +213,7 @@ export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = n
               ? <div style={{ fontSize: 12, color: 'var(--gray-400)', marginBottom: 12 }}>Sin imputación (cobro a cuenta)</div>
               : (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-                  {doc.facturas.map((f, i) => <span key={i} className="code">{f.numero || f.factura_numero || f.factura_id}</span>)}
+                  {doc.facturas.map((f, i) => <span key={i} className="code">{f.numero || f.factura_numero || f.factura_id}{f.importe != null ? ` · ${$ar(f.importe)}` : ''}</span>)}
                 </div>
               )}
 
@@ -234,6 +234,20 @@ export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = n
                 </tbody>
               </table>
             </div>
+            {(doc.retenciones || []).length > 0 && <>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', margin: '14px 0 6px' }}>Retenciones sufridas</div>
+              <div className="tbl-wrap" style={{ boxShadow: 'none', border: '1px solid var(--gray-200)' }}>
+                <table>
+                  <thead><tr><th>Impuesto</th><th>Certificado</th><th>Fecha</th><th className="th-right">Monto</th></tr></thead>
+                  <tbody>{doc.retenciones.map(r => <tr key={r.id}>
+                    <td>{r.tipo_retencion}{r.jurisdiccion ? ` · ${r.jurisdiccion}` : ''}</td>
+                    <td className="code">{r.pendiente_documentacion ? 'Pendiente de registrar' : r.numero_certificado}</td>
+                    <td>{r.fecha ? fFecha(r.fecha) : '—'}</td>
+                    <td className="td-right td-bold">{$ar(r.monto)}</td>
+                  </tr>)}</tbody>
+                </table>
+              </div>
+            </>}
           </>
         )}
 

@@ -23,6 +23,7 @@ const GRUPOS = [
       { id: 'deudores',       label: '🚨 Ranking de deudores' },
       { id: 'pendientes',     label: '⏳ Pendientes' },
       { id: 'iva_ventas',     label: '📚 Libro IVA Ventas' },
+      { id: 'retenciones_sufridas', label: '📑 Retenciones sufridas' },
     ],
   },
   {
@@ -137,6 +138,9 @@ export default function Informes() {
         case 'iva_ventas':
           setData(await InformesAPI.libroIvaVentas({ desde, hasta }))
           break
+        case 'retenciones_sufridas':
+          setData(await InformesAPI.retencionesSufridas({ desde, hasta }))
+          break
         case 'nomina_prov':
           setData(await InformesAPI.nominaProveedores())
           break
@@ -249,7 +253,7 @@ export default function Informes() {
         </div>
       )}
 
-      {(tab === 'ventas' || tab === 'clientes' || tab === 'iva_compras' || tab === 'iva_ventas' || TES_FECHA_TABS.includes(tab) || CTB_FECHA_TABS.includes(tab)) && (
+      {(tab === 'ventas' || tab === 'clientes' || tab === 'iva_compras' || tab === 'iva_ventas' || tab === 'retenciones_sufridas' || TES_FECHA_TABS.includes(tab) || CTB_FECHA_TABS.includes(tab)) && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div>
             <label className="lbl">Desde</label>
@@ -693,6 +697,38 @@ export default function Informes() {
                       ))
                     }
                   </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {tab === 'retenciones_sufridas' && data.retenciones && (
+            <div>
+              <div className="card" style={{ marginBottom: 16 }}>
+                <div className="kpi-label">Retenciones sufridas del período</div>
+                <div className="kpi-value" style={{ fontSize: 20, color: 'var(--blue-600)' }}>{$ar(data.total)}</div>
+                <div style={{ fontSize: 12, color: 'var(--gray-600)', marginTop: 8 }}>
+                  Con certificado: {$ar(data.total_documentado)} · Históricas pendientes de certificado: {$ar(data.total_pendiente)}
+                </div>
+                {+data.total_pendiente > 0 && <div style={{ fontSize: 12, color: 'var(--amber-700)', marginTop: 6 }}>
+                  Los registros históricos pendientes usan la fecha del recibo. Verificá certificado, fecha, régimen y jurisdicción con el agente de retención antes de presentarlos al contador o computarlos fiscalmente.
+                </div>}
+              </div>
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <th>Fecha</th><th>Cliente</th><th>CUIT agente</th><th>Impuesto</th>
+                    <th>Jurisdicción</th><th>Régimen</th><th>Certificado</th><th>Estado</th><th>Recibo</th><th className="th-right">Monto</th>
+                  </tr></thead>
+                  <tbody>{data.retenciones.length === 0
+                    ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin retenciones sufridas en el período</td></tr>
+                    : data.retenciones.map((r, i) => <tr key={i}>
+                      <td>{fFecha(r.fecha || r.fecha_recibo)}</td><td className="td-bold">{r.cliente}</td>
+                      <td className="code">{r.cuit_agente}</td><td>{r.tipo_retencion}{r.detalle_origen && <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>{r.detalle_origen}</div>}</td>
+                      <td>{r.jurisdiccion || '—'}</td><td>{r.codigo_regimen || '—'}</td><td className="code">{r.numero_certificado || '—'}</td>
+                      <td>{r.pendiente_documentacion ? 'Pendiente de certificado' : 'Documentada'}</td>
+                      <td className="code">{r.recibo_numero}</td><td className="td-right td-bold">{$ar(r.monto)}</td>
+                    </tr>)}</tbody>
                 </table>
               </div>
             </div>

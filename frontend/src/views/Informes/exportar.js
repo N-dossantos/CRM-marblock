@@ -113,6 +113,30 @@ function libroIvaVentas(data, f) {
 export const EXCEL = {
   iva_compras: libroIvaCompras,
   iva_ventas:  libroIvaVentas,
+  retenciones_sufridas: (data, f) => ({
+    archivo: nombreArchivo('Retenciones_sufridas', f.desde, f.hasta),
+    hojas: [{
+      nombre: 'Retenciones sufridas',
+      encabezado: ['Retenciones sufridas', periodo(f), 'Los registros históricos pendientes usan la fecha del recibo. Verificar certificado, régimen y jurisdicción antes de su cómputo fiscal.'],
+      columnas: [
+        col('Estado', r => r.pendiente_documentacion ? 'Pendiente de certificado' : 'Documentada', 'texto', 25),
+        col('Fecha del período', r => r.fecha || r.fecha_recibo, 'fecha'),
+        col('Fecha certificado', r => r.fecha, 'fecha'),
+        col('Cliente', r => r.cliente, 'texto', 34),
+        col('CUIT agente', r => r.cuit_agente, 'texto', 14),
+        col('Impuesto', r => r.tipo_retencion, 'texto', 15),
+        col('Código de régimen', r => r.codigo_regimen, 'texto', 18),
+        col('Jurisdicción', r => r.jurisdiccion, 'texto', 20),
+        col('Fecha recibo', r => r.fecha_recibo, 'fecha'),
+        col('N° certificado', r => r.numero_certificado, 'texto', 20),
+        col('Detalle original', r => r.detalle_origen, 'texto', 36),
+        col('N° recibo', r => r.recibo_numero, 'texto', 18),
+        col('Monto', r => r.monto, 'importe'),
+      ],
+      filas: data.retenciones || [],
+      total: { titulo: 'Total', columnas: ['Monto'] },
+    }],
+  }),
 
   // ── Tesorería ──
   mayor_tes: (data, f) => {

@@ -8,7 +8,7 @@ import ReciboForm from '../../components/Forms/ReciboForm'
 import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
-const TIPO_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', cheque: 'Cheque', echeq: 'E-Cheq' }
+const TIPO_LABEL = { efectivo: 'Caja', transferencia: 'Transferencia', cheque: 'Cheque físico', echeq: 'E-Cheq' }
 const TIPO_COLOR = { efectivo: 'var(--green-600)', transferencia: 'var(--blue-600)', cheque: 'var(--purple-600)', echeq: 'var(--orange-500)' }
 
 export default function Recibos() {
@@ -18,6 +18,8 @@ export default function Recibos() {
   const [nuevo, setNuevo]       = useState(false)
   const [detalle, setDetalle]   = useState(null)
   const [pdfModal, setPdfModal] = useState(null)
+  const [certificado, setCertificado] = useState(null)
+  const [guardandoCertificado, setGuardandoCertificado] = useState(false)
 
   const { rows, total, totalImporte, loading, pagina, setPagina, recargar: load } =
     useListaPaginada(RecibosAPI.list, { q: search, cliente_id: filtroCli })
@@ -31,6 +33,21 @@ export default function Recibos() {
   }
 
   const openDetalle = (id) => RecibosAPI.get(id).then(setDetalle)
+
+  const guardarCertificado = async () => {
+    setGuardandoCertificado(true)
+    try {
+      const actualizado = await RecibosAPI.completarCertificado(certificado)
+      setDetalle(d => ({ ...d, retenciones: d.retenciones.map(r => r.id === actualizado.id ? actualizado : r) }))
+      setCertificado(null)
+      load()
+      toast.success('Certificado registrado')
+    } catch (e) {
+      toast.error(e.message || 'No se pudo registrar el certificado')
+    } finally {
+      setGuardandoCertificado(false)
+    }
+  }
 
 
   return (
@@ -50,7 +67,7 @@ export default function Recibos() {
       {rows.length > 0 && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--green-600)', flex: 1, minWidth: 180 }}>
-            <div className="kpi-label">Total cobrado (filtro actual)</div>
+            <div className="kpi-label">Total de recibos (incluye retenciones)</div>
             <div className="kpi-value" style={{ color: 'var(--green-600)', fontSize: 20 }}>{$ar(totalImporte)}</div>
           </div>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--blue-600)', flex: 1, minWidth: 180 }}>
@@ -66,8 +83,8 @@ export default function Recibos() {
             <thead>
               <tr>
                 <th>Número</th><th>Fecha</th><th>Cliente</th>
-                <th>Facturas imputadas</th><th>Medios de pago</th>
-                <th className="th-right">Total cobrado</th><th style={{ width: 80 }}></th>
+                <th>Facturas imputadas</th><th>Medios de cobro</th>
+                <th className="th-right">Total del recibo</th><th style={{ width: 80 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -88,7 +105,12 @@ export default function Recibos() {
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {r.medios?.map((m, i) => (
                           <span key={i} style={{ background: `${TIPO_COLOR[m.tipo]}18`, color: TIPO_COLOR[m.tipo], padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
-                            {TIPO_LABEL[m.tipo]} {$ar(m.monto)}
+                            {TIPO_LABEL[m.tipo]}{m.detalle ? ` · ${m.detalle}` : ''} {$ar(m.monto)}
+                          </span>
+                        ))}
+                        {r.retenciones?.map((ret, i) => (
+                          <span key={`ret-${i}`} style={{ background: 'var(--amber-100)', color: 'var(--amber-700)', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+                            Ret. {ret.tipo_retencion}{ret.pendiente_documentacion ? ' · certificado pendiente' : ''} {$ar(ret.monto)}
                           </span>
                         ))}
                       </div>
@@ -117,7 +139,7 @@ export default function Recibos() {
       )}
 
       {detalle && (
-        <Modal title={`Recibo ${detalle.numero}`} size="md" onClose={() => setDetalle(null)}
+        <Modal title={`Recibo ${detalle.numero}`} size="md" onClose={() => { setDetalle(null); setCertificado(null) }}
           footer={
             <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
               <button
@@ -145,13 +167,14 @@ export default function Recibos() {
                 {detalle.facturas.map(f => (
                   <div key={f.factura_id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', borderBottom: '1px solid var(--gray-100)' }}>
                     <span className="code">{f.numero}</span>
+                    {f.importe != null && <strong>{$ar(f.importe)}</strong>}
                   </div>
                 ))}
               </div>
             </>
           )}
 
-          <div className="lbl" style={{ marginBottom: 8 }}>Medios de pago</div>
+          <div className="lbl" style={{ marginBottom: 8 }}>Medios de cobro</div>
           {detalle.medios?.map((m, i) => (
             <div key={i} className="medio-card" style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -168,8 +191,44 @@ export default function Recibos() {
             </div>
           ))}
 
+          {detalle.retenciones?.length > 0 && <>
+            <div className="lbl" style={{ margin: '16px 0 8px' }}>Retenciones sufridas</div>
+            {detalle.retenciones.map(ret => (
+              <div key={ret.id} className="medio-card" style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <strong>{ret.tipo_retencion}{ret.jurisdiccion ? ` · ${ret.jurisdiccion}` : ''}</strong>
+                  <strong>{$ar(ret.monto)}</strong>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
+                  {ret.pendiente_documentacion
+                    ? `Registro histórico · certificado pendiente · ${ret.detalle_origen || 'sin detalle original'} · CUIT agente ${ret.cuit_agente}`
+                    : `Certificado ${ret.numero_certificado}${ret.codigo_regimen ? ` · Régimen ${ret.codigo_regimen}` : ''} · ${fFecha(ret.fecha)} · CUIT agente ${ret.cuit_agente}`}
+                </div>
+              {ret.pendiente_documentacion && certificado?.id !== ret.id &&
+                <button className="btn btn-secondary btn-sm" style={{ marginTop: 8 }} onClick={() => setCertificado({ id: ret.id, tipo_retencion: ret.tipo_retencion, numero_certificado: '', fecha: '', codigo_regimen: '', jurisdiccion: '' })}>
+                  Completar certificado
+                </button>}
+              {certificado?.id === ret.id && <div style={{ marginTop: 10 }}>
+                <div className="form-row2">
+                  <label><span className="lbl">Impuesto</span><select className="sel" value={certificado.tipo_retencion} onChange={e => setCertificado(c => ({ ...c, tipo_retencion: e.target.value }))}>
+                    {['Ganancias', 'IVA', 'IIBB', 'SUSS'].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select></label>
+                  <label><span className="lbl">Número de certificado</span><input className="inp" value={certificado.numero_certificado} onChange={e => setCertificado(c => ({ ...c, numero_certificado: e.target.value }))} /></label>
+                  <label><span className="lbl">Fecha del certificado</span><input className="inp" type="date" value={certificado.fecha} onChange={e => setCertificado(c => ({ ...c, fecha: e.target.value }))} /></label>
+                  <label><span className="lbl">Código de régimen</span><input className="inp" value={certificado.codigo_regimen} onChange={e => setCertificado(c => ({ ...c, codigo_regimen: e.target.value }))} /></label>
+                  {certificado.tipo_retencion === 'IIBB' && <label><span className="lbl">Jurisdicción</span><input className="inp" value={certificado.jurisdiccion} onChange={e => setCertificado(c => ({ ...c, jurisdiccion: e.target.value }))} /></label>}
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button className="btn btn-success btn-sm" disabled={guardandoCertificado} onClick={guardarCertificado}>Guardar certificado</button>
+                  <button className="btn btn-secondary btn-sm" disabled={guardandoCertificado} onClick={() => setCertificado(null)}>Cancelar</button>
+                </div>
+              </div>}
+              </div>
+            ))}
+          </>}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', borderTop: '2px solid var(--gray-200)', marginTop: 8 }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>Total cobrado:</span>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>Total del recibo:</span>
             <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--green-600)' }}>{$ar(detalle.total)}</span>
           </div>
         </Modal>
