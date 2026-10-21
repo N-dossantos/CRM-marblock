@@ -7,6 +7,9 @@ import ComprobanteForm from '../../components/Forms/ComprobanteForm'
 import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
+// Aceptados, rechazados y convertidos quedan como historia del cliente (eliminar_presupuesto).
+const ELIMINABLES = ['borrador', 'enviado', 'vencido']
+
 export default function Presupuestos() {
   const [rows, setRows]         = useState([])
   const [loading, setLoading]   = useState(true)
@@ -110,7 +113,7 @@ export default function Presupuestos() {
                         { label: 'Ver / Editar', icon: '✎', onClick: () => openEdit(p) },
                         { label: 'Marcar aceptado', icon: '✓', onClick: () => cambiarEstado(p.id, 'aceptado'), hidden: !['borrador', 'enviado', 'vencido'].includes(p.estado) },
                         { label: 'Marcar enviado', icon: '✉', onClick: () => cambiarEstado(p.id, 'enviado'), hidden: p.estado !== 'borrador' },
-                        { label: 'Eliminar presupuesto', danger: true, onClick: () => eliminar(p) },
+                        { label: 'Eliminar presupuesto', danger: true, onClick: () => eliminar(p), hidden: !ELIMINABLES.includes(p.estado) },
                       ]}
                     />
                   </td>
@@ -130,7 +133,7 @@ export default function Presupuestos() {
           productos={productos}
           warnVencido={form.warnVencido}
           onSave={save}
-          onDelete={!form.isNew ? () => eliminar(form.data) : undefined}
+          onDelete={!form.isNew && ELIMINABLES.includes(form.data.estado) ? () => eliminar(form.data) : undefined}
           onClose={() => setForm(null)}
         />
       )}

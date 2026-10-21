@@ -66,6 +66,14 @@ BEGIN
   PERFORM pg_temp.ok(true, 'vencimiento exige confirmación y permite continuar');
   PERFORM presupuesto_set_estado(p.id, 'aceptado');
   PERFORM pg_temp.ok(EXISTS(SELECT 1 FROM presupuestos_list(p_id => p.id, p_estado => 'aceptado')), 'filtrar por estado sin cliente');
+  BEGIN
+    PERFORM eliminar_presupuesto(p.id);
+    RAISE EXCEPTION 'FALLA eliminó un presupuesto aceptado';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM NOT LIKE 'No se puede eliminar un presupuesto aceptado:%' THEN RAISE; END IF;
+  END;
+  PERFORM pg_temp.ok(true, 'aceptado no se elimina');
+  UPDATE presupuestos SET estado = 'vencido' WHERE id = p.id;
 
   -- Se borran los ítems y se conservan los documentos derivados.
   INSERT INTO facturas(tipo, fecha, cliente_id, presupuesto_id, estado_fiscal)
@@ -77,6 +85,8 @@ BEGIN
   PERFORM pg_temp.ok(NOT EXISTS(SELECT 1 FROM presupuesto_items WHERE presupuesto_id = p.id), 'eliminar ítems por cascada');
   PERFORM pg_temp.ok(EXISTS(SELECT 1 FROM facturas WHERE id = f AND presupuesto_id IS NULL), 'conservar factura derivada');
   PERFORM pg_temp.ok(EXISTS(SELECT 1 FROM remitos WHERE id = r AND presupuesto_id IS NULL), 'conservar remito derivado');
+  PERFORM pg_temp.ok(EXISTS(SELECT 1 FROM audit_log WHERE tabla = 'presupuestos'
+    AND registro_id = p.id::text AND accion = 'DELETE'), 'el borrado queda en audit_log');
   BEGIN
     PERFORM eliminar_presupuesto(p.id);
     RAISE EXCEPTION 'FALLA eliminar inexistente devuelve éxito';
@@ -88,8 +98,13 @@ BEGIN
   SELECT x INTO j FROM presupuestos_list(p_id => p.id) x;
   PERFORM pg_temp.ok(j->>'razon_social' = 'Cliente prueba presupuestos', 'cliente registrado sigue funcionando');
   UPDATE presupuestos SET estado = 'convertido' WHERE id = p.id;
-  PERFORM eliminar_presupuesto(p.id);
-  PERFORM pg_temp.ok(true, 'eliminar presupuesto convertido');
+  BEGIN
+    PERFORM eliminar_presupuesto(p.id);
+    RAISE EXCEPTION 'FALLA eliminó un presupuesto convertido';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM NOT LIKE 'No se puede eliminar un presupuesto convertido:%' THEN RAISE; END IF;
+  END;
+  PERFORM pg_temp.ok(EXISTS(SELECT 1 FROM presupuestos WHERE id = p.id), 'convertido no se elimina');
 END $$;
 RESET ROLE;
 
