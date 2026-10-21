@@ -12,6 +12,24 @@ import { unwrap, rpc, one } from './base'
 // `total_filas` = total que cumple el filtro, para armar el "página X de Y".
 const pagina = (limit, offset) => (limit ? { p_limit: limit, p_offset: offset || 0 } : {})
 
+// Anotaciones compartidas: cada escritura es una sola fila, sin RPC.
+export const AlmanaqueAPI = {
+  list: ({ desde, hasta }) => supabase.from('almanaque').select('*')
+    .gte('fecha', desde).lte('fecha', hasta).order('fecha').order('id').then(unwrap),
+  atrasadas: (fecha) => supabase.from('almanaque').select('*')
+    .eq('hecha', false).lt('fecha', fecha).order('fecha').order('id').then(unwrap),
+  pendientes: (fecha) => supabase.from('almanaque').select('id', { count: 'exact', head: true })
+    .eq('hecha', false).lte('fecha', fecha).then(r => { unwrap(r); return r.count }),
+  create: ({ fecha, texto }) => supabase.from('almanaque')
+    .insert({ fecha, texto: texto.trim() }).select().single().then(unwrap),
+  update: (id, { fecha, texto }) => supabase.from('almanaque')
+    .update({ fecha, texto: texto.trim() }).eq('id', id).select().single().then(unwrap),
+  tildar: (id, hecha) => supabase.from('almanaque')
+    .update({ hecha, hecha_en: hecha ? new Date().toISOString() : null })
+    .eq('id', id).select().single().then(unwrap),
+  delete: (id) => supabase.from('almanaque').delete().eq('id', id).select('id').single().then(unwrap),
+}
+
 // Normalizadores (trim / defaults / tipos) equivalentes a los del backend.
 const cli = (d) => ({
   razon_social:          d.razon_social?.trim(),

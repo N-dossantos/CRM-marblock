@@ -2,6 +2,7 @@
 import { useEffect, useId, useState } from 'react'
 import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem } from '../../utils'
 import { useEscape } from '../../hooks/useEscape'
+import { AlmanaqueBoton } from '../Almanaque/Panel'
 
 // Vive en su propio archivo (combobox con teclado + filtrado); se reexporta para que los
 // formularios lo importen desde '../UI' como al resto.
@@ -25,7 +26,10 @@ export function Modal({ title, size = 'md', onClose, footer, children }) {
       <div className={`modal modal-${size}`}>
         <div className="modal-header">
           <h2>{title}</h2>
-          <button className="btn-close" onClick={onClose}>×</button>
+          <div className="almanaque-modal-acciones">
+            <AlmanaqueBoton />
+            <button className="btn-close" onClick={onClose}>×</button>
+          </div>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}
