@@ -108,7 +108,7 @@ export default function PagoProveedorForm({ proveedores = [], initial = {}, onSa
 
   return (
     <Modal
-      almanaque={false}
+      calendario={false}
       title="Nuevo Pago a Proveedor"
       size="lg"
       onClose={onClose}

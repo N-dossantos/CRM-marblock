@@ -160,7 +160,7 @@ export default function RemitoXForm({
 
   return (
     <Modal
-      almanaque={false}
+      calendario={false}
       title={title}
       size="xl"
       onClose={onClose}

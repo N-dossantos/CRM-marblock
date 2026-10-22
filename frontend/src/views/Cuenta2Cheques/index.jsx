@@ -159,7 +159,7 @@ export default function Cuenta2Cheques() {
 
       {transferir && (
         <Modal
-          almanaque={false}
+          calendario={false}
           title="Transferir cheque a Cuenta 1"
           size="md"
           onClose={() => setTransf(null)}

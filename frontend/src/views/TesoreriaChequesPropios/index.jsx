@@ -134,7 +134,7 @@ export default function TesoreriaChequesPropios() {
       </div>
 
       {modal && (
-        <Modal almanaque={false} title="Emitir cheque propio" size="md" onClose={() => setModal(null)}
+        <Modal calendario={false} title="Emitir cheque propio" size="md" onClose={() => setModal(null)}
           footer={<><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={save}>✓ Emitir</button></>}
         >
           <div className="form-row2">

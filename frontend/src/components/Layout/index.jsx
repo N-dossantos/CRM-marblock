@@ -5,7 +5,7 @@ import { fechaLarga } from '../../utils'
 import { useAuth } from '../../lib/auth'
 import ThemeToggle from '../UI/ThemeToggle'
 import { useArcaEstado, BannerAmbiente, IndicadorArca } from '../Arca'
-import AlmanaquePanel, { AlmanaqueBoton } from '../Almanaque/Panel'
+import CalendarioPanel, { CalendarioBoton } from '../Calendario/Panel'
 
 const NAV = [
   { section: null,       items: [{ to: '/', icon: '📊', label: 'Dashboard' }] },
@@ -165,7 +165,7 @@ export default function Layout({ children }) {
           <div className="topbar-right">
             <IndicadorArca estado={arca} />
             <ThemeToggle />
-            <AlmanaqueBoton />
+            <CalendarioBoton />
             <span className="topbar-date">{fechaLarga()}</span>
             {user?.email && <span className="topbar-user">{user.email}</span>}
             <button type="button" className="btn btn-secondary btn-sm" onClick={handleLogout}>
@@ -178,7 +178,7 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
-      <AlmanaquePanel />
+      <CalendarioPanel />
     </div>
   )
 }

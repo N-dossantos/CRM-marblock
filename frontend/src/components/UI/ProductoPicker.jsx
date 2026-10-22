@@ -77,6 +77,8 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
   const searchRef = useRef(null)
   const listRef   = useRef(null)
   const inputRefs = useRef({})
+  // Unidades de cada fila: Pallets → Enter sigue acá antes de volver al buscador.
+  const unidadesRefs = useRef({})
   // Recorriendo la lista sin escribir (↑↓ o un chip): ahí Enter en el buscador vacío carga la fila
   // marcada en vez de confirmar.
   const recorriendoRef = useRef(false)
@@ -171,7 +173,7 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
       setHi(h => (e.key === 'ArrowDown' ? (h + 1) % n : (h - 1 + n) % n))
     } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
       e.preventDefault()
-      // Código → Enter → pallets → Enter → … → Enter con el buscador vacío: agrega lo elegido.
+      // Código → Enter → pallets → Enter → unidades → Enter → … → Enter con el buscador vacío: agrega lo elegido.
       if (!query.trim() && elegidos.length && !recorriendoRef.current) confirmar()
       else if (filas[hi]) enfocarFila(filas[hi])
     }
@@ -179,6 +181,17 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
 
   const onKeyDownCampo = (e) => {
     if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); volverAlBuscador() }
+  }
+
+  // Pallets → Enter → Unidades de la misma fila, con el total seleccionado: Enter de nuevo lo deja
+  // (pallets cerrados) o se pisa con el total real — 2 pallets de 105 muestran 210; con 10 sueltas
+  // de más se escribe 220.
+  const onKeyDownPallets = (e, p) => {
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault()
+      const el = unidadesRefs.current[p.id]
+      el?.focus(); el?.select()
+    }
   }
 
   const footer = (
@@ -205,7 +218,7 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
   // quedar contenida (ni recortada) por su .modal-body con scroll.
   return createPortal(
     <div onKeyDown={onKeyDownVentana}>
-      <Modal almanaque={false} title="Elegir productos" size="lg" onClose={onClose} footer={footer}>
+      <Modal calendario={false} title="Elegir productos" size="lg" onClose={onClose} footer={footer}>
         <input
           ref={searchRef}
           className="inp"
@@ -271,13 +284,13 @@ export default function ProductoPicker({ productos = [], cantidadDecimal = false
                           placeholder="0"
                           onChange={(e) => setPallets(p, e.target.value)}
                           onFocus={() => setHi(i)}
-                          onKeyDown={onKeyDownCampo}
+                          onKeyDown={(e) => onKeyDownPallets(e, p)}
                         />
                       </td>
                     )}
                     <td className="td-right">
                       <input
-                        ref={conPallets ? undefined : el => { inputRefs.current[p.id] = el }}
+                        ref={el => { unidadesRefs.current[p.id] = el; if (!conPallets) inputRefs.current[p.id] = el }}
                         type="number" min="0" step={cantidadDecimal ? '0.001' : '1'}
                         className="inp inp-sm inp-right" style={{ width: 80 }}
                         value={s?.cantidad || ''}

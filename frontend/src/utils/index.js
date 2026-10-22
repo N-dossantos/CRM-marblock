@@ -72,6 +72,17 @@ export const addDias = (dateStr, n) => {
   return fechaLocal(d)
 }
 
+// Evento del calendario: los mismos límites que los CHECK de la tabla `calendario`.
+export const errorEvento = ({ titulo = '', descripcion = '' }) => {
+  const t = titulo.trim().length
+  if (t < 1 || t > 100) return 'Escribí un título de entre 1 y 100 caracteres.'
+  if ((descripcion || '').trim().length > 500) return 'La descripción puede tener hasta 500 caracteres.'
+  return ''
+}
+// Sin descripción va null, nunca texto vacío.
+export const datosEvento = ({ fecha, titulo, descripcion }) =>
+  ({ fecha, titulo: titulo.trim(), descripcion: descripcion?.trim() || null })
+
 // Primer y último día de un mes 'AAAA-MM' (el día 0 del mes siguiente es el último de éste).
 export const rangoMes = (mes) => {
   const [a, m] = mes.split('-').map(Number)

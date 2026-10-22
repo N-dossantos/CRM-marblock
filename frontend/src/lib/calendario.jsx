@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { AlmanaqueAPI } from '../api'
+import { CalendarioAPI } from '../api'
 import { hoy } from '../utils'
 
-const AlmanaqueContext = createContext(null)
+const CalendarioContext = createContext(null)
 
-export function AlmanaqueProvider({ children }) {
+export function CalendarioProvider({ children }) {
   const [fechaAbierta, setFechaAbierta] = useState(null)
   const [pendientes, setPendientes] = useState(null)
   const [revision, setRevision] = useState(0)
@@ -32,36 +32,36 @@ export function AlmanaqueProvider({ children }) {
 
   useEffect(() => {
     let activo = true
-    AlmanaqueAPI.pendientes(fechaHoy).then(n => { if (activo) setPendientes(n) })
+    CalendarioAPI.pendientes(fechaHoy).then(n => { if (activo) setPendientes(n) })
       .catch(() => { if (activo) setPendientes(null) })
     return () => { activo = false }
   }, [fechaHoy, revision])
 
   return (
-    <AlmanaqueContext.Provider value={{ fechaAbierta, fechaHoy, pendientes, revision, abrir, cerrar, refrescar }}>
+    <CalendarioContext.Provider value={{ fechaAbierta, fechaHoy, pendientes, revision, abrir, cerrar, refrescar }}>
       {children}
-    </AlmanaqueContext.Provider>
+    </CalendarioContext.Provider>
   )
 }
 
-export function useAlmanaque() {
-  const context = useContext(AlmanaqueContext)
-  if (!context) throw new Error('useAlmanaque debe usarse dentro de AlmanaqueProvider')
+export function useCalendario() {
+  const context = useContext(CalendarioContext)
+  if (!context) throw new Error('useCalendario debe usarse dentro de CalendarioProvider')
   return context
 }
 
 // Panel y Dashboard consultan sus rangos por separado y se actualizan con la misma revisión.
-export function useAnotaciones(desde, hasta) {
-  const { fechaHoy, revision, refrescar } = useAlmanaque()
-  const [datos, setDatos] = useState({ notas: [], atrasadas: [], loading: true, error: false, rango: null })
+export function useEventos(desde, hasta) {
+  const { fechaHoy, revision, refrescar } = useCalendario()
+  const [datos, setDatos] = useState({ eventos: [], atrasados: [], loading: true, error: false, rango: null })
   useEffect(() => {
     let activo = true
     const rango = `${desde}/${hasta}`
     // Refrescar el mismo rango conserva las filas y el editor que esté a medio cargar.
     setDatos(d => ({ ...d, loading: d.rango !== rango, error: false, rango }))
-    Promise.all([AlmanaqueAPI.list({ desde, hasta }), AlmanaqueAPI.atrasadas(fechaHoy)])
-      .then(([notas, atrasadas]) => {
-        if (activo) setDatos({ notas, atrasadas, loading: false, error: false, rango })
+    Promise.all([CalendarioAPI.list({ desde, hasta }), CalendarioAPI.atrasados(fechaHoy)])
+      .then(([eventos, atrasados]) => {
+        if (activo) setDatos({ eventos, atrasados, loading: false, error: false, rango })
       })
       .catch(() => { if (activo) setDatos(d => ({ ...d, loading: false, error: true })) })
     return () => { activo = false }
