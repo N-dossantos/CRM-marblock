@@ -2,7 +2,7 @@
 import { useEffect, useId, useState } from 'react'
 import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem, parseDecimal, limpiarDecimal } from '../../utils'
 import { useEscape } from '../../hooks/useEscape'
-import { AlmanaqueBoton } from '../Almanaque/Panel'
+import { CalendarioBoton } from '../Calendario/Panel'
 
 // Vive en su propio archivo (combobox con teclado + filtrado); se reexporta para que los
 // formularios lo importen desde '../UI' como al resto.
@@ -20,17 +20,17 @@ export function Badge({ estado }) {
 }
 
 // ── MODAL ────────────────────────────────────────────────────────────
-// `almanaque={false}` en los formularios de carga: ahí el 📅 de la cabecera estorba (sigue en la
+// `calendario={false}` en los formularios de carga: ahí el 📅 de la cabecera estorba (sigue en la
 // barra superior y en las ventanas de detalle).
-export function Modal({ title, size = 'md', onClose, footer, almanaque = true, children }) {
+export function Modal({ title, size = 'md', onClose, footer, calendario = true, children }) {
   useEscape(onClose)
   return (
     <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal modal-${size}`}>
         <div className="modal-header">
           <h2>{title}</h2>
-          <div className="almanaque-modal-acciones">
-            {almanaque && <AlmanaqueBoton />}
+          <div className="calendario-modal-acciones">
+            {calendario && <CalendarioBoton />}
             <button className="btn-close" onClick={onClose}>×</button>
           </div>
         </div>

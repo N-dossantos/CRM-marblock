@@ -6,28 +6,29 @@
 // Se mantienen exactamente las MISMAS firmas por recurso, así los src/views/* no cambian.
 import { supabase } from '../lib/supabase'
 import { unwrap, rpc, one } from './base'
+import { datosEvento } from '../utils'
 
 // Paginado de las listas grandes de comprobantes (M11): sin `limit` la RPC devuelve todo, como
 // siempre (lo siguen usando las consultas por cliente/proveedor). Con `limit`, cada fila trae
 // `total_filas` = total que cumple el filtro, para armar el "página X de Y".
 const pagina = (limit, offset) => (limit ? { p_limit: limit, p_offset: offset || 0 } : {})
 
-// Anotaciones compartidas: cada escritura es una sola fila, sin RPC.
-export const AlmanaqueAPI = {
-  list: ({ desde, hasta }) => supabase.from('almanaque').select('*')
+// Eventos del calendario compartido: cada escritura es una sola fila, sin RPC.
+export const CalendarioAPI = {
+  list: ({ desde, hasta }) => supabase.from('calendario').select('*')
     .gte('fecha', desde).lte('fecha', hasta).order('fecha').order('id').then(unwrap),
-  atrasadas: (fecha) => supabase.from('almanaque').select('*')
+  atrasados: (fecha) => supabase.from('calendario').select('*')
     .eq('hecha', false).lt('fecha', fecha).order('fecha').order('id').then(unwrap),
-  pendientes: (fecha) => supabase.from('almanaque').select('id', { count: 'exact', head: true })
+  pendientes: (fecha) => supabase.from('calendario').select('id', { count: 'exact', head: true })
     .eq('hecha', false).lte('fecha', fecha).then(r => { unwrap(r); return r.count }),
-  create: ({ fecha, texto }) => supabase.from('almanaque')
-    .insert({ fecha, texto: texto.trim() }).select().single().then(unwrap),
-  update: (id, { fecha, texto }) => supabase.from('almanaque')
-    .update({ fecha, texto: texto.trim() }).eq('id', id).select().single().then(unwrap),
-  tildar: (id, hecha) => supabase.from('almanaque')
+  create: (evento) => supabase.from('calendario')
+    .insert(datosEvento(evento)).select().single().then(unwrap),
+  update: (id, evento) => supabase.from('calendario')
+    .update(datosEvento(evento)).eq('id', id).select().single().then(unwrap),
+  tildar: (id, hecha) => supabase.from('calendario')
     .update({ hecha, hecha_en: hecha ? new Date().toISOString() : null })
     .eq('id', id).select().single().then(unwrap),
-  delete: (id) => supabase.from('almanaque').delete().eq('id', id).select('id').single().then(unwrap),
+  delete: (id) => supabase.from('calendario').delete().eq('id', id).select('id').single().then(unwrap),
 }
 
 // Normalizadores (trim / defaults / tipos) equivalentes a los del backend.

@@ -99,7 +99,7 @@ export default function NotaCompraForm({ factura, materiales = [], alicuotas = [
 
   return (
     <Modal
-      almanaque={false}
+      calendario={false}
       title={`Nueva Nota de ${form.tipo === 'NC' ? 'Crédito' : 'Débito'} — Fac. ${factura.numero}`}
       size="xl"
       onClose={onClose}

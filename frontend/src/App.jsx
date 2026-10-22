@@ -5,7 +5,7 @@ import Layout from './components/Layout'
 import Login  from './views/Login'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useAuth } from './lib/auth'
-import { AlmanaqueProvider } from './lib/almanaque'
+import { CalendarioProvider } from './lib/calendario'
 
 import Dashboard    from './views/Dashboard'
 import Clientes     from './views/Clientes'
@@ -83,7 +83,7 @@ export default function App() {
   // El boundary va DENTRO del Layout para que el menú sobreviva al error y se pueda salir de la
   // pantalla rota; `key` por ruta lo resetea al navegar, sin necesidad de recargar.
   return (
-    <AlmanaqueProvider>
+    <CalendarioProvider>
     <Layout>
       <ErrorBoundary key={location.pathname}>
       <Routes>
@@ -133,6 +133,6 @@ export default function App() {
       </Routes>
       </ErrorBoundary>
     </Layout>
-    </AlmanaqueProvider>
+    </CalendarioProvider>
   )
 }

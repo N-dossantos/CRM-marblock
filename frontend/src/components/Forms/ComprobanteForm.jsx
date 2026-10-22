@@ -254,7 +254,7 @@ export default function ComprobanteForm({
 
   return (
     <Modal
-      almanaque={false}
+      calendario={false}
       title={title}
       size="xl"
       onClose={cerrar}

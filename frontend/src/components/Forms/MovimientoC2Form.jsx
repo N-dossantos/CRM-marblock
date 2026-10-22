@@ -93,7 +93,7 @@ export default function MovimientoC2Form({
 
   return (
     <Modal
-      almanaque={false}
+      calendario={false}
       title={`${esVenta ? 'Cobro' : 'Pago'} — ${entidad.nombre}`}
       size="md"
       onClose={onClose}

@@ -4,10 +4,10 @@ import { useNavigate } from 'react-router-dom'
 import { InformesAPI, ArcaAPI } from '../../api'
 import { $ar, fFecha } from '../../utils'
 import { Loading, Badge } from '../../components/UI'
-import AlmanaqueDashboard from '../../components/Almanaque/Dashboard'
+import CalendarioDashboard from '../../components/Calendario/Dashboard'
 
 export default function Dashboard() {
-  return <><AlmanaqueDashboard /><ResumenDashboard /></>
+  return <><CalendarioDashboard /><ResumenDashboard /></>
 }
 
 function ResumenDashboard() {

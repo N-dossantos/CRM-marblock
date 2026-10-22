@@ -166,7 +166,7 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
 
   return (
     <Modal
-      almanaque={false}
+      calendario={false}
       title="Nuevo Recibo de Cobro"
       size="lg"
       onClose={onClose}

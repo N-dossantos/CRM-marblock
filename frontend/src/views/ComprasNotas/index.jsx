@@ -106,7 +106,7 @@ export default function ComprasNotas() {
 
       {/* Selector de factura → abre el form */}
       {nueva && !nueva.facturaObj && (
-        <Modal almanaque={false} title="Seleccionar factura de compra" size="md" onClose={() => setNueva(null)}>
+        <Modal calendario={false} title="Seleccionar factura de compra" size="md" onClose={() => setNueva(null)}>
           <div className="field">
             <label className="lbl">Factura de compra *</label>
             <select className="sel" value={nueva.selFacId || ''} onChange={e => onFacSelect(e.target.value)}>

@@ -86,7 +86,7 @@ export default function NotaForm({ factura, nota = null, productos = [], alicuot
   const nombre = `Nota de ${form.tipo === 'NC' ? 'Crédito' : 'Débito'} ${factura.tipo}`
   return (
     <Modal
-      almanaque={false}
+      calendario={false}
       title={`${nota ? 'Editar borrador — ' : 'Nueva '}${nombre} — Fac. ${factura.numero}`}
       size="xl"
       onClose={cerrar}
