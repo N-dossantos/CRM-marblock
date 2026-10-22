@@ -6,10 +6,15 @@
 -- ROLLBACK. Con las migraciones ya aplicadas también se puede correr suelto:
 --   psql "$(cat .db_url)" -X -f supabase/remitos/verificar_backfill.sql
 --
--- Los números son los de la carga de Tango (.bak del 16/10, medidos el 20/10): las 262 facturas
+-- Los números son los de la carga de Tango (.bak del 16/10, medidos el 20/10): las 266 facturas
 -- con algo pendiente, las 26 de 2026 que revisó Nico, y la 2296 y la 2230 de Almajo. Un remito,
 -- una factura o una NC cargados después los pueden mover. Contra homologación fallan: no tiene
 -- esos datos.
+--
+-- 266 y no 262 (22/10): la medición del 20/10 restaba la NC del total de la factura. Con la regla
+-- de §3.11 (cada NC resta de su producto) siguen pendientes 4 facturas viejas cuya NC acreditó otro
+-- producto: Bautec 00001-00002816, Dimo 00001-00003667, RR Construcciones 00002-00000166 y
+-- Productora Argentina de Vegetales 00002-00001599. Nico eligió dejar la regla.
 -- =============================================================
 \set ON_ERROR_STOP 1
 \set QUIET 1
@@ -31,7 +36,7 @@ BEGIN
     INTO v_total, v_2026
   FROM crm_facturas_pendientes(NULL) p
   JOIN facturas f ON f.id = p.factura_id;
-  PERFORM pg_temp.ok(v_total = 262, format('facturas con algo pendiente de remitir: %s (se esperan 262)', v_total));
+  PERFORM pg_temp.ok(v_total = 266, format('facturas con algo pendiente de remitir: %s (se esperan 266)', v_total));
   PERFORM pg_temp.ok(v_2026 = 26, format('de 2026: %s (se esperan 26)', v_2026));
 END $$;
 
