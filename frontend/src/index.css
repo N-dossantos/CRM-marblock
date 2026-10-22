@@ -608,6 +608,27 @@ tr.tr-click { cursor: pointer; }
   border-radius: var(--radius);
 }
 
+/* Facturas pendientes de remitir (remito): una tabla por factura con "Lleva". Alto máximo con
+   scroll: hay clientes con decenas de facturas viejas y los ítems no pueden quedar fuera de vista. */
+.fpr-lista {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.fpr-factura { padding: 8px 11px; border-bottom: 1px solid var(--gray-200); }
+.fpr-factura:last-child { border-bottom: none; }
+.fpr-head { display: flex; align-items: baseline; gap: 6px; font-size: 13px; margin-bottom: 4px; }
+.fpr-fecha { color: var(--gray-500); font-size: 12px; }
+.fpr-faltan { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--orange-700); white-space: nowrap; }
+.fpr-tabla th, .fpr-tabla td { padding: 4px 8px; text-align: right; white-space: nowrap; }
+.fpr-tabla th:first-child, .fpr-tabla td:first-child { text-align: left; white-space: normal; }
+.fpr-tabla td { font-size: 12px; font-variant-numeric: tabular-nums; }
+.fpr-tabla tbody tr:hover td { background: none; }
+.fpr-pal { margin-left: 4px; color: var(--gray-400); font-size: 11px; }
+.fpr-lleva { width: 90px; padding: 4px 8px; text-align: right; }
+.sin-facturar-lista { margin: 4px 0 8px; padding-left: 18px; }
+
 /* ── GRIDS DE FORMULARIO ─────────────────────────────────────────── */
 .form-hint { color: var(--gray-600); font-size: 12px; line-height: 1.5; }
 .presupuesto-leyenda > .field:last-child { grid-column: 2 / 4; }

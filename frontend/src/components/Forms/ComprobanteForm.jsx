@@ -4,9 +4,18 @@ import { useState, useEffect, useRef } from 'react'
 import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal, ClienteSearch, agregarProductos } from '../UI'
 import { ElegirProductosBtn } from '../UI/ProductoPicker'
 import { calcTotalesMulti, renglonesDeRemito } from '../../utils'
+import { armarItems, revisarRemito, llevaDesdeItems } from '../../utils/pendientes'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
+import { RemitosAPI } from '../../api'
 import { revisarEmision } from '../Arca'
+import FacturasPendientesRemitir from './FacturasPendientesRemitir'
 import toast from 'react-hot-toast'
+
+// Un renglón de remito con asignaciones propias lo armó "Lleva" (no la línea de pallets, que es
+// siempre la del hook): se marca para que cambiar "Lleva" lo vuelva a armar en vez de sumar otro.
+const deLleva = (it) => !it.es_pallet_vacio && (it.asignaciones || []).some(a => (a.origen ?? 'remito') === 'remito')
+
+const fCant = (x) => (+x || 0).toLocaleString('es-AR', { maximumFractionDigits: 3 })
 
 const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 0, precio_unitario: 0, descuento_item: 0, pallets: 1, unidades_por_pallet: 1 }
 
@@ -64,8 +73,35 @@ export default function ComprobanteForm({
     telefono_entrega:  initial.telefono_entrega || '',
     ...initial,
     destinatario: initial.destinatario || initial.razon_social || '',
+    // Remito: "Lleva" por factura y producto. En edición arranca con lo que ya asignó el remito.
+    ...(esRemito && {
+      items: (initial.items || []).map(it => (deLleva(it) ? { ...it, _lleva: true } : { ...it })),
+      lleva: llevaDesdeItems(initial.items),
+    }),
   })
   const [loading, setLoading] = useState(null)   // null | 'guardar' | 'emitir' | 'eliminar'
+
+  // Remito: las facturas pendientes de remitir del cliente elegido (en edición, sin contar lo que
+  // ya asignó este remito) y el aviso de lo que va a quedar sin facturar.
+  const [facturasPend, setFacturasPend] = useState([])
+  const [facturasLoading, setFacturasLoading] = useState(false)
+  const [sinFacturar, setSinFacturar] = useState(null)
+  const avisoRef = useRef(null)
+  useEffect(() => {
+    if (!esRemito || !form.cliente_id) { setFacturasPend([]); return }
+    let vigente = true
+    setFacturasLoading(true)
+    RemitosAPI.facturasPendientes(+form.cliente_id, initial.id ?? null)
+      .then(fs => { if (vigente) setFacturasPend(fs || []) })
+      .catch(() => { if (vigente) setFacturasPend([]) })
+      .finally(() => { if (vigente) setFacturasLoading(false) })
+    return () => { vigente = false }
+  }, [esRemito, form.cliente_id, initial.id])
+  // El aviso vale para los ítems que se revisaron: si cambian, se vuelve a revisar al guardar.
+  useEffect(() => { setSinFacturar(null) }, [form.items])
+  useEffect(() => { if (sinFacturar) avisoRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [sinFacturar])
+
+  const onLlevaChange = (lleva) => setForm(f => ({ ...f, lleva, items: armarItems(f.items, facturasPend, lleva) }))
   const [showWarn, setShowWarn] = useState(warnVencido)
   // Para "Continuar con precios actuales" del presupuesto vencido: repite el botón que se tocó.
   const emitirPedido = useRef(false)
@@ -131,9 +167,11 @@ export default function ComprobanteForm({
       cliente_id: cliId,
       ...(esPresupuesto && cl ? { destinatario: cl.razon_social } : {}),
       // Los remitos marcados eran del cliente anterior: se sueltan junto con sus renglones.
-      // Los ítems cargados a mano (sin _remito_id) se respetan.
+      // Los ítems cargados a mano (sin _remito_id) se respetan. En el remito, "Lleva" era de las
+      // facturas del cliente anterior: se vacía y se van los renglones que armó.
       remito_ids: [],
-      items: f.items.filter(it => !it._remito_id),
+      items: esRemito ? armarItems(f.items.filter(it => !it._remito_id), [], {}) : f.items.filter(it => !it._remito_id),
+      ...(esRemito && { lleva: {} }),
       descuento_general: cl?.descuento_porcentaje ?? f.descuento_general,
       // El teléfono del remito se prellena con el del cliente pero queda editable: el de la
       // obra suele ser otro (capataz/obrador) y es el que sirve si hay que llamar en la entrega.
@@ -207,13 +245,31 @@ export default function ComprobanteForm({
       toast.error(`No entran más de ${RENGLONES_TALONARIO} ítems en el formulario. Dividí la entrega en dos remitos.`)
       return
     }
+    if (esRemito) {
+      const revision = revisarRemito(form.items)
+      if (revision.excedidos.length) {
+        const e = revision.excedidos[0]
+        toast.error(`El renglón "${e.descripcion}" lleva ${e.cantidad} pero se asignan ${e.asignado} a facturas: corregí "Lleva".`)
+        return
+      }
+      // Sólo si el cliente tiene facturas pendientes de remitir: sin ellas, el remito queda
+      // pendiente de facturar entero, como siempre. El segundo clic guarda.
+      if (revision.sinFacturar.length && facturasPend.length && !sinFacturar) {
+        setSinFacturar(revision.sinFacturar)
+        return
+      }
+    }
     const payload = {
       cliente_id:        form.cliente_id ? +form.cliente_id : null,
       ...(esPresupuesto && { destinatario: form.destinatario.trim() }),
       descuento_general: +form.descuento_general || 0,
-      // `_remito_id` / `_precio_auto` son marcas de UI (qué renglón vino de qué remito, y si ya
-      // tomó el precio de lista): no van al servidor.
-      items:             form.items.map(({ _remito_id, _precio_auto, ...it }) => it),
+      // `_remito_id` / `_precio_auto` / `_lleva` son marcas de UI (qué renglón vino de qué remito,
+      // si ya tomó el precio de lista, si lo armó "Lleva"): no van al servidor. Del remito van sus
+      // asignaciones (de qué factura sale cada renglón); lo que viene de remitos_list, no.
+      items:             form.items.map(({ _remito_id, _precio_auto, _lleva, asignado, sin_facturar, asignaciones, ...it }) => ({
+        ...it,
+        ...(esRemito && { asignaciones: (asignaciones || []).map(a => ({ factura_id: a.factura_id, cantidad: +a.cantidad })) }),
+      })),
       observaciones:     form.observaciones,
       ...(esRemitoNuevo && { numero: form.numero.trim() }),
       ...(esRemito && {
@@ -413,6 +469,11 @@ export default function ComprobanteForm({
         </div>
       )}
 
+      {esRemito && form.cliente_id && (
+        <FacturasPendientesRemitir facturas={facturasPend} lleva={form.lleva || {}}
+          onChange={onLlevaChange} loading={facturasLoading} />
+      )}
+
       {/* Remitos pendientes del cliente (solo en facturas). Se pueden marcar varios: una factura
           puede cubrir todas las entregas del período. */}
       {esFacturaNueva && form.cliente_id && (
@@ -498,6 +559,19 @@ export default function ComprobanteForm({
       {multiIva
         ? <TotalesBoxMulti totales={totMulti} />
         : <TotalesBox items={form.items} dtoGeneral={form.descuento_general} />}
+
+      {sinFacturar && (
+        <div className="warn-box" ref={avisoRef} style={{ marginTop: 14 }}>
+          <span>⚠️</span>
+          <div>
+            Estos ítems no están en ninguna factura y van a quedar pendientes de facturar:
+            <ul className="sin-facturar-lista">
+              {sinFacturar.map((s, i) => <li key={i}>{s.descripcion}: {fCant(s.cantidad)}</li>)}
+            </ul>
+            <button className="btn btn-orange btn-sm" onClick={() => save(false)} disabled={!!loading}>Guardar igual</button>
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }
