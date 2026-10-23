@@ -146,10 +146,6 @@ export default function Layout({ children }) {
           <button type="button" className="sidebar-close" aria-label="Cerrar menú" onClick={() => setMenuAbierto(false)}>×</button>
         </div>
 
-        <NavLink to="/cuenta2/ventas" className="mobile-cobros-link" onClick={() => setMenuAbierto(false)}>
-          💵 Cuenta 2 · Cobros
-        </NavLink>
-
         <nav style={{ flex: 1, padding: '8px 0' }}>
           {NAV.map((group, gi) => (
             <div key={gi}>

@@ -1246,6 +1246,8 @@ tr.tr-click { cursor: pointer; }
 .cuenta2-entidad { display: block; width: 100%; padding: 10px 14px; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--gray-100); color: var(--gray-800); font: inherit; cursor: pointer; }
 .cuenta2-entidad:hover, .cuenta2-entidad.is-selected { background: var(--blue-50); }
 .cuenta2-entidad.is-selected { box-shadow: inset 3px 0 var(--blue-600); }
+.cuenta2-search-hint { display: none; }
+.cuenta2-sin-resultados { padding: 14px; color: var(--gray-500); }
 .cuenta2-detalle { min-width: 0; overflow-y: auto; }
 .cuenta2-resumen { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
 .cuenta2-resumen-saldo { text-align: right; }
@@ -1261,7 +1263,7 @@ tr.tr-click { cursor: pointer; }
 .financiero-cheques-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
 .informes-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
 .informes-nav { position: sticky; top: 0; }
-.mobile-menu-button, .sidebar-close, .sidebar-backdrop, .mobile-cobros-link { display: none; }
+.mobile-menu-button, .sidebar-close, .sidebar-backdrop { display: none; }
 
 @media (max-width: 760px) {
   .layout { height: 100dvh; }
@@ -1270,7 +1272,6 @@ tr.tr-click { cursor: pointer; }
   .sidebar-backdrop { display: block; position: fixed; z-index: 1001; inset: 0; border: 0; background: rgba(0,0,0,.5); }
   .sidebar-logo { position: relative; padding-right: 52px; }
   .sidebar-close { display: block; position: absolute; top: 12px; right: 10px; width: 44px; height: 44px; border: 0; background: transparent; color: white; font-size: 28px; cursor: pointer; }
-  .mobile-cobros-link { display: block; margin: 12px; padding: 13px 14px; border-radius: 8px; background: #1e3a5f; color: white; font-weight: 700; text-decoration: none; }
   .mobile-menu-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: none; font-size: 22px; }
   .topbar { flex-wrap: wrap; }
   .topbar-title { flex: 1; min-width: 0; }
@@ -1287,9 +1288,13 @@ tr.tr-click { cursor: pointer; }
   .modal-footer .btn { min-height: 44px; }
   .cuenta2-ctacte { display: flex; flex-direction: column; height: auto; overflow: visible; }
   .cuenta2-entidades { overflow: visible; }
-  .cuenta2-entidades-lista { max-height: 230px; overflow-y: auto; }
+  .cuenta2-entidades-lista { display: none; max-height: 230px; overflow-y: auto; }
+  .cuenta2-search-hint { display: block; padding: 12px 14px; background: var(--surface); color: var(--gray-600); border: 1px solid var(--gray-200); border-radius: 0 0 12px 12px; }
+  .cuenta2-entidades-lista.has-query { display: block; }
   .cuenta2-entidad { min-height: 56px; }
+  .cuenta2-entidad-saldo { display: none; }
   .cuenta2-detalle { overflow: visible; }
+  .cuenta2-detalle.is-searching { display: none; }
   .cuenta2-resumen { flex-direction: column; }
   .cuenta2-resumen-saldo { text-align: left; width: 100%; }
   .cuenta2-acciones { justify-content: flex-start; }

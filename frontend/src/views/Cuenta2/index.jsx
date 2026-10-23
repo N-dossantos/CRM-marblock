@@ -407,6 +407,7 @@ function CtaCteC2({ tipoSector }) {
   const filtradas = entidades.filter(e =>
     !search || e.nombre.toLowerCase().includes(search.toLowerCase()) || (e.telefono || '').includes(search)
   )
+  const busquedaMovilActiva = search.trim().length >= 2
   const saldo = data?.saldo_total ?? 0
 
   return (
@@ -422,17 +423,26 @@ function CtaCteC2({ tipoSector }) {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <div className="cuenta2-entidades-lista">
+        {!busquedaMovilActiva && (!selId || search.trim()) && (
+          <p className="cuenta2-search-hint">Escribí al menos dos caracteres para buscar {esVenta ? 'un cliente' : 'un proveedor'}.</p>
+        )}
+        <div className={`cuenta2-entidades-lista${busquedaMovilActiva ? ' has-query' : ''}`}>
+          {busquedaMovilActiva && filtradas.length === 0 && (
+            <p className="cuenta2-sin-resultados">No se encontraron {esVenta ? 'clientes' : 'proveedores'}.</p>
+          )}
           {filtradas.map(e => (
             <button type="button"
               key={e.id}
               className={`cuenta2-entidad${selId === e.id ? ' is-selected' : ''}`}
-              onClick={() => setSelId(e.id)}
+              onClick={() => {
+                setSelId(e.id)
+                if (window.matchMedia('(max-width: 760px)').matches) setSearch('')
+              }}
             >
               <div style={{ fontWeight: selId === e.id ? 700 : 500, fontSize: 13, color: 'var(--gray-800)' }}>
                 {e.nombre.length > 28 ? e.nombre.slice(0, 28) + '…' : e.nombre}
               </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: +e.saldo > 0 ? 'var(--red-500)' : +e.saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
+              <div className="cuenta2-entidad-saldo" style={{ fontSize: 12, fontWeight: 700, color: +e.saldo > 0 ? 'var(--red-500)' : +e.saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
                 {$ar(e.saldo)} {+e.saldo > 0 ? (esVenta ? '▲ Debe' : '▲ Le debemos') : +e.saldo < 0 ? '▼ A favor' : '✓ Sin saldo'}
               </div>
             </button>
@@ -441,7 +451,7 @@ function CtaCteC2({ tipoSector }) {
       </div>
 
       {/* Panel derecho: movimientos */}
-      <div className="cuenta2-detalle">
+      <div className={`cuenta2-detalle${search.trim() ? ' is-searching' : ''}`}>
         {!selId ? (
           <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>📒</div>
