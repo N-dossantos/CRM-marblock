@@ -44,7 +44,7 @@ export default function Cuenta2({ tipoSector }) {
         </span>
       </div>
 
-      <div style={{ display: 'flex', gap: 0, marginBottom: 20, borderBottom: '2px solid var(--gray-200)' }}>
+      <div className="cuenta2-tabs">
         {SUBTABS.map(t => (
           <button key={t.id} onClick={() => setSub(t.id)} style={tabStyle(sub === t.id)}>{t.label}</button>
         ))}
@@ -410,9 +410,9 @@ function CtaCteC2({ tipoSector }) {
   const saldo = data?.saldo_total ?? 0
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '270px 1fr', gap: 18, height: 'calc(100vh - 54px - 48px - 130px)', overflow: 'hidden' }}>
+    <div className="cuenta2-ctacte">
       {/* Panel izquierdo: entidades */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflow: 'hidden' }}>
+      <div className="cuenta2-entidades">
         <div className="card" style={{ padding: '14px', marginBottom: 0, borderBottom: 'none', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
           <input
             className="search-inp"
@@ -422,19 +422,12 @@ function CtaCteC2({ tipoSector }) {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--gray-200)', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderRadius: '0 0 12px 12px' }}>
+        <div className="cuenta2-entidades-lista">
           {filtradas.map(e => (
-            <div
+            <button type="button"
               key={e.id}
+              className={`cuenta2-entidad${selId === e.id ? ' is-selected' : ''}`}
               onClick={() => setSelId(e.id)}
-              style={{
-                padding: '10px 14px',
-                cursor: 'pointer',
-                borderBottom: '1px solid var(--gray-100)',
-                background: selId === e.id ? 'var(--blue-50)' : 'transparent',
-                borderLeft: selId === e.id ? '3px solid var(--blue-600)' : '3px solid transparent',
-                transition: 'background .12s',
-              }}
             >
               <div style={{ fontWeight: selId === e.id ? 700 : 500, fontSize: 13, color: 'var(--gray-800)' }}>
                 {e.nombre.length > 28 ? e.nombre.slice(0, 28) + '…' : e.nombre}
@@ -442,13 +435,13 @@ function CtaCteC2({ tipoSector }) {
               <div style={{ fontSize: 12, fontWeight: 700, color: +e.saldo > 0 ? 'var(--red-500)' : +e.saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
                 {$ar(e.saldo)} {+e.saldo > 0 ? (esVenta ? '▲ Debe' : '▲ Le debemos') : +e.saldo < 0 ? '▼ A favor' : '✓ Sin saldo'}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
 
       {/* Panel derecho: movimientos */}
-      <div style={{ overflowY: 'auto' }}>
+      <div className="cuenta2-detalle">
         {!selId ? (
           <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>📒</div>
@@ -461,7 +454,7 @@ function CtaCteC2({ tipoSector }) {
         ) : data ? (
           <div>
             <div className="card" style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div className="cuenta2-resumen">
                 <div>
                   <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--gray-800)' }}>{data.entidad.nombre}</h2>
                   <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
@@ -469,7 +462,7 @@ function CtaCteC2({ tipoSector }) {
                     {+data.entidad.descuento_porcentaje > 0 && ` · Descuento ${data.entidad.descuento_porcentaje}%`}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div className="cuenta2-resumen-saldo">
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(saldo)}
@@ -477,7 +470,7 @@ function CtaCteC2({ tipoSector }) {
                   <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
                     {saldo > 0 ? (esVenta ? '⬆ Saldo deudor' : '⬆ Le debemos') : saldo < 0 ? '⬇ Saldo a favor' : '✓ Cuenta balanceada'}
                   </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+                  <div className="cuenta2-acciones">
                     <button
                       className="btn btn-secondary btn-sm"
                       onClick={() => setPdfModal({
@@ -510,7 +503,7 @@ function CtaCteC2({ tipoSector }) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--gray-100)', alignItems: 'center' }}>
+              <div className="cuenta2-filtros">
                 <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 600 }}>Filtrar por período:</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={desde} onChange={e => setDesde(e.target.value)} />
                 <span style={{ color: 'var(--gray-400)' }}>al</span>

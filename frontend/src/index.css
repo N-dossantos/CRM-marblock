@@ -1237,3 +1237,82 @@ tr.tr-click { cursor: pointer; }
   .page-content { padding: 0; }
   .card { border: none; box-shadow: none; }
 }
+
+/* ── CUENTA 2: CONSULTA Y COBRO ─────────────────────────────────── */
+.cuenta2-tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid var(--gray-200); overflow-x: auto; }
+.cuenta2-ctacte { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 18px; height: calc(100vh - 54px - 48px - 130px); min-height: 0; }
+.cuenta2-entidades { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.cuenta2-entidades-lista { flex: 1; overflow-y: auto; background: var(--surface); border: 1px solid var(--gray-200); border-radius: 0 0 12px 12px; }
+.cuenta2-entidad { display: block; width: 100%; padding: 10px 14px; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--gray-100); color: var(--gray-800); font: inherit; cursor: pointer; }
+.cuenta2-entidad:hover, .cuenta2-entidad.is-selected { background: var(--blue-50); }
+.cuenta2-entidad.is-selected { box-shadow: inset 3px 0 var(--blue-600); }
+.cuenta2-detalle { min-width: 0; overflow-y: auto; }
+.cuenta2-resumen { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.cuenta2-resumen-saldo { text-align: right; }
+.cuenta2-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+.cuenta2-filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--gray-100); }
+.financiero-ctacte { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 18px; height: calc(100vh - 54px - 48px); min-height: 0; }
+.financiero-clientes { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.financiero-clientes-lista { flex: 1; overflow-y: auto; background: var(--surface); border: 1px solid var(--gray-200); border-radius: 0 0 12px 12px; }
+.financiero-detalle { min-width: 0; overflow-y: auto; }
+.financiero-resumen { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.financiero-resumen-saldo { text-align: right; }
+.financiero-filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--gray-100); }
+.financiero-cheques-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+.informes-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+.informes-nav { position: sticky; top: 0; }
+.mobile-menu-button, .sidebar-close, .sidebar-backdrop, .mobile-cobros-link { display: none; }
+
+@media (max-width: 760px) {
+  .layout { height: 100dvh; }
+  .sidebar { position: fixed; z-index: 1002; inset: 0 auto 0 0; width: min(300px, 85vw); transform: translateX(-100%); visibility: hidden; transition: transform .2s ease, visibility .2s; }
+  .sidebar.sidebar-open { transform: translateX(0); visibility: visible; }
+  .sidebar-backdrop { display: block; position: fixed; z-index: 1001; inset: 0; border: 0; background: rgba(0,0,0,.5); }
+  .sidebar-logo { position: relative; padding-right: 52px; }
+  .sidebar-close { display: block; position: absolute; top: 12px; right: 10px; width: 44px; height: 44px; border: 0; background: transparent; color: white; font-size: 28px; cursor: pointer; }
+  .mobile-cobros-link { display: block; margin: 12px; padding: 13px 14px; border-radius: 8px; background: #1e3a5f; color: white; font-weight: 700; text-decoration: none; }
+  .mobile-menu-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex: none; font-size: 22px; }
+  .topbar { flex-wrap: wrap; }
+  .topbar-title { flex: 1; min-width: 0; }
+  .topbar-right { gap: 4px; flex-wrap: nowrap; width: 100%; justify-content: flex-end; overflow-x: auto; }
+  .topbar-right .btn, .topbar-right .theme-toggle { min-width: 40px; min-height: 40px; }
+  .page-content { min-width: 0; }
+  .page-toolbar { flex-wrap: wrap; }
+  .toolbar-left { min-width: 0; width: 100%; }
+  .overlay { padding: 0; align-items: stretch; }
+  .modal { max-width: none; max-height: 100dvh; height: 100dvh; border-radius: 0; }
+  .modal-header { padding: 14px 16px; }
+  .modal-body { padding: 16px; }
+  .modal-footer { padding: 12px 16px max(12px, env(safe-area-inset-bottom)); }
+  .modal-footer .btn { min-height: 44px; }
+  .cuenta2-ctacte { display: flex; flex-direction: column; height: auto; overflow: visible; }
+  .cuenta2-entidades { overflow: visible; }
+  .cuenta2-entidades-lista { max-height: 230px; overflow-y: auto; }
+  .cuenta2-entidad { min-height: 56px; }
+  .cuenta2-detalle { overflow: visible; }
+  .cuenta2-resumen { flex-direction: column; }
+  .cuenta2-resumen-saldo { text-align: left; width: 100%; }
+  .cuenta2-acciones { justify-content: flex-start; }
+  .cuenta2-acciones .btn { min-height: 44px; }
+  .cuenta2-acciones .btn-primary { order: -1; width: 100%; }
+  .cuenta2-filtros .inp { width: 100% !important; }
+  .cuenta2-filtros > span:first-child { width: 100%; }
+  .cuenta2-filtros > span:nth-child(3) { display: none; }
+  .cuenta2-filtros .btn { min-height: 44px; }
+  .cuenta2-tabs > button { min-height: 44px; }
+  .financiero-ctacte { display: flex; flex-direction: column; height: auto; }
+  .financiero-clientes { overflow: visible; }
+  .financiero-clientes-lista { max-height: 230px; }
+  .financiero-detalle { overflow: visible; }
+  .financiero-resumen { flex-direction: column; }
+  .financiero-resumen-saldo { text-align: left; }
+  .financiero-filtros .inp { width: 100% !important; }
+  .financiero-filtros > span:first-child { width: 100%; }
+  .financiero-filtros > span:nth-child(3) { display: none; }
+  .financiero-cheques-kpis { grid-template-columns: 1fr; }
+  .financiero-cheques-filtros { display: flex; flex-wrap: wrap; gap: 8px; }
+  .financiero-cheques-filtros .inp, .financiero-cheques-filtros .sel, .financiero-cheques-filtros .search-inp { width: 100% !important; max-width: none; }
+  .informes-layout { grid-template-columns: minmax(0, 1fr); }
+  .informes-nav { position: static; max-height: 180px; overflow-y: auto; }
+  .informes-layout .inp, .informes-layout .sel { max-width: 100%; }
+}

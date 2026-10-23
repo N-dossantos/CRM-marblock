@@ -8,9 +8,12 @@
 //   * Si el usuario la editó a mano o la borró, se respeta: sólo vuelve a crearse/recrearse cuando
 //     el total de pallets cambia de nuevo (lastAutoTotal deja de coincidir).
 //   * Al reabrir un comprobante ya guardado, lo guardado manda: ver "primera pasada" abajo.
+//     `guardado` dice si los ítems iniciales son los de un comprobante guardado (reabierto, o
+//     copiado de un presupuesto). Los que arma renglonesDeRemito no lo son: les sacó la línea de
+//     pallets para que la arme el hook, así que con `guardado=false` la primera pasada es una más.
 import { useEffect, useRef } from 'react'
 
-export function usePalletsVacios(items, setItems, productos, extraLinea = null) {
+export function usePalletsVacios(items, setItems, productos, extraLinea = null, guardado = true) {
   const lastAutoTotal  = useRef(null)
   const yaInicializado = useRef(false)
 
@@ -43,7 +46,7 @@ export function usePalletsVacios(items, setItems, productos, extraLinea = null) 
     //   * si la línea guardada no coincide con ese total, fue editada a mano → pallets_auto=false.
     if (!yaInicializado.current) {
       yaInicializado.current = true
-      if (lista.length > 0) {
+      if (guardado && lista.length > 0) {
         lastAutoTotal.current = total
         if (idx !== -1 && Number(lista[idx].pallets) !== total) {
           setItems(lista.map((it, i) => i !== idx ? it : { ...it, pallets_auto: false }))

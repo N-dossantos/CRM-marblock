@@ -1,4 +1,5 @@
 // src/components/Layout/index.jsx
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { fechaLarga } from '../../utils'
@@ -120,6 +121,15 @@ export default function Layout({ children }) {
   const { user, signOut } = useAuth()
   const title = VIEW_TITLES[pathname] || 'CRM Marblock'
   const arca = useArcaEstado()
+  const [menuAbierto, setMenuAbierto] = useState(false)
+
+  useEffect(() => { setMenuAbierto(false) }, [pathname])
+  useEffect(() => {
+    if (!menuAbierto) return
+    const cerrar = (event) => { if (event.key === 'Escape') setMenuAbierto(false) }
+    window.addEventListener('keydown', cerrar)
+    return () => window.removeEventListener('keydown', cerrar)
+  }, [menuAbierto])
 
   async function handleLogout() {
     await signOut()
@@ -128,11 +138,17 @@ export default function Layout({ children }) {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      {menuAbierto && <button type="button" className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setMenuAbierto(false)} />}
+      <aside id="main-navigation" className={`sidebar${menuAbierto ? ' sidebar-open' : ''}`}>
         <div className="sidebar-logo">
           <h1>⚡ CRM Marblock</h1>
           <p>Sistema de Gestión</p>
+          <button type="button" className="sidebar-close" aria-label="Cerrar menú" onClick={() => setMenuAbierto(false)}>×</button>
         </div>
+
+        <NavLink to="/cuenta2/ventas" className="mobile-cobros-link" onClick={() => setMenuAbierto(false)}>
+          💵 Cuenta 2 · Cobros
+        </NavLink>
 
         <nav style={{ flex: 1, padding: '8px 0' }}>
           {NAV.map((group, gi) => (
@@ -161,6 +177,7 @@ export default function Layout({ children }) {
       <div className="main-area">
         <BannerAmbiente estado={arca} />
         <header className="topbar">
+          <button type="button" className="btn btn-secondary mobile-menu-button" aria-label="Abrir menú" aria-expanded={menuAbierto} aria-controls="main-navigation" onClick={() => setMenuAbierto(true)}>☰</button>
           <span className="topbar-title">{title}</span>
           <div className="topbar-right">
             <IndicadorArca estado={arca} />

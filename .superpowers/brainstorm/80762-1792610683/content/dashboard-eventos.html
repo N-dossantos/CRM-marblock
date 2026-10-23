@@ -1,0 +1,106 @@
+<style>
+  .crm { font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fff; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; text-align: left; }
+  .crm-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .crm-head h4 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .crm-btn { font-size: 12px; border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; padding: 4px 10px; color: #334155; }
+  .crm-grupos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .crm-grupos h5 { margin: 0 0 6px; font-size: 13px; font-weight: 700; }
+  .crm-grupos h5.atr { color: #c2410c; }
+  .crm-vacio { font-size: 12px; color: #94a3b8; margin: 4px 0; }
+  /* A: lista */
+  .ev { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+  .ev:last-child { border-bottom: 0; }
+  .ev input { margin-top: 3px; accent-color: #1d4ed8; }
+  .ev-fecha { font-size: 11px; color: #64748b; }
+  .ev-tit { font-size: 15px; font-weight: 600; line-height: 1.35; }
+  .ev-desc { font-size: 13px; color: #475569; line-height: 1.45; margin-top: 2px; }
+  /* B: tarjetas */
+  .tj { border: 1px solid #e2e8f0; border-left: 3px solid #2563eb; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; display: flex; gap: 10px; background: #f8fafc; }
+  .tj.atr { border-left-color: #c2410c; }
+  .tj input { margin-top: 3px; accent-color: #1d4ed8; }
+</style>
+
+<h2>¿Cómo se ve el Calendario en la pantalla principal?</h2>
+<p class="subtitle">Los dos muestran todo: el título más grande y la descripción completa abajo. Cambia sólo la forma. Hacé clic en el que te guste.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Lista, como hoy</h3>
+      <p>Un evento debajo del otro, separados por una línea.</p>
+      <div class="crm" style="margin-top:12px">
+        <div class="crm-head"><h4>📅 Calendario</h4><span class="crm-btn">Abrir calendario</span></div>
+        <div class="crm-grupos">
+          <div>
+            <h5 class="atr">Atrasados</h5>
+            <div class="ev"><input type="checkbox"><div>
+              <div class="ev-fecha">20/10/2026</div>
+              <div class="ev-tit">Llamar a Almajo</div>
+              <div class="ev-desc">Confirmar el próximo viaje de la FAC 2296.</div>
+            </div></div>
+          </div>
+          <div>
+            <h5>Hoy</h5>
+            <div class="ev"><input type="checkbox"><div>
+              <div class="ev-tit">Cliente Duramat</div>
+              <div class="ev-desc">Va a venir a retirar 10 bloques de 20 estándar y 10 bloque liso de 10.</div>
+            </div></div>
+            <div class="ev"><input type="checkbox"><div>
+              <div class="ev-tit">Pedir talonario de remitos</div>
+            </div></div>
+          </div>
+          <div>
+            <h5>Próximos 7 días</h5>
+            <div class="ev"><input type="checkbox"><div>
+              <div class="ev-fecha">24/10/2026</div>
+              <div class="ev-tit">Vence IVA</div>
+              <div class="ev-desc">Presentación y pago del período septiembre.</div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Tarjetas</h3>
+      <p>Cada evento en su recuadro, con una franja de color a la izquierda.</p>
+      <div class="crm" style="margin-top:12px">
+        <div class="crm-head"><h4>📅 Calendario</h4><span class="crm-btn">Abrir calendario</span></div>
+        <div class="crm-grupos">
+          <div>
+            <h5 class="atr">Atrasados</h5>
+            <div class="tj atr"><input type="checkbox"><div>
+              <div class="ev-fecha">20/10/2026</div>
+              <div class="ev-tit">Llamar a Almajo</div>
+              <div class="ev-desc">Confirmar el próximo viaje de la FAC 2296.</div>
+            </div></div>
+          </div>
+          <div>
+            <h5>Hoy</h5>
+            <div class="tj"><input type="checkbox"><div>
+              <div class="ev-tit">Cliente Duramat</div>
+              <div class="ev-desc">Va a venir a retirar 10 bloques de 20 estándar y 10 bloque liso de 10.</div>
+            </div></div>
+            <div class="tj"><input type="checkbox"><div>
+              <div class="ev-tit">Pedir talonario de remitos</div>
+            </div></div>
+          </div>
+          <div>
+            <h5>Próximos 7 días</h5>
+            <div class="tj"><input type="checkbox"><div>
+              <div class="ev-fecha">24/10/2026</div>
+              <div class="ev-tit">Vence IVA</div>
+              <div class="ev-desc">Presentación y pago del período septiembre.</div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">"Pedir talonario de remitos" no tiene descripción, para que veas cómo queda un evento con sólo el título.</p>

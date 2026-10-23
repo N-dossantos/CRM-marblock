@@ -96,7 +96,7 @@ export default function Cheques() {
   return (
     <div>
       {/* KPIs rápidos */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 18 }}>
+      <div className="financiero-cheques-kpis">
         {[
           { label: 'Cheques en cartera', val: enCartera.length, color: 'var(--blue-600)', sub: 'unidades' },
           { label: 'Total en cartera',   val: $ar(totalCartera), color: 'var(--green-600)', sub: 'monto total' },
@@ -111,7 +111,7 @@ export default function Cheques() {
       </div>
 
       <div className="page-toolbar">
-        <div className="toolbar-left">
+        <div className="toolbar-left financiero-cheques-filtros">
           <select className="sel" style={{ width: 150 }} value={filtroEst} onChange={e => setFiltroEst(e.target.value)}>
             {ESTADO_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
           </select>

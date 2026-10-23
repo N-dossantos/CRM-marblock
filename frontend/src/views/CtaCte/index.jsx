@@ -44,9 +44,9 @@ export default function CtaCte() {
   )
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '270px 1fr', gap: 18, height: 'calc(100vh - 54px - 48px)', overflow: 'hidden' }}>
+    <div className="financiero-ctacte">
       {/* Panel izquierdo: lista de clientes */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 0, overflow: 'hidden' }}>
+      <div className="financiero-clientes">
         <div className="card" style={{ padding: '14px', marginBottom: 0, borderBottom: 'none', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
           <input
             className="search-inp"
@@ -56,7 +56,7 @@ export default function CtaCte() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--gray-200)', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderRadius: '0 0 12px 12px' }}>
+        <div className="financiero-clientes-lista">
           {clisFiltrados.map(c => {
             const saldo = data?.cliente?.id === c.id ? data.saldo_total : null
             return (
@@ -88,7 +88,7 @@ export default function CtaCte() {
       </div>
 
       {/* Panel derecho: movimientos */}
-      <div style={{ overflowY: 'auto' }}>
+      <div className="financiero-detalle">
         {!selCli ? (
           <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>📒</div>
@@ -100,7 +100,7 @@ export default function CtaCte() {
           <div>
             {/* Header del cliente */}
             <div className="card" style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div className="financiero-resumen">
                 <div>
                   <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--gray-800)' }}>{data.cliente.razon_social}</h2>
                   <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
@@ -108,7 +108,7 @@ export default function CtaCte() {
                     {data.cliente.email && ` · ${data.cliente.email}`}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div className="financiero-resumen-saldo">
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}</div>
                   <div style={{ fontSize: 28, fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(data.saldo_total)}
@@ -140,7 +140,7 @@ export default function CtaCte() {
               </div>
 
               {/* Filtro de fechas */}
-              <div style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--gray-100)', alignItems: 'center' }}>
+              <div className="financiero-filtros">
                 <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 600 }}>Filtrar por período:</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={desde} onChange={e => setDesde(e.target.value)} />
                 <span style={{ color: 'var(--gray-400)' }}>al</span>

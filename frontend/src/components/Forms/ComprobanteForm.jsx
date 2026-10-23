@@ -6,7 +6,7 @@ import { ElegirProductosBtn } from '../UI/ProductoPicker'
 import { calcTotalesMulti, renglonesDeRemito } from '../../utils'
 import { armarItems, revisarRemito, llevaDesdeItems } from '../../utils/pendientes'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
-import { RemitosAPI } from '../../api'
+import { RemitosAPI, ArcaAPI } from '../../api'
 import { revisarEmision } from '../Arca'
 import FacturasPendientesRemitir from './FacturasPendientesRemitir'
 import toast from 'react-hot-toast'
@@ -24,6 +24,9 @@ const ITEM_BASE = { producto_id: '', descripcion: '', cantidad: 0, precio_unitar
 // "la mercadería viaja por cuenta y riesgo del comprador" (y=230 mm). Tiene que coincidir con
 // MAPA.items.renglones en supabase/functions/pdf/preimpreso.ts.
 const RENGLONES_TALONARIO = 19
+
+// Tipo de comprobante de ARCA por letra de factura: tiene que coincidir con arca_cbte_tipo('FAC', …).
+const CBTE_TIPO_FACTURA = { A: 1, B: 6 }
 
 export default function ComprobanteForm({
   title,
@@ -111,11 +114,14 @@ export default function ComprobanteForm({
   // El 4º argumento son los campos que dependen del comprobante: en facturas multi-alícuota la
   // línea automática debe traer alicuota_iva_id como cualquier ítem de "+ Agregar ítem", si no el
   // selector de IVA de esa fila aparece vacío (el total igual sale bien: el servidor asume 21%).
+  // El 5º dice si los ítems iniciales son de un comprobante guardado. Los de "→ Facturar" del
+  // listado de remitos no: los armó renglonesDeRemito sin la línea de pallets, que la arma el hook.
   usePalletsVacios(
     form.items,
     (items) => setForm(f => ({ ...f, items })),
     productos,
     multiIva ? { alicuota_iva_id: alic21?.id } : null,
+    !(esFacturaNueva && initial.remito_ids?.length > 0),
   )
 
   // Los renglones que llegan de un remito o un presupuesto no traen alícuota (esos comprobantes no
@@ -222,6 +228,27 @@ export default function ComprobanteForm({
   // Inscripto y monotributos; B: el resto). No se elige: el servidor rechaza cualquier otra.
   const clienteSel = tipo === 'factura' ? clientes.find(c => c.id === +form.cliente_id) : null
   const letra = esFacturaNueva ? clienteSel?.clase : form.tipo_fac
+
+  // El número de una factura lo da ARCA al emitir (último autorizado + 1 del PV del despliegue).
+  // Mientras no lo tiene se muestra el que le tocaría ahora, sin reservarlo: si otro comprobante de
+  // la misma letra se emite antes, éste sale con el siguiente.
+  const muestraProximo = tipo === 'factura' && (esFacturaNueva || !initial.numero)
+  const [proximo, setProximo] = useState(null)   // null | { cargando } | { numero } | { error }
+  useEffect(() => {
+    const cbte = CBTE_TIPO_FACTURA[letra]
+    if (!muestraProximo || !cbte) { setProximo(null); return }
+    let vigente = true
+    setProximo({ cargando: true })
+    ArcaAPI.ultimoAutorizado(cbte)
+      .then(r => {
+        if (!vigente) return
+        setProximo(r.status === 200
+          ? { numero: `${String(r.punto_venta).padStart(5, '0')}-${String(r.ultimo + 1).padStart(8, '0')}` }
+          : { error: r.error || 'No se pudo consultar ARCA' })
+      })
+      .catch(() => { if (vigente) setProximo({ error: 'No se pudo consultar ARCA' }) })
+    return () => { vigente = false }
+  }, [muestraProximo, letra])
 
   // Validación previa a ARCA (§5): lo que impediría emitir se avisa acá, y sólo deja guardar el
   // borrador. La base lo vuelve a controlar al emitir.
@@ -368,9 +395,9 @@ export default function ComprobanteForm({
         </div>
       )}
 
-      <div className={esPresupuesto ? 'field' : 'form-row3'} style={{ marginBottom: 14 }}>
+      <div className={esPresupuesto ? 'field' : tipo === 'factura' ? 'form-row4' : 'form-row3'} style={{ marginBottom: 14 }}>
         {/* Cliente */}
-        <div className="field" style={{ gridColumn: tipo === 'factura' ? '1 / 3' : '1 / 3' }}>
+        <div className="field" style={{ gridColumn: '1 / 3' }}>
           <label className="lbl">{esPresupuesto ? 'Vincular a un cliente (opcional)' : 'Cliente *'}</label>
           <ClienteSearch clientes={clientes} value={form.cliente_id} onChange={onCliChange}
             disabled={tipo === 'factura' && !esFacturaNueva} />
@@ -402,6 +429,22 @@ export default function ComprobanteForm({
               title={clienteSel ? `Cliente ${clienteSel.condicion_iva}` : 'Depende de la condición IVA del cliente'}
               style={{ background: 'var(--gray-50)', color: 'var(--gray-500)' }}
             />
+          </div>
+        )}
+
+        {/* Número que le daría ARCA si se emitiera ahora (solo facturas sin número) */}
+        {muestraProximo && (
+          <div className="field">
+            <label className="lbl">N° a emitir</label>
+            <input
+              className="inp"
+              readOnly
+              value={proximo?.numero || (proximo?.cargando ? 'Consultando ARCA…' : '—')}
+              title={proximo?.error || (letra ? undefined : 'Depende de la letra, que sale del cliente')}
+              style={{ background: 'var(--gray-50)', ...(proximo?.numero ? { fontFamily: 'monospace', fontWeight: 700 } : { color: 'var(--gray-500)' }) }}
+            />
+            {proximo?.numero && <span className="form-hint">Lo confirma ARCA al emitir</span>}
+            {proximo?.error && <span className="form-hint">No se pudo consultar ARCA: el número lo asigna al emitir</span>}
           </div>
         )}
       </div>

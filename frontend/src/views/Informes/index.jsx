@@ -227,9 +227,9 @@ export default function Informes() {
   const COLORS = ['var(--blue-600)','var(--green-600)','var(--orange-500)','var(--purple-600)','var(--red-500)','var(--cyan-600)','var(--amber-600)','var(--green-600)']
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 20, alignItems: 'start' }}>
+    <div className="informes-layout">
       {/* Columna de informes — todas las opciones a la vista, agrupadas por módulo */}
-      <nav className="card" style={{ padding: '10px 0', position: 'sticky', top: 0 }}>
+      <nav className="card informes-nav" style={{ padding: '10px 0' }}>
         {GRUPOS.map(g => (
           <div key={g.titulo} style={{ marginBottom: 6 }}>
             <div style={{

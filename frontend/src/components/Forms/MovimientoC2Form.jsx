@@ -125,7 +125,7 @@ export default function MovimientoC2Form({
         <div className="field">
           <label className="lbl">Monto *</label>
           <input
-            type="number" step="0.01"
+            type="number" inputMode="decimal" step="0.01"
             className="inp inp-right"
             value={form.monto}
             disabled={form.medio === 'cheque' && origen === 'cartera' && !esAjuste}
