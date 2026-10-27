@@ -6,6 +6,8 @@ import Login  from './views/Login'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useAuth } from './lib/auth'
 import { CalendarioProvider } from './lib/calendario'
+import { PinCuenta2Provider } from './lib/pinCuenta2'
+import { ConPinCuenta2 } from './components/PinCuenta2'
 
 import Dashboard    from './views/Dashboard'
 import Clientes     from './views/Clientes'
@@ -84,6 +86,7 @@ export default function App() {
   // pantalla rota; `key` por ruta lo resetea al navegar, sin necesidad de recargar.
   return (
     <CalendarioProvider>
+    <PinCuenta2Provider>
     <Layout>
       <ErrorBoundary key={location.pathname}>
       <Routes>
@@ -124,15 +127,17 @@ export default function App() {
         <Route path="/contabilidad/asientos"     element={<ContabilidadAsientos />} />
 
         {/* Cuenta 2 — una sola vista para ambos sectores; `key` fuerza el remount al cambiar
-            de ruta, si no React reusa la instancia y arrastra el estado del otro sector. */}
-        <Route path="/cuenta2/ventas"  element={<Cuenta2 key="venta"  tipoSector="venta" />} />
-        <Route path="/cuenta2/compras" element={<Cuenta2 key="compra" tipoSector="compra" />} />
-        <Route path="/cuenta2/cheques" element={<Cuenta2Cheques />} />
+            de ruta, si no React reusa la instancia y arrastra el estado del otro sector.
+            Detrás del PIN (lib/pinCuenta2.jsx). */}
+        <Route path="/cuenta2/ventas"  element={<ConPinCuenta2><Cuenta2 key="venta"  tipoSector="venta" /></ConPinCuenta2>} />
+        <Route path="/cuenta2/compras" element={<ConPinCuenta2><Cuenta2 key="compra" tipoSector="compra" /></ConPinCuenta2>} />
+        <Route path="/cuenta2/cheques" element={<ConPinCuenta2><Cuenta2Cheques /></ConPinCuenta2>} />
 
         <Route path="*"             element={<Navigate to="/" replace />} />
       </Routes>
       </ErrorBoundary>
     </Layout>
+    </PinCuenta2Provider>
     </CalendarioProvider>
   )
 }

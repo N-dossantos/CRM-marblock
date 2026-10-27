@@ -8,9 +8,11 @@ import ThemeToggle from '../UI/ThemeToggle'
 import FontSizeControl from '../UI/FontSizeControl'
 import { useArcaEstado, BannerAmbiente, IndicadorArca } from '../Arca'
 import CalendarioPanel, { CalendarioBoton } from '../Calendario/Panel'
+import { usePinCuenta2 } from '../../lib/pinCuenta2'
+import { PinInput } from '../PinCuenta2'
 
 const NAV = [
-  { section: null,       items: [{ to: '/', icon: '📊', label: 'Dashboard' }] },
+  { section: null,       items: [{ to: '/', icon: '📊', label: 'Inicio' }] },
   {
     section: 'Ventas',
     items: [
@@ -75,17 +77,19 @@ const NAV = [
   // Circuito informal, aislado del oficial (cuenta2.md). Bloque propio a propósito: que se
   // vea separado en la navegación refuerza que los saldos no se mezclan con Cuenta 1.
   {
-    section: 'Cuenta 2',
+    section: 'Configuracion',
+    desplegable: true,
+    pin: true,
     items: [
-      { to: '/cuenta2/ventas',  icon: '🟠', label: 'Ventas C2' },
-      { to: '/cuenta2/compras', icon: '🟠', label: 'Compras C2' },
-      { to: '/cuenta2/cheques', icon: '🟠', label: 'Cheques C2' },
+      { to: '/cuenta2/ventas',  icon: '🟠', label: 'Ventas' },
+      { to: '/cuenta2/compras', icon: '🟠', label: 'Compras' },
+      { to: '/cuenta2/cheques', icon: '🟠', label: 'Cheques' },
     ],
   },
 ]
 
 const VIEW_TITLES = {
-  '/':             'Dashboard',
+  '/':             'Inicio',
   '/clientes':     'Clientes',
   '/productos':    'Lista de Precios',
   '/presupuestos': 'Presupuestos',
@@ -112,14 +116,74 @@ const VIEW_TITLES = {
   '/tesoreria/conciliacion':    'Conciliación Bancaria',
   '/contabilidad/plan-cuentas': 'Plan de Cuentas',
   '/contabilidad/asientos':     'Asientos Contables',
-  '/cuenta2/ventas':  'Cuenta 2 — Ventas',
-  '/cuenta2/compras': 'Cuenta 2 — Compras',
-  '/cuenta2/cheques': 'Cuenta 2 — Cartera de Cheques',
+  '/cuenta2/ventas':  'Ventas',
+  '/cuenta2/compras': 'Compras',
+  '/cuenta2/cheques': 'Cartera de Cheques',
+}
+
+// Los grupos `desplegable` arrancan cerrados y se abren solos al entrar a una de sus páginas, para
+// que el ítem activo quede siempre a la vista. Los `pin` muestran el campo del PIN en lugar de los
+// ítems hasta desbloquearlos, y no se abren solos: la página bloqueada ya pide el PIN.
+function NavGrupo({ group, id }) {
+  const { pathname } = useLocation()
+  const { desbloqueada, bloquear } = usePinCuenta2()
+  const bloqueado = group.pin && !desbloqueada
+  const contieneActiva = !bloqueado && group.items.some((item) => item.to === pathname)
+  const [abierto, setAbierto] = useState(contieneActiva)
+
+  useEffect(() => { if (contieneActiva) setAbierto(true) }, [contieneActiva])
+
+  const items = group.items.map((item) => (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      end={item.to === '/'}
+      className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+    >
+      <span className="nav-icon">{item.icon}</span>
+      <span>{item.label}</span>
+    </NavLink>
+  ))
+
+  if (!group.desplegable) {
+    return (
+      <div>
+        {group.section && <div className="sidebar-section-label">{group.section}</div>}
+        {items}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="sidebar-section-label sidebar-section-toggle"
+        aria-expanded={abierto}
+        aria-controls={id}
+        onClick={() => setAbierto((a) => !a)}
+      >
+        <span>{group.section}</span>
+        <span className="sidebar-section-chevron" aria-hidden="true">▸</span>
+      </button>
+      <div id={id} hidden={!abierto}>
+        {abierto && bloqueado && <PinInput className="sidebar-pin" autoFocus />}
+        {!bloqueado && items}
+        {group.pin && !bloqueado && (
+          <button type="button" className="nav-item" onClick={() => { bloquear(); setAbierto(false) }}>
+            <span className="nav-icon">🔒</span>
+            <span>Bloquear</span>
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function Layout({ children }) {
   const { pathname } = useLocation()
   const { user, signOut } = useAuth()
+  const { bloquear } = usePinCuenta2()
   const title = VIEW_TITLES[pathname] || 'CRM Marblock'
   const arca = useArcaEstado()
   const [menuAbierto, setMenuAbierto] = useState(false)
@@ -133,6 +197,7 @@ export default function Layout({ children }) {
   }, [menuAbierto])
 
   async function handleLogout() {
+    bloquear()
     await signOut()
     toast.success('Sesión cerrada')
   }
@@ -149,22 +214,7 @@ export default function Layout({ children }) {
 
         <nav style={{ flex: 1, padding: '8px 0' }}>
           {NAV.map((group, gi) => (
-            <div key={gi}>
-              {group.section && (
-                <div className="sidebar-section-label">{group.section}</div>
-              )}
-              {group.items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === '/'}
-                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  <span>{item.label}</span>
-                </NavLink>
-              ))}
-            </div>
+            <NavGrupo key={gi} group={group} id={`nav-grupo-${gi}`} />
           ))}
         </nav>
 

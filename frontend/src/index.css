@@ -200,6 +200,19 @@ input::placeholder, textarea::placeholder { color: var(--gray-500); opacity: 1; 
   color: #94a3b8;
   font-family: var(--font-display);
 }
+.sidebar-section-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; border: none; background: transparent; cursor: pointer; text-align: left; }
+.sidebar-section-toggle:hover { color: #f8fafc; }
+.sidebar-section-chevron { font-size: calc(11px * var(--font-scale)); transition: transform .15s; }
+.sidebar-section-toggle[aria-expanded="true"] .sidebar-section-chevron { transform: rotate(90deg); }
+/* PIN de Cuenta 2 (lib/pinCuenta2.jsx): text + dígitos tapados, para que el navegador no lo guarde. */
+.pin-input { -webkit-text-security: disc; text-align: center; letter-spacing: .4em; font-variant-numeric: tabular-nums; }
+.pin-error { font-size: calc(12px * var(--font-scale)); color: var(--red-600); margin-top: 6px; }
+.sidebar-pin { padding: 4px 16px 8px; }
+.sidebar-pin .inp { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.18); color: #f8fafc; }
+.sidebar-pin .pin-error { color: #fca5a5; }
+.pin-card { max-width: 340px; margin: 48px auto; text-align: center; }
+.pin-card-title { font-weight: 700; font-size: calc(15px * var(--font-scale)); margin-bottom: 6px; }
+.pin-card .form-hint { margin-bottom: 14px; }
 .nav-item {
   display: flex;
   align-items: center;
