@@ -180,11 +180,11 @@ export default function Notas() {
                     <td>{n.numero
                       ? <span className="code">{n.numero}</span>
                       : <span className="sin-numero">sin número</span>}</td>
-                    <td><Badge estado={n.tipo} /> <span style={{ fontSize: 11, color: 'var(--gray-500)' }}>{n.tipo_letra}</span></td>
+                    <td><Badge estado={n.tipo} /> <span style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-500)' }}>{n.tipo_letra}</span></td>
                     <td>{fFecha(n.fecha)}</td>
                     <td><span className="code">{n.factura_numero}</span></td>
                     <td className="td-bold">{n.razon_social}</td>
-                    <td style={{ fontSize: 12, color: 'var(--gray-500)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.motivo || '—'}</td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.motivo || '—'}</td>
                     <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(n.neto_gravado)}</td>
                     <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(n.iva_monto)}</td>
                     <td className="td-right td-bold">{$ar(n.total)}</td>
@@ -213,7 +213,7 @@ export default function Notas() {
         <Modal calendario={false} title="Seleccionar factura de referencia" size="lg" onClose={() => setNueva(null)}>
           <div className="field">
             <label className="lbl">Buscar factura *</label>
-            <input className="search-inp" style={{ width: '100%' }} autoFocus
+            <input className="search-inp" style={{ width: '100%' }}
               placeholder="Número (ej. 00002-00002150), cliente o CUIT…"
               value={busqFac} onChange={e => setBusqFac(e.target.value)} />
           </div>
@@ -226,7 +226,7 @@ export default function Notas() {
               <button key={f.id} type="button" onClick={() => onFacSelect(f.id)}
                 style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%', padding: '9px 14px', border: 0, borderBottom: '1px solid var(--gray-100)', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
                 <span className="code">{f.numero}</span>
-                <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>{fFecha(f.fecha)}</span>
+                <span style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{fFecha(f.fecha)}</span>
                 <span style={{ flex: 1, fontWeight: 600 }}>{f.razon_social}</span>
                 <FiscalBadge estado={f.estado_fiscal} cae={f.cae} />
                 <Badge estado={f.estado} />
@@ -234,7 +234,7 @@ export default function Notas() {
               </button>
             ))}
           </div>
-          <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 8 }}>
+          <p style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 8 }}>
             {busqFac.trim().length >= 2 ? 'Hasta 50 resultados, las más recientes primero.' : 'Facturas de los últimos 60 días. Escribí para buscar en toda la historia.'}
             {' '}Sólo facturas con CAE o históricas.
           </p>

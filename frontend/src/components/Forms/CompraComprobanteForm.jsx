@@ -248,7 +248,7 @@ export default function CompraComprobanteForm({
 
       {/* Ítems */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>Ítems</span>
+        <span style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>Ítems</span>
         <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
       </div>
 
@@ -292,7 +292,7 @@ export default function CompraComprobanteForm({
                 )}
                 <td className="td-right td-bold">{$ar(calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item))}</td>
                 <td style={{ textAlign: 'center' }}>
-                  <button onClick={() => removeItem(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red-500)', fontSize: 19, lineHeight: 1, padding: 0 }}>×</button>
+                  <button onClick={() => removeItem(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red-500)', fontSize: 'calc(19px * var(--font-scale))', lineHeight: 1, padding: 0 }}>×</button>
                 </td>
               </tr>
             ))}

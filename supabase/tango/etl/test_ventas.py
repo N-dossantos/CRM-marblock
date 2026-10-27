@@ -80,6 +80,31 @@ class Reglas(unittest.TestCase):
         with self.assertRaises(ValueError):
             ventas.vincular_productos({"0001": "Bloque", "0002": "Bloque"}, ("remito_items",))
 
+    def test_remitos_extrae_asignaciones_n_a_n(self):
+        sta14 = [{"ID_STA14": "10", "T_COMP": "REM", "N_COMP": " 000100009958", "NCOMP_IN_S": " 000100009958",
+                  "ESTADO_MOV": "F", "COD_PRO_CL": "000499", "FECHA_MOV": "2024-03-22 00:00:00.000"}]
+        sta20 = [
+            {"ID_STA20": "100", "TCOMP_IN_S": "RE", "NCOMP_IN_S": " 000100009958", "N_RENGL_S": "1",
+             "COD_ARTICU": "0001", "CANTIDAD": "20.0000000"},
+            {"ID_STA20": "101", "TCOMP_IN_S": "RE", "NCOMP_IN_S": " 000100009958", "N_RENGL_S": "2",
+             "COD_ARTICU": "0001", "CANTIDAD": "4.0000000"},
+        ]
+        gva54 = [
+            {"TCOMP_IN_S": "RE", "NCOMP_IN_S": " 000100009958", "N_RENGL_S": "1",
+             "T_COMP_V": "FAC", "N_COMP": "A000200002013", "CANTIDAD": "20.0000000"},
+            {"TCOMP_IN_S": "RE", "NCOMP_IN_S": " 000100009958", "N_RENGL_S": "2",
+             "T_COMP_V": "FAC", "N_COMP": "A000200002043", "CANTIDAD": "4.0000000"},
+        ]
+        clientes = {"000499": 482}
+        ids_fac = {"A000200002013": 8129, "A000200002043": 8189}
+        desc = {"0001": "Bloque"}
+        rem, its, asig = ventas.remitos(sta14, sta20, gva54, clientes, ids_fac, desc)
+        self.assertEqual(len(rem), 1)
+        self.assertEqual(len(its), 2)
+        self.assertEqual(len(asig), 2)
+        self.assertEqual(asig[0], (100, 8129, D("20.000"), "tango"))
+        self.assertEqual(asig[1], (101, 8189, D("4.000"), "tango"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -128,7 +128,7 @@ export default function Cuenta2Cheques() {
                     <td><span className="code">{ch.numero}</span></td>
                     <td>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</td>
                     <td>{fFecha(ch.fecha_vcto)}</td>
-                    <td style={{ fontSize: 12 }}>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>
                       {ch.cliente_nombre && <>de {ch.cliente_nombre}</>}
                       {ch.proveedor_nombre && <> → {ch.proveedor_nombre}</>}
                       {!ch.cliente_nombre && !ch.proveedor_nombre && '—'}

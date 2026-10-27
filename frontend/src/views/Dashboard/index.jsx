@@ -291,10 +291,10 @@ function ResumenDashboard() {
               </svg>
             </span>
             <div>
-              <div style={{ fontWeight: 700, color: 'var(--red-700)', fontSize: 13 }}>
+              <div style={{ fontWeight: 700, color: 'var(--red-700)', fontSize: 'calc(13px * var(--font-scale))' }}>
                 Atención: Cartera con cheques vencidos
               </div>
-              <div style={{ color: 'var(--red-700)', fontSize: 12, marginTop: 2 }}>
+              <div style={{ color: 'var(--red-700)', fontSize: 'calc(12px * var(--font-scale))', marginTop: 2 }}>
                 Hay <strong>{kpis.cheques_vencidos}</strong> cheque(s) en cartera con fecha de vencimiento expirada pendientes de gestión.
               </div>
             </div>
@@ -357,12 +357,12 @@ function ResumenDashboard() {
                           <span className="code" style={{ fontWeight: 700 }}>{f.numero}</span>
                           <span className={`badge badge-${f.tipo}`}>Fac {f.tipo}</span>
                           {f.fecha && (
-                            <span style={{ fontSize: 11, color: 'var(--gray-400)', marginLeft: 4 }}>
+                            <span style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-400)', marginLeft: 4 }}>
                               {fFecha(f.fecha)}
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: 13, color: 'var(--gray-700)', fontWeight: 500, marginTop: 3 }}>
+                        <div style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-700)', fontWeight: 500, marginTop: 3 }}>
                           {f.razon_social}
                         </div>
                       </div>
@@ -415,7 +415,7 @@ function ResumenDashboard() {
                         </span>
                         <span
                           style={{
-                            fontSize: 13,
+                            fontSize: 'calc(13px * var(--font-scale))',
                             fontWeight: 600,
                             color: 'var(--gray-800)',
                             whiteSpace: 'nowrap',
@@ -440,10 +440,10 @@ function ResumenDashboard() {
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontWeight: 700, color: 'var(--red-600)', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
+                      <div style={{ fontWeight: 700, color: 'var(--red-600)', fontSize: 'calc(13px * var(--font-scale))', fontVariantNumeric: 'tabular-nums' }}>
                         {$ar(c.saldo_pendiente)}
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--gray-400)', marginTop: 2 }}>
+                      <div style={{ fontSize: 'calc(10px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 2 }}>
                         {ratio}% del líder
                       </div>
                     </div>
@@ -484,18 +484,18 @@ function ResumenDashboard() {
             {cheques_por_vencer.map(ch => (
               <div key={ch.numero} className="cheque-chip">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--amber-700)', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontWeight: 700, fontSize: 'calc(15px * var(--font-scale))', color: 'var(--amber-700)', fontVariantNumeric: 'tabular-nums' }}>
                     {$ar(ch.monto)}
                   </span>
-                  <span className="badge badge-pendiente" style={{ fontSize: 10 }}>
+                  <span className="badge badge-pendiente" style={{ fontSize: 'calc(10px * var(--font-scale))' }}>
                     Vence {fFecha(ch.fecha_vcto)}
                   </span>
                 </div>
-                <div style={{ fontWeight: 600, color: 'var(--amber-700)', fontSize: 12, marginTop: 4 }}>
+                <div style={{ fontWeight: 600, color: 'var(--amber-700)', fontSize: 'calc(12px * var(--font-scale))', marginTop: 4 }}>
                   {ch.banco} <span style={{ opacity: 0.7 }}>#{ch.numero}</span>
                 </div>
                 {ch.cliente_razon_social && (
-                  <div style={{ fontSize: 11, color: 'var(--amber-700)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--amber-700)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     👤 {ch.cliente_razon_social}
                   </div>
                 )}
@@ -530,10 +530,10 @@ function AlertaBandejaArca({ bandeja, nav }) {
   return (
     <div className={`arca-bandeja${urgente ? ' is-urgente' : ''}`} style={{ marginBottom: 20, padding: '12px 18px' }}>
       <div style={{ flex: 1, minWidth: 260 }}>
-        <div style={{ fontWeight: 700, fontSize: 13 }}>
+        <div style={{ fontWeight: 700, fontSize: 'calc(13px * var(--font-scale))' }}>
           {urgente ? 'Atención: hay comprobantes con resultado incierto en ARCA' : 'Comprobantes sin CAE'}
         </div>
-        <div style={{ fontSize: 12, marginTop: 2 }}>
+        <div style={{ fontSize: 'calc(12px * var(--font-scale))', marginTop: 2 }}>
           {fac > 0 && <>Facturas: {detalle('facturas')}.{' '}</>}
           {not > 0 && <>Notas C/D: {detalle('notas')}.</>}
           {urgente && ' Consultá su estado antes de emitir otro comprobante del mismo tipo.'}

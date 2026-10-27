@@ -91,12 +91,12 @@ export default function ComprasFacturas() {
                   <td>{fFecha(f.fecha)}</td>
                   <td>
                     <div className="td-bold">{f.razon_social}</div>
-                    <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{f.cuit}</div>
+                    <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-400)' }}>{f.cuit}</div>
                   </td>
                   <td>
                     {f.remito_numero
                       ? <span className="code" style={{ color: 'var(--green-600)' }}>{f.remito_numero}</span>
-                      : <span style={{ color: 'var(--gray-400)', fontSize: 12 }}>—</span>}
+                      : <span style={{ color: 'var(--gray-400)', fontSize: 'calc(12px * var(--font-scale))' }}>—</span>}
                   </td>
                   <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(f.neto_gravado)}</td>
                   <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(f.iva_monto)}</td>

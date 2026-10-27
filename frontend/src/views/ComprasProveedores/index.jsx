@@ -64,12 +64,12 @@ export default function ComprasProveedores() {
                 <tr key={p.id}>
                   <td>
                     <div className="td-bold">{p.razon_social}</div>
-                    <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>{p.email}</div>
+                    <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)' }}>{p.email}</div>
                   </td>
                   <td className="td-mono">{p.cuit}</td>
-                  <td style={{ fontSize: 12 }}>{p.condicion_iva}</td>
-                  <td style={{ fontSize: 12 }}>{p.condicion_compra}</td>
-                  <td style={{ fontSize: 12 }}>{p.telefono || '—'}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{p.condicion_iva}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{p.condicion_compra}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{p.telefono || '—'}</td>
                   <td className="td-right">{$ar(p.total_comprado || 0)}</td>
                   <td className="td-right" style={{ color: +p.saldo_pendiente > 0 ? 'var(--red-500)' : 'var(--green-600)', fontWeight: 600 }}>
                     {$ar(p.saldo_pendiente || 0)}

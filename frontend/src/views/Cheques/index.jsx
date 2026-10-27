@@ -104,7 +104,7 @@ export default function Cheques() {
         ].map(k => (
           <div key={k.label} className="card" style={{ padding: '14px 18px', borderLeft: `4px solid ${k.color}` }}>
             <div className="kpi-label">{k.label}</div>
-            <div className="kpi-value" style={{ color: k.color, fontSize: 20, margin: '6px 0 2px' }}>{k.val}</div>
+            <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(20px * var(--font-scale))', margin: '6px 0 2px' }}>{k.val}</div>
             <div className="kpi-sub">{k.sub}</div>
           </div>
         ))}
@@ -116,9 +116,9 @@ export default function Cheques() {
             {ESTADO_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
           </select>
           <input className="search-inp" style={{ width: 220 }} placeholder="Buscar nro., banco, titular, cliente…" value={buscar} onChange={e => setBuscar(e.target.value)} />
-          <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>Vence</span>
+          <span style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>Vence</span>
           <input type="date" className="inp" style={{ width: 140 }} value={vtoDesde} onChange={e => setVtoDesde(e.target.value)} title="Vencimiento desde" />
-          <span style={{ fontSize: 12, color: 'var(--gray-400)' }}>al</span>
+          <span style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)' }}>al</span>
           <input type="date" className="inp" style={{ width: 140 }} value={vtoHasta} onChange={e => setVtoHasta(e.target.value)} title="Vencimiento hasta" />
           <select className="sel" style={{ width: 190 }} value={orden} onChange={e => setOrden(e.target.value)} title="Orden">
             <option value="vto_asc">Vencimiento: más viejo primero</option>
@@ -154,17 +154,17 @@ export default function Cheques() {
               {visibles.length === 0 ? <EmptyState icon="🏦" message="Sin cheques para ese filtro" /> : visibles.map(ch => (
                 <tr key={ch.id}>
                   <td><span className="code" style={{ fontWeight: 700 }}>{ch.numero}</span></td>
-                  <td><span style={{ fontSize: 11, background: ch.tipo === 'echeq' ? 'var(--purple-100)' : 'var(--gray-100)', color: ch.tipo === 'echeq' ? 'var(--purple-700)' : 'var(--gray-600)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</span></td>
-                  <td style={{ fontSize: 12 }}>{ch.banco}</td>
-                  <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{ch.titular || <span style={{ color: 'var(--gray-300)' }}>—</span>}</td>
-                  <td style={{ fontSize: 12 }}>{ch.cliente_razon_social || '—'}</td>
+                  <td><span style={{ fontSize: 'calc(11px * var(--font-scale))', background: ch.tipo === 'echeq' ? 'var(--purple-100)' : 'var(--gray-100)', color: ch.tipo === 'echeq' ? 'var(--purple-700)' : 'var(--gray-600)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</span></td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{ch.banco}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{ch.titular || <span style={{ color: 'var(--gray-300)' }}>—</span>}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{ch.cliente_razon_social || '—'}</td>
                   <td className="td-right td-bold">{$ar(ch.monto)}</td>
-                  <td style={{ fontSize: 12 }}>{fFecha(ch.fecha_emision)}</td>
-                  <td style={{ fontSize: 12, color: isVencido(ch.fecha_vcto) && ch.estado === 'en_cartera' ? 'var(--red-500)' : 'inherit', fontWeight: isVencido(ch.fecha_vcto) && ch.estado === 'en_cartera' ? 700 : 400 }}>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(ch.fecha_emision)}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: isVencido(ch.fecha_vcto) && ch.estado === 'en_cartera' ? 'var(--red-500)' : 'inherit', fontWeight: isVencido(ch.fecha_vcto) && ch.estado === 'en_cartera' ? 700 : 400 }}>
                     {fFecha(ch.fecha_vcto)}
-                    {isVencido(ch.fecha_vcto) && ch.estado === 'en_cartera' && <span style={{ fontSize: 10, marginLeft: 4, color: 'var(--red-500)' }}>VENCIDO</span>}
+                    {isVencido(ch.fecha_vcto) && ch.estado === 'en_cartera' && <span style={{ fontSize: 'calc(10px * var(--font-scale))', marginLeft: 4, color: 'var(--red-500)' }}>VENCIDO</span>}
                   </td>
-                  <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{ch.proveedor_destino || '—'}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{ch.proveedor_destino || '—'}</td>
                   <td><Badge estado={ch.estado} /></td>
                   <td>
                     {/* El botón PDF es el único acceso al PDF de un cheque de tercero con la data de Tango:
@@ -265,7 +265,7 @@ export default function Cheques() {
             <input className="inp" placeholder="Ej: Distribuidora ABC" value={entregar.prov}
               onChange={e => setEntregar(d => ({ ...d, prov: e.target.value }))} />
           </div>
-          <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
+          <p style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 4 }}>
             Si no se completa, quedará registrado como entregado sin destinatario.
           </p>
         </Modal>

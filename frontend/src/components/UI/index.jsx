@@ -1,5 +1,5 @@
 // src/components/UI/index.jsx
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { BADGE_COLORS, ESTADOS, $ar, calcTotales, calcTotalesC2, calcSubtotalItem, parseDecimal, limpiarDecimal } from '../../utils'
 import { useEscape } from '../../hooks/useEscape'
 import { CalendarioBoton } from '../Calendario/Panel'
@@ -24,11 +24,48 @@ export function Badge({ estado }) {
 // barra superior y en las ventanas de detalle).
 export function Modal({ title, size = 'md', onClose, footer, calendario = true, children }) {
   useEscape(onClose)
+  const modalRef = useRef(null)
+  const titleId = useId()
+
+  useLayoutEffect(() => {
+    const modal = modalRef.current
+    const anterior = document.activeElement
+    const focos = () => [...modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter(el => el.getClientRects().length > 0)
+
+    if (!modal.contains(document.activeElement)) {
+      (focos().find(el => el.closest('.modal-body') && el.matches('input, select, textarea')) || modal).focus()
+    }
+
+    const mantenerFoco = (e) => {
+      if (e.key !== 'Tab' || e.defaultPrevented || document.getElementById('root')?.inert || document.querySelector('.pdf-modal')) return
+      // Si se abre otro modal encima, sólo el último administra Tab.
+      const abiertos = document.querySelectorAll('.modal')
+      if (abiertos[abiertos.length - 1] !== modal) return
+      const disponibles = focos()
+      if (!disponibles.length) { e.preventDefault(); modal.focus(); return }
+      const primero = disponibles[0]
+      const ultimo = disponibles[disponibles.length - 1]
+      if (!modal.contains(document.activeElement)) {
+        e.preventDefault(); (e.shiftKey ? ultimo : primero).focus()
+      } else if (e.shiftKey && (document.activeElement === primero || document.activeElement === modal)) {
+        e.preventDefault(); ultimo.focus()
+      } else if (!e.shiftKey && document.activeElement === ultimo) {
+        e.preventDefault(); primero.focus()
+      }
+    }
+    document.addEventListener('keydown', mantenerFoco)
+    return () => {
+      document.removeEventListener('keydown', mantenerFoco)
+      if (anterior?.isConnected) anterior.focus()
+    }
+  }, [])
+
   return (
     <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal modal-${size}`}>
+      <div ref={modalRef} className={`modal modal-${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div className="modal-header">
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <div className="calendario-modal-acciones">
             {calendario && <CalendarioBoton />}
             <button className="btn-close" onClick={onClose}>×</button>
@@ -119,7 +156,7 @@ export function TotalesBoxC2({ items = [], dtoGeneral = 0 }) {
         <span>TOTAL</span>
         <span className="val">{$ar(t.total)}</span>
       </div>
-      <div className="totales-row" style={{ fontSize: 11, color: 'var(--gray-500)' }}>
+      <div className="totales-row" style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-500)' }}>
         <span>Sin impuestos</span>
         <span />
       </div>
@@ -165,7 +202,7 @@ export function PercepcionesTable({ percepciones = [], neto = 0, onChange }) {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '14px 0 8px' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+        <span style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>
           Percepciones sufridas
         </span>
         <button className="btn btn-secondary btn-sm" onClick={add}>+ Agregar percepción</button>
@@ -211,7 +248,7 @@ export function PercepcionesTable({ percepciones = [], neto = 0, onChange }) {
                     value={p.monto ?? 0} onChange={(e) => upd(i, 'monto', e.target.value)} />
                 </td>
                 <td style={{ textAlign: 'center' }}>
-                  <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red-500)', fontSize: 19, lineHeight: 1, padding: 0 }}>×</button>
+                  <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red-500)', fontSize: 'calc(19px * var(--font-scale))', lineHeight: 1, padding: 0 }}>×</button>
                 </td>
               </tr>
             ))}
@@ -504,7 +541,7 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
               <td className="td-right td-bold">{$ar(calcSubtotalItem(it.cantidad, it.precio_unitario, it.descuento_item))}</td>
               {!readonly && (
                 <td style={{ textAlign: 'center' }}>
-                  <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red-500)', fontSize: 19, lineHeight: 1, padding: 0 }}>×</button>
+                  <button onClick={() => remove(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red-500)', fontSize: 'calc(19px * var(--font-scale))', lineHeight: 1, padding: 0 }}>×</button>
                 </td>
               )}
             </tr>

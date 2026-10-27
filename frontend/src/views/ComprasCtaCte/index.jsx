@@ -66,15 +66,15 @@ export default function ComprasCtaCte() {
                   transition: 'background .12s',
                 }}
               >
-                <div style={{ fontWeight: selProv === p.id ? 700 : 500, fontSize: 13, color: 'var(--gray-800)' }}>
+                <div style={{ fontWeight: selProv === p.id ? 700 : 500, fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-800)' }}>
                   {p.razon_social.length > 28 ? p.razon_social.slice(0, 28) + '…' : p.razon_social}
                 </div>
                 {saldo !== null && (
-                  <div style={{ fontSize: 12, fontWeight: 700, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
+                  <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
                     {$ar(saldo)} {saldo > 0 ? '▲ Le debemos' : saldo < 0 ? '▼ A favor' : '✓ Sin saldo'}
                   </div>
                 )}
-                {saldo === null && <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>{p.cuit}</div>}
+                {saldo === null && <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 2 }}>{p.cuit}</div>}
               </div>
             )
           })}
@@ -85,8 +85,8 @@ export default function ComprasCtaCte() {
       <div style={{ overflowY: 'auto' }}>
         {!selProv ? (
           <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📒</div>
-            <p style={{ color: 'var(--gray-400)', fontSize: 14 }}>Seleccione un proveedor para ver su cuenta corriente</p>
+            <div style={{ fontSize: 'calc(40px * var(--font-scale))', marginBottom: 12 }}>📒</div>
+            <p style={{ color: 'var(--gray-400)', fontSize: 'calc(14px * var(--font-scale))' }}>Seleccione un proveedor para ver su cuenta corriente</p>
           </div>
         ) : loading ? (
           <Loading />
@@ -95,18 +95,18 @@ export default function ComprasCtaCte() {
             <div className="card" style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--gray-800)' }}>{data.proveedor.razon_social}</h2>
-                  <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
+                  <h2 style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-800)' }}>{data.proveedor.razon_social}</h2>
+                  <div style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>
                     CUIT: {data.proveedor.cuit} &nbsp;·&nbsp; {data.proveedor.condicion_iva}
                     {data.proveedor.email && ` · ${data.proveedor.email}`}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
+                  <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}</div>
+                  <div style={{ fontSize: 'calc(28px * var(--font-scale))', fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(data.saldo_total)}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
+                  <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 4 }}>
                     {data.saldo_total > 0 ? '⬆ Le debemos' : data.saldo_total < 0 ? '⬇ Saldo a favor' : '✓ Cuenta balanceada'}
                   </div>
                   <button
@@ -120,7 +120,7 @@ export default function ComprasCtaCte() {
               </div>
 
               <div style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--gray-100)', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 600 }}>Filtrar por período:</span>
+                <span style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', fontWeight: 600 }}>Filtrar por período:</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={desde} onChange={e => setDesde(e.target.value)} />
                 <span style={{ color: 'var(--gray-400)' }}>al</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={hasta} onChange={e => setHasta(e.target.value)} />
@@ -146,7 +146,7 @@ export default function ComprasCtaCte() {
                       <tr key={i}>
                         <td>{fFecha(m.fecha)}</td>
                         <td><span className="code">{m.comprobante}</span></td>
-                        <td><span style={{ background: ts.bg, color: ts.color, padding: '2px 9px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{ts.label}</span></td>
+                        <td><span style={{ background: ts.bg, color: ts.color, padding: '2px 9px', borderRadius: 10, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>{ts.label}</span></td>
                         <td className="td-right" style={{ color: parseFloat(m.debe) > 0 ? 'var(--red-500)' : 'var(--gray-300)', fontWeight: parseFloat(m.debe) > 0 ? 600 : 400 }}>
                           {parseFloat(m.debe) > 0 ? $ar(m.debe) : '—'}
                         </td>

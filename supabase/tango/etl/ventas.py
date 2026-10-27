@@ -300,12 +300,26 @@ def remitos(sta14, sta20, gva54, clientes, ids_fac, descripciones):
         out.append((int(r["ID_STA14"]), numero, "%05d" % pv, num, fecha(r["FECHA_MOV"], "REM " + r["N_COMP"]),
                     clientes[r["COD_PRO_CL"]], fid, estado))
     ids = {n: int(r["ID_STA14"]) for n, r in rems.items()}
+    sta20_by_key = {}
     for r in sorted(sta20, key=lambda r: int(r["ID_STA20"])):
         if r["TCOMP_IN_S"] == "RE" and r["NCOMP_IN_S"] in ids:
             cod = r["COD_ARTICU"].strip()
-            its.append((int(r["ID_STA20"]), ids[r["NCOMP_IN_S"]], comun_recortar(descripciones.get(cod) or cod, 300),
+            rid = int(r["ID_STA20"])
+            its.append((rid, ids[r["NCOMP_IN_S"]], comun_recortar(descripciones.get(cod) or cod, 300),
                         q3(dec(r["CANTIDAD"])), int(r["N_RENGL_S"])))
-    return out, its
+            sta20_by_key[(r["NCOMP_IN_S"], r["N_RENGL_S"])] = rid
+
+    # Asignaciones N a N de GVA54 para remito_item_facturas
+    asig = []
+    for r in gva54:
+        if r["TCOMP_IN_S"] == "RE" and r["T_COMP_V"] == "FAC":
+            fid = ids_fac.get(r["N_COMP"])
+            rid = sta20_by_key.get((r["NCOMP_IN_S"], r["N_RENGL_S"]))
+            cant = q3(dec(r["CANTIDAD"]))
+            if fid and rid and cant > 0:
+                asig.append((rid, fid, cant, "tango"))
+
+    return out, its, asig
 
 
 def generar():
@@ -332,7 +346,7 @@ def generar():
     ids_rec_vigentes = {r["N_COMP"]: int(r["ID_GVA12"]) for r in gva12 if r["T_COMP"] == "REC" and r["ESTADO"] != "ANU"}
     rmed = recibo_medios(comun.leer("SBA05"), comun.leer("SBA14"), ids_rec_vigentes, cuentas, bancos, ids_cli)
     chq = cheques(comun.leer("SBA14"), bancos, ids_cli, ids_prov)
-    rem, rem_its = remitos(comun.leer("STA14"), comun.leer("STA20"), comun.leer("GVA54"), clientes, ids_fac, desc)
+    rem, rem_its, rem_asig = remitos(comun.leer("STA14"), comun.leer("STA20"), comun.leer("GVA54"), clientes, ids_fac, desc)
 
     C = comun.escribir_copy
     partes = ["-- Ventas de Tango (etl/ventas.py)\n",
@@ -343,6 +357,7 @@ def generar():
                             "subtotal", "orden", "alicuota_iva_id"], fac_its),
         C("remitos", ["id", "numero", "punto_venta", "numero_comp", "fecha", "cliente_id", "factura_id", "estado"], rem),
         C("remito_items", ["id", "remito_id", "descripcion", "cantidad", "orden"], rem_its),
+        C("remito_item_facturas", ["remito_item_id", "factura_id", "cantidad", "origen"], rem_asig),
         C("notas", ["id", "numero", "punto_venta", "numero_comp", "tipo", "tipo_letra", "fecha", "factura_id",
                     "cliente_id", "subtotal", "descuento_monto", "neto_gravado", "iva_monto", "total"], nts),
         C("nota_items", ["nota_id", "id", "descripcion", "cantidad", "precio_unitario", "descuento_item", "subtotal",
@@ -354,12 +369,12 @@ def generar():
         C("cheques", ["id", "numero", "banco", "titular", "cuit_titular", "fecha_emision", "fecha_vcto", "monto",
                       "cliente_id", "proveedor_id", "estado"], chq),
         vincular_productos(desc, ("factura_items", "remito_items", "nota_items")),
-    ] + [comun.reset_secuencia(t) for t in ("facturas", "factura_items", "remitos", "remito_items", "notas", "nota_items",
-                                           "recibos", "recibo_facturas", "recibo_medios", "cheques")]
+    ] + [comun.reset_secuencia(t) for t in ("facturas", "factura_items", "remitos", "remito_items", "remito_item_facturas",
+                                           "notas", "nota_items", "recibos", "recibo_facturas", "recibo_medios", "cheques")]
     comun.escribir_sql("20_ventas.sql", partes)
     return {"facturas": len(fac), "factura_items": len(fac_its), "notas": len(nts), "nota_items": len(nts_its),
             "recibos": len(recs), "recibo_facturas": len(rfac), "recibo_medios": len(rmed), "cheques": len(chq),
-            "remitos": len(rem), "remito_items": len(rem_its)}
+            "remitos": len(rem), "remito_items": len(rem_its), "remito_item_facturas": len(rem_asig)}
 
 
 if __name__ == "__main__":

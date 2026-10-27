@@ -28,8 +28,8 @@ const MEDIO_LABEL = {
 function Field({ label, children }) {
   return (
     <div style={{ minWidth: 110 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
-      <div style={{ fontSize: 13, color: 'var(--gray-800)', marginTop: 2 }}>{children ?? '—'}</div>
+      <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
+      <div style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-800)', marginTop: 2 }}>{children ?? '—'}</div>
     </div>
   )
 }
@@ -124,8 +124,8 @@ export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = n
         {/* Cabecera común: cliente */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 12, marginBottom: 14, borderBottom: '1px solid var(--gray-100)' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-800)' }}>{doc.razon_social}</div>
-            {doc.doc_nro && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>{fDoc(doc.doc_tipo, doc.doc_nro)}</div>}
+            <div style={{ fontSize: 'calc(15px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-800)' }}>{doc.razon_social}</div>
+            {doc.doc_nro && <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 2 }}>{fDoc(doc.doc_tipo, doc.doc_nro)}</div>}
           </div>
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <Field label="Fecha">{fFecha(doc.fecha)}</Field>
@@ -208,16 +208,16 @@ export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = n
               <Field label="Total del recibo"><b>{$ar(doc.total)}</b></Field>
             </div>
 
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Facturas imputadas</div>
+            <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Facturas imputadas</div>
             {(doc.facturas || []).length === 0
-              ? <div style={{ fontSize: 12, color: 'var(--gray-400)', marginBottom: 12 }}>Sin imputación (cobro a cuenta)</div>
+              ? <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginBottom: 12 }}>Sin imputación (cobro a cuenta)</div>
               : (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                   {doc.facturas.map((f, i) => <span key={i} className="code">{f.numero || f.factura_numero || f.factura_id}{f.importe != null ? ` · ${$ar(f.importe)}` : ''}</span>)}
                 </div>
               )}
 
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Medios de cobro</div>
+            <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Medios de cobro</div>
             <div className="tbl-wrap" style={{ boxShadow: 'none', border: '1px solid var(--gray-200)' }}>
               <table>
                 <thead><tr><th>Medio</th><th>Detalle</th><th className="th-right">Monto</th></tr></thead>
@@ -225,7 +225,7 @@ export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = n
                   {(doc.medios || []).map((m, i) => (
                     <tr key={m.id ?? i}>
                       <td>{MEDIO_LABEL[m.tipo] || m.tipo}</td>
-                      <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+                      <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>
                         {m.detalle || [m.banco, m.numero_cheque].filter(Boolean).join(' · ') || '—'}
                       </td>
                       <td className="td-right td-bold">{$ar(m.monto)}</td>
@@ -235,7 +235,7 @@ export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = n
               </table>
             </div>
             {(doc.retenciones || []).length > 0 && <>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', margin: '14px 0 6px' }}>Retenciones sufridas</div>
+              <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-600)', margin: '14px 0 6px' }}>Retenciones sufridas</div>
               <div className="tbl-wrap" style={{ boxShadow: 'none', border: '1px solid var(--gray-200)' }}>
                 <table>
                   <thead><tr><th>Impuesto</th><th>Certificado</th><th>Fecha</th><th className="th-right">Monto</th></tr></thead>
@@ -252,7 +252,7 @@ export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = n
         )}
 
         {doc.observaciones && (
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--gray-100)', fontSize: 12, color: 'var(--gray-500)' }}>
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--gray-100)', fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>
             <b style={{ color: 'var(--gray-600)' }}>Observaciones:</b> {doc.observaciones}
           </div>
         )}

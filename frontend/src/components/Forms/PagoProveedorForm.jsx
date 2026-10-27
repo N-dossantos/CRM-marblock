@@ -213,7 +213,7 @@ export default function PagoProveedorForm({ proveedores = [], initial = {}, onSa
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderTop: '2px solid var(--gray-200)', marginTop: 4 }}>
         <span style={{ fontWeight: 700 }}>Total del pago:</span>
-        <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--blue-600)' }}>{$ar(totalMedios)}</span>
+        <span style={{ fontSize: 'calc(20px * var(--font-scale))', fontWeight: 800, color: 'var(--blue-600)' }}>{$ar(totalMedios)}</span>
       </div>
 
       {/* Retenciones */}

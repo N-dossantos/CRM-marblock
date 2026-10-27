@@ -1,98 +1,116 @@
-# CRM Marblock — Módulo de Ventas
+# CRM Marblock
 
-Sistema moderno de gestión comercial y control de ventas para pequeñas y medianas empresas.
+Sistema de gestión de Marblock: ventas, compras, tesorería, contabilidad y facturación electrónica
+contra ARCA. Desde el 20/10/2026 es el sistema de registro de la empresa: reemplazó a Tango Gestión,
+cuyos datos históricos se migraron desde un backup (`supabase/tango/`).
 
 ## 🚀 Tecnologías (Stack)
 
-- **Frontend:** React + Vite
-- **Backend / Database:** Supabase (PostgreSQL + Auth + RLS + Edge Functions)
-- **Generación de PDFs:** Supabase Edge Functions (`pdfkit`)
-- **Estilos & UI:** Vanilla CSS con diseño adaptativo, interfaz limpia y componentes reactivos.
+- **Frontend:** React 18 + Vite, desplegado en Vercel.
+- **Backend / Base de datos:** Supabase (PostgreSQL + Auth + RLS + Edge Functions). No hay servidor
+  propio: el frontend habla directo con Supabase.
+- **PDF:** Edge Function `pdf` (`pdfkit`), con comprobantes, PDF fiscal con CAE y QR, remito sobre
+  talonario preimpreso y reportes.
+- **Facturación electrónica:** Edge Function `arca`, contra los web services WSAA + WSFEv1 de ARCA.
+- **Estilos:** CSS propio, con tema claro/oscuro, tamaño de letra configurable y diseño adaptable a
+  celulares.
 
 ---
 
-## ⚡ Características y Funcionalidades
+## ⚡ Módulos
 
-| Módulo | Funcionalidades Principales |
-|--------|-----------------------------|
-| **Dashboard** | Visión general con KPIs principales, últimas facturas, ranking de deudores y accesos rápidos. |
-| **Clientes** | Gestión de clientes (ABM), asignación de descuentos predefinidos y control de saldo acumulado. |
-| **Productos** | Catálogo de productos (ABM) con función de actualización masiva de precios por porcentaje. |
-| **Presupuestos** | Emisión de presupuestos con validez configurable (7 días), alertas de vencimiento y conversión a remito o factura. |
-| **Remitos** | Creación de remitos independientes o vinculados a presupuestos, con opción de conversión a factura. |
-| **Facturas (A/B)** | Numeración y puntos de venta automáticos, aplicación de IVA 21% y vinculación directa con remitos y presupuestos. |
-| **Notas de Crédito y Débito** | Emisión de notas vinculadas a facturas con recalculo automático de estado y saldos. |
-| **Recibos y Cobranzas** | Gestión de cobros multi-medio (Efectivo, Transferencia, Cheque físico, E-Cheq) e imputación a facturas. |
-| **Cuenta Corriente** | Historial detallado de movimientos por cliente, saldo acumulado y filtros por fechas. |
-| **Cartera de Cheques** | Control de cheques físicos y e-cheqs, estados (en cartera, depositado, entregado) y vencimientos. |
-| **Informes y Reportes** | Reportes de ventas por período, ranking de clientes, ranking de deudores y pendientes de cobro/facturación. |
-| **Documentos PDF** | Generación y descarga en tiempo real de comprobantes y reportes en formato PDF. |
+| Módulo | Qué incluye |
+|--------|-------------|
+| **Dashboard** | KPIs, últimas facturas, ranking de deudores y el Calendario (eventos por fecha, con título y descripción). |
+| **Ventas** | Clientes y productos (catálogo por pallets), presupuestos (a nombre de cualquier destinatario), remitos (sobre talonario preimpreso, contra las facturas pendientes de remitir), facturas A/B con IVA multi-alícuota y percepciones, notas de crédito y débito, recibos multi-medio (efectivo, transferencia, cheque, e-cheq) con retenciones sufridas, cuenta corriente y cartera de cheques. |
+| **Facturación electrónica (ARCA)** | Facturas y notas A/B emitidas con CAE desde el sistema (PV `00003`), bandeja fiscal, recuperación ante errores o respuestas inciertas, y PDF fiscal. |
+| **Compras** | Proveedores, materiales, facturas, remitos y notas de compra (con percepciones), pagos a proveedores y cuenta corriente. |
+| **Tesorería** | Cuentas y cajas, movimientos y transferencias, cheques propios, depósitos y rechazos de cheques de terceros, y conciliación bancaria. |
+| **Contabilidad** | Plan de cuentas, asientos manuales, libro diario, mayor, sumas y saldos. |
+| **Consultas 360°** | Vista completa por cliente, proveedor o cuenta. |
+| **Cuenta 2** | Circuito paralelo de ventas y compras, con su propia cartera de cheques y transferencia de cheques a Cuenta 1. |
+| **Informes** | Ventas, rankings, pendientes de cobro, de facturar y de remitir, libros de IVA, subdiario, retenciones, informes de tesorería; exportación a Excel y PDF. |
 
 ---
 
-## 🔒 Arquitectura y Seguridad
+## 🔒 Arquitectura y seguridad
 
-- **Supabase Direct Client:** El frontend interactúa directamente con Supabase mediante `@supabase/supabase-js`, utilizando PostgREST para consultas simples y RPCs (funciones almacenadas) para operaciones atómicas.
-- **Row Level Security (RLS):** La seguridad está garantizada a nivel de base de datos. Solo los usuarios autenticados del equipo (*staff*) tienen acceso a la lectura y creación de datos.
-- **Transacciones Atómicas (RPCs):** El cálculo de totales, numeración atómica e impuestos se efectúan en el servidor PostgreSQL para evitar manipulación del lado del cliente.
+- **Cliente directo a Supabase:** el frontend usa `@supabase/supabase-js`; las consultas simples van
+  por PostgREST y las operaciones de comprobantes por RPC (funciones de PostgreSQL).
+- **Row Level Security (RLS):** la seguridad está en la base. Sólo los usuarios autenticados del
+  equipo (*staff*) leen y escriben; el alta pública de usuarios está desactivada.
+- **Operaciones atómicas:** numeración, ítems, totales, impuestos y estados se calculan en
+  PostgreSQL, dentro de una sola transacción. El navegador nunca fija un total.
 
 ---
 
-## 🛠️ Instalación y Desarrollo Local
+## 🛠️ Instalación y desarrollo local
 
-### Pre-requisitos
-- Node.js (versión 18 o superior)
-- Un proyecto en [Supabase](https://supabase.com) con el esquema y funciones aplicados.
+### Requisitos
+- Node.js 18 o superior.
+- Acceso a los proyectos de Supabase: **producción** y **homologación** (pruebas).
 
-### Pasos para iniciar el frontend:
+### Pasos
 
-1. **Clonar e instalar dependencias:**
+1. **Instalar dependencias:**
    ```bash
    cd frontend
    npm install
    ```
 
-2. **Configurar variables de entorno:**
-   Copia el archivo `.env.example` a `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-   Configura tus credenciales de Supabase en `.env`:
+2. **Variables de entorno.** No hay `.env.example`: crear los archivos a mano (están ignorados por
+   git).
+   - `frontend/.env` → producción. Lo usa `npm run build`.
+   - `frontend/.env.development.local` → homologación. Pisa a `.env` en `npm run dev`.
+
+   Los dos llevan las mismas dos variables:
    ```env
-   VITE_SUPABASE_URL=https://<TU-PROYECTO>.supabase.co
-   VITE_SUPABASE_ANON_KEY=<TU_CLAVE_ANON_PUBLICA>
+   VITE_SUPABASE_URL=https://<PROYECTO>.supabase.co
+   VITE_SUPABASE_ANON_KEY=<CLAVE_ANON_PUBLICA>
    ```
 
-3. **Ejecutar el servidor de desarrollo:**
+3. **Servidor de desarrollo** (contra homologación):
    ```bash
-   npm run dev
+   npm run dev                       # http://localhost:5173
+   npm run dev -- --mode production  # sólo si hace falta abrirlo contra producción
    ```
-   Abre [http://localhost:5173](http://localhost:5173) en tu navegador.
 
-4. **Compilar para producción:**
+4. **Tests:**
    ```bash
-   npm run build
+   cd frontend && node --test src/utils/*.test.*                  # funciones puras del frontend
+   cd supabase/tango && python3 -m unittest discover -s etl -t .  # ETL de Tango
    ```
-   Los archivos estáticos generados en `dist/` se pueden desplegar en cualquier plataforma de hosting (Vercel, Netlify, Cloudflare Pages, etc.).
+
+5. **Publicar:** se publica con **push a `main`**; Vercel compila desde git (Root Directory
+   `frontend`, salida `dist`). No se publica con la CLI de Vercel.
 
 ---
 
-## 📁 Estructura del Proyecto
+## 📁 Estructura del proyecto
 
 ```
-crm-ventas/
-├── frontend/                   # Aplicación Frontend React
+crm-tango/
+├── frontend/                   # Aplicación React (Vite)
 │   ├── src/
-│   │   ├── api/                # Conexiones PostgREST y RPCs con Supabase
-│   │   ├── lib/                # Configuración de Supabase y Auth Context
-│   │   ├── components/         # Componentes UI, tablas, modales y formularios
-│   │   ├── views/              # Vistas principales (Dashboard, Ventas, Clientes, etc.)
-│   │   └── utils/              # Helpers y utilidades de formateo
+│   │   ├── api/                # Capa de datos: base.js, index.js, cuenta2.js (PostgREST + RPC)
+│   │   ├── lib/                # Cliente de Supabase y contextos (auth, tema, calendario)
+│   │   ├── components/         # UI compartida, formularios, PDF, ARCA, Calendario, Consultas
+│   │   ├── hooks/              # Hooks compartidos
+│   │   ├── views/              # Una carpeta por pantalla
+│   │   └── utils/              # Formato, fechas, cálculos (+ tests con node --test)
 │   ├── index.html
+│   ├── vercel.json             # Fallback de la SPA
 │   └── vite.config.js
-└── supabase/                   # Migraciones y Edge Functions
-    ├── migrations/             # Scripts SQL de esquema, RLS y RPCs
-    └── functions/              # Edge Function para la generación de PDFs
+└── supabase/
+    ├── migrations/             # Esquema, RLS y RPCs (en orden de aplicación)
+    ├── functions/
+    │   ├── pdf/                # Edge Function de PDFs
+    │   └── arca/               # Edge Function de facturación electrónica
+    ├── tango/                  # Migración desde Tango: lector del .bak, export, ETL y carga
+    ├── carga_cuenta2/          # Carga de las planillas de Cuenta 2
+    ├── arca/ · remitos/ · calendario/ · presupuestos/   # Verificaciones SQL (psql, con ROLLBACK)
+    ├── POST_LOAD_VERIFY*.sql   # Controles posteriores a una carga de datos
+    └── seed.sql                # Configuración inicial, sólo para bases nuevas o de desarrollo
 ```
 
 ---

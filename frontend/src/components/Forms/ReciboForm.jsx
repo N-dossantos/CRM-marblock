@@ -201,7 +201,7 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
             style={{ fontFamily: 'monospace' }}
           />
           {numeroManual && sugerido && (
-            <div style={{ fontSize: 11, color: 'var(--orange-500)', marginTop: 4 }}>
+            <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--orange-500)', marginTop: 4 }}>
               Distinto del sugerido ({sugerido}): se usa el que cargaste.
             </div>
           )}
@@ -220,7 +220,7 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flex: 1, minWidth: 190 }}>
                     <input type="checkbox" checked={!!imp} onChange={() => toggleFac(f)} />
                     <span className="code">{f.numero}</span>
-                    <span style={{ color: 'var(--gray-500)', fontSize: 12 }}>Saldo {$ar(f.saldo)}</span>
+                    <span style={{ color: 'var(--gray-500)', fontSize: 'calc(12px * var(--font-scale))' }}>Saldo {$ar(f.saldo)}</span>
                   </label>
                   {imp && <div className="field" style={{ width: 150 }}>
                     <label className="lbl" htmlFor={`importe-factura-${f.id}`}>Aplicar $</label>
@@ -291,7 +291,7 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
         <span>Dinero y cheques recibidos</span><b>{$ar(totalMedios)}</b>
         <span>Retenciones sufridas</span><b>{$ar(totalRetenciones)}</b>
         <span style={{ fontWeight: 700 }}>Total del recibo</span>
-        <strong style={{ fontSize: 20, color: 'var(--blue-600)' }}>{$ar(totalRecibo)}</strong>
+        <strong style={{ fontSize: 'calc(20px * var(--font-scale))', color: 'var(--blue-600)' }}>{$ar(totalRecibo)}</strong>
         {form.imputaciones.length > 0 && <><span>Aplicado a facturas</span><b>{$ar(totalImputado)}</b></>}
         {totalRecibo > totalImputado && <><span>Queda a cuenta del cliente</span><b>{$ar(totalRecibo - totalImputado)}</b></>}
         {totalImputado > totalRecibo && <><span style={{ color: 'var(--red-600)' }}>Falta cubrir para aplicar a facturas</span><b style={{ color: 'var(--red-600)' }}>{$ar(totalImputado - totalRecibo)}</b></>}
@@ -328,7 +328,7 @@ function MedioCard({ medio, index, cuentas, onChange, onCuenta, onRemove }) {
               <option value="">{cuentasDisponibles.length ? '— Seleccionar —' : medio.tipo === 'efectivo' ? 'No hay cajas activas' : 'No hay cuentas bancarias activas'}</option>
               {cuentasDisponibles.map(c => <option key={c.id} value={c.id}>{c.descripcion}</option>)}
             </select>
-            <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 3 }}>
+            <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 3 }}>
               {medio.tipo === 'efectivo' ? 'Solo aparecen cajas.' : 'Solo aparecen cuentas bancarias, como Provincia o Galicia.'}
             </div>
           </div>

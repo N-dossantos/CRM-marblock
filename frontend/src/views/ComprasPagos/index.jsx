@@ -50,11 +50,11 @@ export default function ComprasPagos() {
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--orange-500)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Total pagado (filtro actual)</div>
-            <div className="kpi-value" style={{ color: 'var(--orange-500)', fontSize: 20 }}>{$ar(totalImporte)}</div>
+            <div className="kpi-value" style={{ color: 'var(--orange-500)', fontSize: 'calc(20px * var(--font-scale))' }}>{$ar(totalImporte)}</div>
           </div>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--blue-600)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Cantidad de pagos</div>
-            <div className="kpi-value" style={{ color: 'var(--blue-600)', fontSize: 20 }}>{total.toLocaleString('es-AR')}</div>
+            <div className="kpi-value" style={{ color: 'var(--blue-600)', fontSize: 'calc(20px * var(--font-scale))' }}>{total.toLocaleString('es-AR')}</div>
           </div>
         </div>
       )}
@@ -77,7 +77,7 @@ export default function ComprasPagos() {
                     <td><span className="code" style={{ fontWeight: 700 }}>{r.numero}</span></td>
                     <td>{fFecha(r.fecha)}</td>
                     <td className="td-bold">{r.razon_social}</td>
-                    <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>
                       {r.facturas?.length > 0
                         ? r.facturas.map(f => <span key={f.factura_compra_id} className="code" style={{ marginRight: 4 }}>{f.numero}</span>)
                         : <span style={{ color: 'var(--amber-600)' }}>Pago a cuenta</span>
@@ -86,13 +86,13 @@ export default function ComprasPagos() {
                     <td>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {r.medios?.map((m, i) => (
-                          <span key={i} style={{ background: `${TIPO_COLOR[m.tipo]}18`, color: TIPO_COLOR[m.tipo], padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+                          <span key={i} style={{ background: `${TIPO_COLOR[m.tipo]}18`, color: TIPO_COLOR[m.tipo], padding: '2px 8px', borderRadius: 10, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>
                             {TIPO_LABEL[m.tipo] || m.tipo} {$ar(m.monto)}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="td-right" style={{ color: 'var(--orange-500)', fontWeight: 700, fontSize: 14 }}>{$ar(r.total)}</td>
+                    <td className="td-right" style={{ color: 'var(--orange-500)', fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))' }}>{$ar(r.total)}</td>
                     <td><button className="btn btn-ghost btn-xs" onClick={() => openDetalle(r.id)}>Ver</button></td>
                   </tr>
                 ))
@@ -120,7 +120,7 @@ export default function ComprasPagos() {
             <div><span className="lbl">Fecha</span><p>{fFecha(detalle.fecha)}</p></div>
             <div><span className="lbl">Proveedor</span><p className="td-bold">{detalle.razon_social}</p></div>
             <div><span className="lbl">CUIT</span><p className="td-mono">{detalle.cuit}</p></div>
-            <div><span className="lbl">Observaciones</span><p style={{ color: 'var(--gray-500)', fontSize: 12 }}>{detalle.observaciones || '—'}</p></div>
+            <div><span className="lbl">Observaciones</span><p style={{ color: 'var(--gray-500)', fontSize: 'calc(12px * var(--font-scale))' }}>{detalle.observaciones || '—'}</p></div>
           </div>
 
           {detalle.facturas?.length > 0 && (
@@ -141,9 +141,9 @@ export default function ComprasPagos() {
             <div key={i} className="medio-card" style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 700, color: TIPO_COLOR[m.tipo] }}>{TIPO_LABEL[m.tipo] || m.tipo}</span>
-                <span style={{ fontSize: 16, fontWeight: 800 }}>{$ar(m.monto)}</span>
+                <span style={{ fontSize: 'calc(16px * var(--font-scale))', fontWeight: 800 }}>{$ar(m.monto)}</span>
               </div>
-              {m.detalle && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>{m.detalle}</div>}
+              {m.detalle && <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>{m.detalle}</div>}
             </div>
           ))}
 
@@ -151,7 +151,7 @@ export default function ComprasPagos() {
             <>
               <div className="lbl" style={{ margin: '14px 0 8px' }}>Retenciones</div>
               {detalle.retenciones.map((r, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 14px', border: '1px solid var(--gray-100)', borderRadius: 6, marginBottom: 6, fontSize: 13 }}>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 14px', border: '1px solid var(--gray-100)', borderRadius: 6, marginBottom: 6, fontSize: 'calc(13px * var(--font-scale))' }}>
                   <span>{r.tipo_retencion}{r.jurisdiccion ? ` — ${r.jurisdiccion}` : ''} ({r.alicuota}%)</span>
                   <span style={{ fontWeight: 700 }}>{$ar(r.monto)}</span>
                 </div>
@@ -160,8 +160,8 @@ export default function ComprasPagos() {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', borderTop: '2px solid var(--gray-200)', marginTop: 8 }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>Total pagado:</span>
-            <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--orange-500)' }}>{$ar(detalle.total)}</span>
+            <span style={{ fontWeight: 700, fontSize: 'calc(15px * var(--font-scale))' }}>Total pagado:</span>
+            <span style={{ fontSize: 'calc(20px * var(--font-scale))', fontWeight: 800, color: 'var(--orange-500)' }}>{$ar(detalle.total)}</span>
           </div>
         </Modal>
       )}

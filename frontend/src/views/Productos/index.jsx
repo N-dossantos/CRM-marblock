@@ -97,7 +97,7 @@ export default function Productos() {
           <div className="field"><label className="lbl">Descripción *</label><input className="inp" value={modal.form.descripcion} onChange={e => upd('descripcion', e.target.value)} /></div>
           <div className="field"><label className="lbl">Precio sin IVA ($)</label><input type="number" className="inp inp-right" value={modal.form.precio_sin_iva} min="0" onChange={e => upd('precio_sin_iva', e.target.value)} /></div>
           <div className="field"><label className="lbl">Unidades por pallet</label><input type="number" className="inp inp-right" value={modal.form.unidades_por_pallet} min="1" step="1" onChange={e => upd('unidades_por_pallet', e.target.value)} /></div>
-          <div style={{ background: 'var(--blue-50)', borderRadius: 6, padding: '8px 12px', fontSize: 13, color: 'var(--blue-700)' }}>
+          <div style={{ background: 'var(--blue-50)', borderRadius: 6, padding: '8px 12px', fontSize: 'calc(13px * var(--font-scale))', color: 'var(--blue-700)' }}>
             Precio con IVA 21%: <strong>{$ar((+modal.form.precio_sin_iva || 0) * 1.21)}</strong>
           </div>
           {!modal.isNew && (
@@ -121,7 +121,7 @@ export default function Productos() {
             <label className="lbl">Porcentaje de aumento (%)</label>
             <input type="number" className="inp inp-right" value={aumento.pct} min="0.1" step="0.1" onChange={e => setAumento(a => ({ ...a, pct: e.target.value }))} />
           </div>
-          <div style={{ background: 'var(--gray-50)', borderRadius: 6, padding: '10px 14px', fontSize: 13, color: 'var(--gray-600)', marginTop: 8 }}>
+          <div style={{ background: 'var(--gray-50)', borderRadius: 6, padding: '10px 14px', fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-600)', marginTop: 8 }}>
             Ejemplo: precio actual <strong>$ 10.000</strong> → nuevo precio <strong>{$ar(10000 * (1 + (+aumento.pct || 0) / 100))}</strong>
           </div>
         </Modal>

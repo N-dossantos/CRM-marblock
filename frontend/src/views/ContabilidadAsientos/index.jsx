@@ -70,7 +70,7 @@ export default function ContabilidadAsientos() {
         ].map(k => (
           <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
             <div className="kpi-label">{k.label}</div>
-            <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+            <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
           </div>
         ))}
       </div>
@@ -94,7 +94,7 @@ export default function ContabilidadAsientos() {
                     <td><span className="code" style={{ fontWeight: 700 }}>{a.numero}</span></td>
                     <td>{fFecha(a.fecha)}</td>
                     <td className="td-bold">{a.descripcion}</td>
-                    <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{a.origen}</td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{a.origen}</td>
                     <td className="td-right">{$ar(a.total_debe || 0)}</td>
                     <td className="td-right">{$ar(a.total_haber || 0)}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
@@ -122,7 +122,7 @@ export default function ContabilidadAsientos() {
                               <tr key={i}>
                                 <td><span className="code">{l.codigo}</span></td>
                                 <td>{l.cuenta}</td>
-                                <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{l.detalle || '—'}</td>
+                                <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{l.detalle || '—'}</td>
                                 <td className="td-right">{Number(l.debe)  > 0 ? $ar(l.debe)  : ''}</td>
                                 <td className="td-right">{Number(l.haber) > 0 ? $ar(l.haber) : ''}</td>
                               </tr>

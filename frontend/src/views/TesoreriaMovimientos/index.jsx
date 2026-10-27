@@ -80,7 +80,7 @@ export default function TesoreriaMovimientos() {
         ].map(k => (
           <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
             <div className="kpi-label">{k.label}</div>
-            <div className="kpi-value" style={{ color: k.color, fontSize: 18, margin: '5px 0 0' }}>{k.val}</div>
+            <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(18px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
           </div>
         ))}
       </div>
@@ -119,12 +119,12 @@ export default function TesoreriaMovimientos() {
             <tbody>
               {rows.length === 0 ? <EmptyState icon="📒" message="Sin movimientos" /> : rows.map(m => (
                 <tr key={m.id} style={{ opacity: m.anulado ? 0.5 : 1 }}>
-                  <td style={{ fontSize: 12 }}>{fFecha(m.fecha)}</td>
-                  <td style={{ fontSize: 12 }}>{m.tipo_descripcion}</td>
-                  <td style={{ fontSize: 12 }}>{m.cuenta_descripcion}</td>
-                  <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(m.fecha)}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.tipo_descripcion}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.cuenta_descripcion}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-600)' }}>
                     {m.concepto || '—'}
-                    {m.origen !== 'manual' && <span style={{ fontSize: 10, marginLeft: 6, background: 'var(--gray-100)', color: 'var(--gray-500)', padding: '1px 6px', borderRadius: 8 }}>{m.origen}</span>}
+                    {m.origen !== 'manual' && <span style={{ fontSize: 'calc(10px * var(--font-scale))', marginLeft: 6, background: 'var(--gray-100)', color: 'var(--gray-500)', padding: '1px 6px', borderRadius: 8 }}>{m.origen}</span>}
                   </td>
                   <td className="td-right td-bold" style={{ color: 'var(--green-700)' }}>{m.signo === 1 ? $ar(m.monto) : ''}</td>
                   <td className="td-right td-bold" style={{ color: 'var(--red-500)' }}>{m.signo === -1 ? $ar(m.monto) : ''}</td>

@@ -37,11 +37,11 @@ export default function ChequeC2Fields({
     <div className="medio-card">
       {puedeEndosar && (
         <div style={{ display: 'flex', gap: 18, marginBottom: 12 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'calc(13px * var(--font-scale))', cursor: 'pointer' }}>
             <input type="radio" checked={origen === 'cartera'} onChange={() => onOrigen('cartera')} />
             Endosar de cartera C2
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'calc(13px * var(--font-scale))', cursor: 'pointer' }}>
             <input type="radio" checked={origen === 'nuevo'} onChange={() => onOrigen('nuevo')} />
             Cargar cheque nuevo
           </label>
@@ -60,7 +60,7 @@ export default function ChequeC2Fields({
             ))}
           </select>
           {cartera.length === 0 && (
-            <span style={{ fontSize: 11, color: 'var(--gray-500)' }}>No hay cheques en la cartera Cuenta 2.</span>
+            <span style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-500)' }}>No hay cheques en la cartera Cuenta 2.</span>
           )}
         </div>
       ) : (

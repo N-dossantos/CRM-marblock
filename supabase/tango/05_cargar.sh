@@ -58,7 +58,7 @@ TABLAS="
   percepciones, percepciones_compra, plan_de_cuentas, presupuesto_items, presupuestos,
   proveedor_alicuotas, proveedores,
   recibo_facturas, recibo_medios, recibos,
-  remito_compra_items, remito_items, remitos, remitos_compra, retenciones"
+  remito_compra_items, remito_item_facturas, remito_items, remitos, remitos_compra, retenciones"
 
 # Cuenta 2 tiene dos FKs hacia tablas que se truncan: cuenta2_cheques.cheque_id → cheques y
 # cuenta2_remito_items.material_id → materiales. Con ellas puestas, TRUNCATE … CASCADE vacía
@@ -193,6 +193,7 @@ echo "== Cargando =="
     echo "\\echo '   -> $f'"
     echo "\\i $f"
   done
+  echo "UPDATE facturas f SET remito_id = x.remito_id FROM (SELECT a.factura_id, (SELECT r.id FROM remito_item_facturas a2 JOIN remito_items ri ON ri.id = a2.remito_item_id JOIN remitos r ON r.id = ri.remito_id WHERE a2.factura_id = a.factura_id ORDER BY r.numero, r.id LIMIT 1) AS remito_id FROM remito_item_facturas a GROUP BY a.factura_id) x WHERE f.id = x.factura_id AND f.remito_id IS DISTINCT FROM x.remito_id;"
   echo "$CONTADORES"
   echo "$RESTAURAR_FKS_CUENTA2"
   echo "SET session_replication_role = origin;"

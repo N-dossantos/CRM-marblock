@@ -585,7 +585,7 @@ export default function ComprobanteForm({
 
       {/* Items */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>Ítems</span>
+        <span style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>Ítems</span>
         <div style={{ display: 'flex', gap: 6 }}>
           <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
           <ElegirProductosBtn productos={productos} onConfirm={addProductos} />

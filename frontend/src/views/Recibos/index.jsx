@@ -67,11 +67,11 @@ export default function Recibos() {
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--green-600)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Total de recibos (incluye retenciones)</div>
-            <div className="kpi-value" style={{ color: 'var(--green-600)', fontSize: 20 }}>{$ar(totalImporte)}</div>
+            <div className="kpi-value" style={{ color: 'var(--green-600)', fontSize: 'calc(20px * var(--font-scale))' }}>{$ar(totalImporte)}</div>
           </div>
           <div className="card" style={{ padding: '12px 18px', borderLeft: '4px solid var(--blue-600)', flex: 1, minWidth: 180 }}>
             <div className="kpi-label">Cantidad de recibos</div>
-            <div className="kpi-value" style={{ color: 'var(--blue-600)', fontSize: 20 }}>{total.toLocaleString('es-AR')}</div>
+            <div className="kpi-value" style={{ color: 'var(--blue-600)', fontSize: 'calc(20px * var(--font-scale))' }}>{total.toLocaleString('es-AR')}</div>
           </div>
         </div>
       )}
@@ -94,7 +94,7 @@ export default function Recibos() {
                     <td><span className="code" style={{ fontWeight: 700 }}>{r.numero}</span></td>
                     <td>{fFecha(r.fecha)}</td>
                     <td className="td-bold">{r.razon_social}</td>
-                    <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>
                       {r.facturas?.length > 0
                         ? r.facturas.map(f => <span key={f.factura_id} className="code" style={{ marginRight: 4 }}>{f.numero}</span>)
                         : <span style={{ color: 'var(--amber-600)' }}>Pago a cuenta</span>
@@ -103,18 +103,18 @@ export default function Recibos() {
                     <td>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {r.medios?.map((m, i) => (
-                          <span key={i} style={{ background: `${TIPO_COLOR[m.tipo]}18`, color: TIPO_COLOR[m.tipo], padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+                          <span key={i} style={{ background: `${TIPO_COLOR[m.tipo]}18`, color: TIPO_COLOR[m.tipo], padding: '2px 8px', borderRadius: 10, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>
                             {TIPO_LABEL[m.tipo]}{m.detalle ? ` · ${m.detalle}` : ''} {$ar(m.monto)}
                           </span>
                         ))}
                         {r.retenciones?.map((ret, i) => (
-                          <span key={`ret-${i}`} style={{ background: 'var(--amber-100)', color: 'var(--amber-700)', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+                          <span key={`ret-${i}`} style={{ background: 'var(--amber-100)', color: 'var(--amber-700)', padding: '2px 8px', borderRadius: 10, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>
                             Ret. {ret.tipo_retencion}{ret.pendiente_documentacion ? ' · certificado pendiente' : ''} {$ar(ret.monto)}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="td-right" style={{ color: 'var(--green-600)', fontWeight: 700, fontSize: 14 }}>{$ar(r.total)}</td>
+                    <td className="td-right" style={{ color: 'var(--green-600)', fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))' }}>{$ar(r.total)}</td>
                     <td><div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-ghost btn-xs" onClick={() => openDetalle(r.id)}>Ver</button>
                       <button className="btn btn-secondary btn-xs" style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }} onClick={() => setPdfModal({ url: `/api/pdf/recibo/${r.id}`, titulo: `Recibo ${r.numero}` })}>📄 PDF</button>
@@ -156,7 +156,7 @@ export default function Recibos() {
             <div><span className="lbl">Fecha</span><p>{fFecha(detalle.fecha)}</p></div>
             <div><span className="lbl">Cliente</span><p className="td-bold">{detalle.razon_social}</p></div>
             <div><span className="lbl">Documento</span><p className="td-mono">{fDoc(detalle.doc_tipo, detalle.doc_nro)}</p></div>
-            <div><span className="lbl">Observaciones</span><p style={{ color: 'var(--gray-500)', fontSize: 12 }}>{detalle.observaciones || '—'}</p></div>
+            <div><span className="lbl">Observaciones</span><p style={{ color: 'var(--gray-500)', fontSize: 'calc(12px * var(--font-scale))' }}>{detalle.observaciones || '—'}</p></div>
           </div>
 
           {detalle.facturas?.length > 0 && (
@@ -178,11 +178,11 @@ export default function Recibos() {
             <div key={i} className="medio-card" style={{ marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 700, color: TIPO_COLOR[m.tipo] }}>{TIPO_LABEL[m.tipo]}</span>
-                <span style={{ fontSize: 16, fontWeight: 800 }}>{$ar(m.monto)}</span>
+                <span style={{ fontSize: 'calc(16px * var(--font-scale))', fontWeight: 800 }}>{$ar(m.monto)}</span>
               </div>
-              {m.detalle && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>{m.detalle}</div>}
+              {m.detalle && <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>{m.detalle}</div>}
               {m.banco && (
-                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
+                <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>
                   Banco: {m.banco}{m.numero_cheque ? ` — Nro. ${m.numero_cheque}` : ''}{m.titular ? ` — Titular: ${m.titular}` : ''}
                   {m.fecha_vcto ? ` — Vence: ${fFecha(m.fecha_vcto)}` : ''}
                 </div>
@@ -198,7 +198,7 @@ export default function Recibos() {
                   <strong>{ret.tipo_retencion}{ret.jurisdiccion ? ` · ${ret.jurisdiccion}` : ''}</strong>
                   <strong>{$ar(ret.monto)}</strong>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
+                <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>
                   {ret.pendiente_documentacion
                     ? `Registro histórico · certificado pendiente · ${ret.detalle_origen || 'sin detalle original'} · CUIT agente ${ret.cuit_agente}`
                     : `Certificado ${ret.numero_certificado}${ret.codigo_regimen ? ` · Régimen ${ret.codigo_regimen}` : ''} · ${fFecha(ret.fecha)} · CUIT agente ${ret.cuit_agente}`}
@@ -227,8 +227,8 @@ export default function Recibos() {
           </>}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', borderTop: '2px solid var(--gray-200)', marginTop: 8 }}>
-            <span style={{ fontWeight: 700, fontSize: 15 }}>Total del recibo:</span>
-            <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--green-600)' }}>{$ar(detalle.total)}</span>
+            <span style={{ fontWeight: 700, fontSize: 'calc(15px * var(--font-scale))' }}>Total del recibo:</span>
+            <span style={{ fontSize: 'calc(20px * var(--font-scale))', fontWeight: 800, color: 'var(--green-600)' }}>{$ar(detalle.total)}</span>
           </div>
         </Modal>
       )}

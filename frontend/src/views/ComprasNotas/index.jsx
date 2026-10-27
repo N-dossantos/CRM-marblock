@@ -91,7 +91,7 @@ export default function ComprasNotas() {
                     <td>{fFecha(n.fecha)}</td>
                     <td><span className="code">{n.factura_numero}</span></td>
                     <td className="td-bold">{n.razon_social}</td>
-                    <td style={{ fontSize: 12, color: 'var(--gray-500)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.motivo || '—'}</td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.motivo || '—'}</td>
                     <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(n.neto_gravado)}</td>
                     <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(n.iva_monto)}</td>
                     <td className="td-right td-bold">{$ar(n.total)}</td>
@@ -116,7 +116,7 @@ export default function ComprasNotas() {
               ))}
             </select>
           </div>
-          <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 8 }}>
+          <p style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 8 }}>
             Se muestran todas las facturas de compra no anuladas.
           </p>
         </Modal>
@@ -145,10 +145,10 @@ export default function ComprasNotas() {
           </div>
           <ItemsTable items={detalle.items || []} readonly />
           <div style={{ marginTop: 12, borderTop: '2px solid var(--gray-200)', paddingTop: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 24, fontSize: 13 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 24, fontSize: 'calc(13px * var(--font-scale))' }}>
               <span style={{ color: 'var(--gray-500)' }}>Neto: <strong style={{ color: 'var(--gray-800)' }}>{$ar(detalle.neto_gravado)}</strong></span>
               <span style={{ color: 'var(--gray-500)' }}>IVA: <strong style={{ color: 'var(--gray-800)' }}>{$ar(detalle.iva_monto)}</strong></span>
-              <span style={{ fontWeight: 700 }}>Total: <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--blue-600)' }}>{$ar(detalle.total)}</span></span>
+              <span style={{ fontWeight: 700 }}>Total: <span style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 800, color: 'var(--blue-600)' }}>{$ar(detalle.total)}</span></span>
             </div>
           </div>
         </Modal>

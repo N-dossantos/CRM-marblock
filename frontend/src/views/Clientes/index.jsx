@@ -78,12 +78,12 @@ export default function Clientes() {
                   <tr key={c.id}>
                     <td>
                       <div className="td-bold">{c.razon_social}</div>
-                      <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>{c.email}</div>
+                      <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)' }}>{c.email}</div>
                     </td>
                     <td className="td-mono">{fDocNro(c.doc_tipo, c.doc_nro)}</td>
-                    <td style={{ fontSize: 12 }}>{c.condicion_iva}</td>
-                    <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.localidad || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{c.telefono || '—'}</td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.condicion_iva}</td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{c.localidad || '—'}</td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.telefono || '—'}</td>
                     <td>
                       <span style={{ fontWeight: 700, color: c.descuento_porcentaje > 0 ? 'var(--blue-600)' : 'var(--gray-400)' }}>
                         {c.descuento_porcentaje}%

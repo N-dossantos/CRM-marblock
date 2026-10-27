@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { fechaLarga } from '../../utils'
 import { useAuth } from '../../lib/auth'
 import ThemeToggle from '../UI/ThemeToggle'
+import FontSizeControl from '../UI/FontSizeControl'
 import { useArcaEstado, BannerAmbiente, IndicadorArca } from '../Arca'
 import CalendarioPanel, { CalendarioBoton } from '../Calendario/Panel'
 
@@ -167,6 +168,12 @@ export default function Layout({ children }) {
           ))}
         </nav>
 
+        <FontSizeControl />
+        {/* En el celular el header no tiene lugar para el usuario y Salir: van al pie del menú. */}
+        <div className="sidebar-sesion">
+          {user?.email && <span className="sidebar-sesion-email">{user.email}</span>}
+          <button type="button" className="btn btn-secondary btn-sm" onClick={handleLogout}>Salir</button>
+        </div>
         <div className="sidebar-footer">v1.0 — Módulo Ventas</div>
       </aside>
 
@@ -181,7 +188,7 @@ export default function Layout({ children }) {
             <CalendarioBoton />
             <span className="topbar-date">{fechaLarga()}</span>
             {user?.email && <span className="topbar-user">{user.email}</span>}
-            <button type="button" className="btn btn-secondary btn-sm" onClick={handleLogout}>
+            <button type="button" className="btn btn-secondary btn-sm topbar-salir" onClick={handleLogout}>
               Salir
             </button>
           </div>

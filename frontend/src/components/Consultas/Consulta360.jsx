@@ -60,21 +60,21 @@ export default function Consulta360({
                   transition: 'background .12s',
                 }}
               >
-                <div style={{ fontWeight: selected ? 700 : 500, fontSize: 13, color: 'var(--gray-800)' }}>
+                <div style={{ fontWeight: selected ? 700 : 500, fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-800)' }}>
                   {label.length > 28 ? label.slice(0, 28) + '…' : label}
                 </div>
                 {saldo !== null && saldo !== undefined
                   ? (
-                    <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)' }}>
+                    <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, marginTop: 2, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)' }}>
                       {$ar(saldo)} {saldo > 0 ? saldoLabels.pos : saldo < 0 ? saldoLabels.neg : saldoLabels.zero}
                     </div>
                   )
-                  : <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>{getSubtitle(e)}</div>}
+                  : <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 2 }}>{getSubtitle(e)}</div>}
               </div>
             )
           })}
           {filtered.length === 0 && (
-            <div style={{ padding: 20, textAlign: 'center', fontSize: 12, color: 'var(--gray-400)' }}>Sin resultados</div>
+            <div style={{ padding: 20, textAlign: 'center', fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)' }}>Sin resultados</div>
           )}
         </div>
       </div>
@@ -83,8 +83,8 @@ export default function Consulta360({
       <div style={{ overflowY: 'auto' }}>
         {!selId ? (
           <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>{emptyIcon}</div>
-            <p style={{ color: 'var(--gray-400)', fontSize: 14 }}>{emptyText}</p>
+            <div style={{ fontSize: 'calc(40px * var(--font-scale))', marginBottom: 12 }}>{emptyIcon}</div>
+            <p style={{ color: 'var(--gray-400)', fontSize: 'calc(14px * var(--font-scale))' }}>{emptyText}</p>
           </div>
         ) : loading || !data ? (
           <Loading />
@@ -102,7 +102,7 @@ export default function Consulta360({
                     padding: '8px 16px', background: 'transparent', border: 'none',
                     borderBottom: tab === t.id ? '2px solid var(--blue-600)' : '2px solid transparent',
                     marginBottom: -2, color: tab === t.id ? 'var(--blue-600)' : 'var(--gray-500)',
-                    fontWeight: tab === t.id ? 700 : 500, fontSize: 13, cursor: 'pointer',
+                    fontWeight: tab === t.id ? 700 : 500, fontSize: 'calc(13px * var(--font-scale))', cursor: 'pointer',
                     fontFamily: 'inherit', whiteSpace: 'nowrap',
                   }}
                 >

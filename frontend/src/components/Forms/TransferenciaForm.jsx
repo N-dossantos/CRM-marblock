@@ -114,20 +114,20 @@ export default function TransferenciaForm({ cuentas = [], onClose, onSaved }) {
       {preview && (
         <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'center' }}>
           <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 10, padding: '12px 14px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red-700)', textTransform: 'uppercase' }}>Origen · {nombre(oId)}</div>
-            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>Actual: {$ar(preview.so)}</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: preview.soNew < 0 ? 'var(--red-500)' : 'var(--gray-800)', marginTop: 2 }}>→ {$ar(preview.soNew)}</div>
+            <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--red-700)', textTransform: 'uppercase' }}>Origen · {nombre(oId)}</div>
+            <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>Actual: {$ar(preview.so)}</div>
+            <div style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 800, color: preview.soNew < 0 ? 'var(--red-500)' : 'var(--gray-800)', marginTop: 2 }}>→ {$ar(preview.soNew)}</div>
           </div>
-          <div style={{ fontSize: 22, color: 'var(--blue-600)' }}>⇄</div>
+          <div style={{ fontSize: 'calc(22px * var(--font-scale))', color: 'var(--blue-600)' }}>⇄</div>
           <div style={{ background: 'var(--green-50)', border: '1px solid var(--green-100)', borderRadius: 10, padding: '12px 14px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green-700)', textTransform: 'uppercase' }}>Destino · {nombre(dId)}</div>
-            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>Actual: {$ar(preview.sd)}</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--green-600)', marginTop: 2 }}>→ {$ar(preview.sdNew)}</div>
+            <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--green-700)', textTransform: 'uppercase' }}>Destino · {nombre(dId)}</div>
+            <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>Actual: {$ar(preview.sd)}</div>
+            <div style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 800, color: 'var(--green-600)', marginTop: 2 }}>→ {$ar(preview.sdNew)}</div>
           </div>
         </div>
       )}
       {preview && preview.soNew < 0 && (
-        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--amber-700)', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8, padding: '8px 12px' }}>
+        <div style={{ marginTop: 10, fontSize: 'calc(12px * var(--font-scale))', color: 'var(--amber-700)', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8, padding: '8px 12px' }}>
           ⚠ La cuenta origen quedará con saldo negativo.
         </div>
       )}

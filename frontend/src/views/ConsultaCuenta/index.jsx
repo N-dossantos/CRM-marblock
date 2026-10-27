@@ -29,7 +29,7 @@ const ESTADO_CHEQUE = {
 }
 
 const chip = (bg, color, label) => (
-  <span style={{ background: bg, color, padding: '2px 9px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{label}</span>
+  <span style={{ background: bg, color, padding: '2px 9px', borderRadius: 10, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>{label}</span>
 )
 const btnVer = (onClick) => <button className="btn btn-ghost btn-xs" onClick={onClick}>Ver</button>
 
@@ -87,13 +87,13 @@ export default function ConsultaCuenta() {
     <div className="card" style={{ marginBottom: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--gray-800)' }}>{data.cuenta.descripcion}</h2>
-          <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
+          <h2 style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-800)' }}>{data.cuenta.descripcion}</h2>
+          <div style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>
             {CLASE_LABEL[data.cuenta.clase] || data.cuenta.clase}
             {data.cuenta.banco ? ` · ${data.cuenta.banco}` : ''}
             {data.cuenta.agrupacion_id && agrup[data.cuenta.agrupacion_id] ? ` · ${agrup[data.cuenta.agrupacion_id]}` : ''}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 4, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             {data.cuenta.numero && <span>N°: {data.cuenta.numero}</span>}
             {data.cuenta.cbu && <span>CBU: {data.cuenta.cbu}</span>}
             {data.cuenta.alias && <span>Alias: {data.cuenta.alias}</span>}
@@ -101,14 +101,14 @@ export default function ConsultaCuenta() {
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
-          <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1, color: data.sub.saldo_final < 0 ? 'var(--red-500)' : 'var(--green-600)' }}>
+          <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
+          <div style={{ fontSize: 'calc(28px * var(--font-scale))', fontWeight: 800, lineHeight: 1, color: data.sub.saldo_final < 0 ? 'var(--red-500)' : 'var(--green-600)' }}>
             {$ar(data.sub.saldo_final)}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
+          <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 4 }}>
             {data.sub.saldo_final < 0 ? '⚠ Saldo negativo' : '● Disponible'}
           </div>
-          {!data.cuenta.activo && <div style={{ fontSize: 11, color: 'var(--red-500)', marginTop: 4, fontWeight: 700 }}>Cuenta inactiva</div>}
+          {!data.cuenta.activo && <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--red-500)', marginTop: 4, fontWeight: 700 }}>Cuenta inactiva</div>}
         </div>
       </div>
     </div>
@@ -129,8 +129,8 @@ export default function ConsultaCuenta() {
               <tr key={m.id} style={{ opacity: m.anulado ? 0.5 : 1 }}>
                 <td>{fFecha(m.fecha)}</td>
                 <td><span className="code">{m.numero || `#${m.id}`}</span></td>
-                <td style={{ fontSize: 12 }}>{m.tipo_descripcion}</td>
-                <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
+                <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.tipo_descripcion}</td>
+                <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
                 <td className="td-right" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--gray-300)' }}>{m.signo === 1 ? $ar(m.monto) : '—'}</td>
                 <td className="td-right" style={{ color: m.signo === -1 ? 'var(--red-500)' : 'var(--gray-300)' }}>{m.signo === -1 ? $ar(m.monto) : '—'}</td>
                 <td className="td-right" style={{ fontWeight: 700, color: +m.saldo_corrido < 0 ? 'var(--red-500)' : 'var(--gray-700)' }}>{$ar(m.saldo_corrido)}</td>
@@ -156,7 +156,7 @@ export default function ConsultaCuenta() {
               <tr key={m.id} style={{ opacity: m.anulado ? 0.5 : 1 }}>
                 <td>{fFecha(m.fecha)}</td>
                 <td><span className="code">{m.numero || `#${m.id}`}</span></td>
-                <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
+                <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
                 <td className="td-right td-bold" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--red-500)' }}>{m.signo === -1 ? '− ' : ''}{$ar(m.monto)}</td>
                 <td style={{ display: 'flex', gap: 6 }}>
                   {btnVer(() => abrirMov(m))}
@@ -187,8 +187,8 @@ export default function ConsultaCuenta() {
                 <tr key={`p${c.id}`}>
                   <td><span className="code" style={{ fontWeight: 700 }}>{c.numero}</span></td>
                   <td>{fFecha(c.fecha_venc)}</td>
-                  <td style={{ fontSize: 12 }}>{c.entidad || '—'}</td>
-                  <td style={{ fontSize: 12 }}>{c.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.entidad || '—'}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</td>
                   <td>{chip(e.bg, e.color, e.label)}</td>
                   <td className="td-right td-bold">{$ar(c.monto)}</td>
                   <td><button className="btn btn-ghost btn-xs" onClick={() => setPdf({ url: pdfUrl.chequePropio(c.id), titulo: `Cheque propio ${c.numero}` })}>📄</button></td>
@@ -215,7 +215,7 @@ export default function ConsultaCuenta() {
                 <td>{fFecha(m.fecha)}</td>
                 <td><span className="code">{m.numero || `#${m.id}`}</span></td>
                 <td>{m.signo === 1 ? chip('var(--green-100)', 'var(--green-700)', '▲ Recibida') : chip('var(--red-100)', 'var(--red-700)', '▼ Enviada')}</td>
-                <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
+                <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
                 <td className="td-right td-bold" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--red-500)' }}>{m.signo === -1 ? '− ' : ''}{$ar(m.monto)}</td>
                 <td>{btnVer(() => abrirMov(m))}</td>
               </tr>
@@ -240,8 +240,8 @@ export default function ConsultaCuenta() {
               <tr key={m.id} style={{ opacity: m.anulado ? 0.5 : 1 }}>
                 <td>{fFecha(m.fecha)}</td>
                 <td><span className="code">{m.numero || `#${m.id}`}</span></td>
-                <td style={{ fontSize: 12 }}>{m.tipo_descripcion}</td>
-                <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
+                <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.tipo_descripcion}</td>
+                <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
                 <td className="td-right" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--gray-300)' }}>{m.signo === 1 ? $ar(m.monto) : '—'}</td>
                 <td className="td-right" style={{ color: m.signo === -1 ? 'var(--red-500)' : 'var(--gray-300)' }}>{m.signo === -1 ? $ar(m.monto) : '—'}</td>
                 <td>
@@ -283,8 +283,8 @@ export default function ConsultaCuenta() {
 
   const tabContabilidad = () => (
     <div className="card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--gray-400)' }}>
-      <div style={{ fontSize: 34, marginBottom: 10 }}>🔒</div>
-      <p style={{ fontSize: 14 }}>Imputación contable — bloqueado hasta Fase E</p>
+      <div style={{ fontSize: 'calc(34px * var(--font-scale))', marginBottom: 10 }}>🔒</div>
+      <p style={{ fontSize: 'calc(14px * var(--font-scale))' }}>Imputación contable — bloqueado hasta Fase E</p>
     </div>
   )
 

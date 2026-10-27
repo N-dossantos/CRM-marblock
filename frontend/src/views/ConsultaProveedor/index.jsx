@@ -58,11 +58,11 @@ export default function ConsultaProveedor() {
     <div className="card" style={{ marginBottom: 8 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--gray-800)' }}>{data.prov.razon_social}</h2>
-          <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
+          <h2 style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-800)' }}>{data.prov.razon_social}</h2>
+          <div style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>
             CUIT: {data.prov.cuit} · {data.prov.condicion_iva} · {data.prov.condicion_compra}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 4, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             {data.prov.actividad && <span>🏷️ {data.prov.actividad}</span>}
             {(data.prov.direccion || data.prov.localidad) && <span>📍 {[data.prov.direccion, data.prov.localidad].filter(Boolean).join(', ')}</span>}
             {data.prov.telefono && <span>📞 {data.prov.telefono}</span>}
@@ -70,14 +70,14 @@ export default function ConsultaProveedor() {
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
-          <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1, color: data.cta.saldo_total > 0 ? 'var(--red-500)' : data.cta.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)' }}>
+          <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
+          <div style={{ fontSize: 'calc(28px * var(--font-scale))', fontWeight: 800, lineHeight: 1, color: data.cta.saldo_total > 0 ? 'var(--red-500)' : data.cta.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)' }}>
             {$ar(data.cta.saldo_total)}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
+          <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 4 }}>
             {data.cta.saldo_total > 0 ? '⬆ Le debemos' : data.cta.saldo_total < 0 ? '⬇ Saldo a favor' : '✓ Cuenta balanceada'}
           </div>
-          {!data.prov.activo && <div style={{ fontSize: 11, color: 'var(--red-500)', marginTop: 4, fontWeight: 700 }}>Proveedor inactivo</div>}
+          {!data.prov.activo && <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--red-500)', marginTop: 4, fontWeight: 700 }}>Proveedor inactivo</div>}
         </div>
       </div>
     </div>
@@ -99,7 +99,7 @@ export default function ConsultaProveedor() {
                 <tr key={i}>
                   <td>{fFecha(m.fecha)}</td>
                   <td><span className="code">{m.comprobante}</span></td>
-                  <td><span style={{ background: s.bg, color: s.color, padding: '2px 9px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{s.label}</span></td>
+                  <td><span style={{ background: s.bg, color: s.color, padding: '2px 9px', borderRadius: 10, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>{s.label}</span></td>
                   <td className="td-right" style={{ color: +m.debe > 0 ? 'var(--red-500)' : 'var(--gray-300)' }}>{+m.debe > 0 ? $ar(m.debe) : '—'}</td>
                   <td className="td-right" style={{ color: +m.haber > 0 ? 'var(--green-600)' : 'var(--gray-300)' }}>{+m.haber > 0 ? $ar(m.haber) : '—'}</td>
                   <td className="td-right" style={{ fontWeight: 700, color: +m.saldo > 0 ? 'var(--red-500)' : +m.saldo < 0 ? 'var(--green-600)' : 'var(--gray-600)' }}>{$ar(m.saldo)}</td>
@@ -193,7 +193,7 @@ export default function ConsultaProveedor() {
               <tr key={p.id}>
                 <td><span className="code" style={{ fontWeight: 700 }}>{p.numero}</span></td>
                 <td>{fFecha(p.fecha)}</td>
-                <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{(p.facturas || []).map(f => f.numero).join(', ') || '—'}</td>
+                <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{(p.facturas || []).map(f => f.numero).join(', ') || '—'}</td>
                 <td className="td-right td-bold">{$ar(p.total)}</td>
                 <td>{btnVer(() => abrir('pago')(p))}</td>
               </tr>
@@ -213,7 +213,7 @@ export default function ConsultaProveedor() {
             : data.alicuotas.map(a => (
               <tr key={a.id}>
                 <td className="td-bold">{a.tipo_retencion}</td>
-                <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{a.jurisdiccion || '—'}</td>
+                <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{a.jurisdiccion || '—'}</td>
                 <td className="td-right td-bold">{a.alicuota}%</td>
                 <td>{fFecha(a.vigente_desde)}</td>
               </tr>

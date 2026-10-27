@@ -92,7 +92,7 @@ export default function AsientoForm({ cuentas = [], onClose, onSaved }) {
       </div>
 
       {cuentas.length === 0 && (
-        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--amber-700)', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8, padding: '8px 12px' }}>
+        <div style={{ marginTop: 14, fontSize: 'calc(12px * var(--font-scale))', color: 'var(--amber-700)', background: 'var(--amber-50)', border: '1px solid var(--amber-100)', borderRadius: 8, padding: '8px 12px' }}>
           ⚠ No hay cuentas imputables cargadas. Cargá el plan de cuentas antes de asentar.
         </div>
       )}
@@ -153,11 +153,11 @@ export default function AsientoForm({ cuentas = [], onClose, onSaved }) {
         <div style={{ display: 'flex', gap: 24 }}>
           <div>
             <div className="kpi-label">Total debe</div>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>{$ar(totalDebe)}</div>
+            <div style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 800 }}>{$ar(totalDebe)}</div>
           </div>
           <div>
             <div className="kpi-label">Total haber</div>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>{$ar(totalHaber)}</div>
+            <div style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 800 }}>{$ar(totalHaber)}</div>
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -165,7 +165,7 @@ export default function AsientoForm({ cuentas = [], onClose, onSaved }) {
             ? <span style={{ fontWeight: 700, color: 'var(--green-700)' }}>✓ Asiento balanceado</span>
             : <>
                 <div style={{ fontWeight: 700, color: 'var(--red-700)' }}>No balancea</div>
-                <div style={{ fontSize: 12, color: 'var(--red-700)' }}>Diferencia: {$ar(diferencia)}</div>
+                <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--red-700)' }}>Diferencia: {$ar(diferencia)}</div>
               </>
           }
         </div>

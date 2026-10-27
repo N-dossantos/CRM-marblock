@@ -11,6 +11,10 @@
       document.documentElement.dataset.theme = theme === 'light' || theme === 'dark'
         ? theme
         : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      let fontSize
+      try { fontSize = localStorage.getItem('crm-font-size') } catch {}
+      document.documentElement.dataset.fontSize = ['small', 'normal', 'large'].includes(fontSize)
+        ? fontSize : 'normal'
     </script>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
     <link rel="preconnect" href="https://fonts.googleapis.com">

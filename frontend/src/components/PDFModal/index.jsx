@@ -9,6 +9,11 @@ import { useEscape } from '../../hooks/useEscape'
 // {SUPABASE_URL}/functions/v1/pdf/<path>, con el JWT de la sesión (RLS: sólo staff autenticado).
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/pdf`
 
+// En iPhone/iPad un PDF dentro de un iframe se dibuja como una imagen de la primera página y nada
+// más (Android directamente no lo muestra). En celulares y tablets no se usa el iframe: se abre en
+// una pestaña nueva, con el visor del sistema (todas las páginas, compartir, imprimir), o se descarga.
+const SIN_VISOR_EMBEBIDO = '(max-width: 760px), (pointer: coarse)'
+
 /**
  * Props:
  *   url        {string}  – ruta estilo Express, ej. "/api/pdf/factura/12" (o con querystring)
@@ -21,6 +26,7 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
   const [estado, setEstado]     = useState('cargando') // cargando | ok | error
   const [blobUrl, setBlobUrl]   = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const [movil]                 = useState(() => window.matchMedia(SIN_VISOR_EMBEBIDO).matches)
   const iframeRef               = useRef(null)
   useEscape(onClose)
 
@@ -69,6 +75,11 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
     a.click()
   }
 
+  // Se abre en el clic: fuera de un gesto del usuario el navegador lo bloquea como popup.
+  const abrir = () => {
+    if (blobUrl) window.open(blobUrl, '_blank')
+  }
+
   const imprimir = () => {
     if (!iframeRef.current) return
     iframeRef.current.contentWindow?.focus()
@@ -77,6 +88,7 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
 
   return (
     <div
+      className="pdf-modal"
       style={{
         position: 'fixed', inset: 0,
         background: 'rgba(0,0,0,.65)',
@@ -106,13 +118,13 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 18 }}>📄</span>
-            <span style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{titulo}</span>
+            <span style={{ fontSize: 'calc(18px * var(--font-scale))' }}>📄</span>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))' }}>{titulo}</span>
           </div>
 
           {/* Botones de acción */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {estado === 'ok' && (
+            {estado === 'ok' && !movil && (
               <>
                 <button
                   onClick={imprimir}
@@ -124,7 +136,7 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
                     border: '1px solid rgba(255,255,255,.2)',
                     borderRadius: 7,
                     color: '#fff',
-                    fontSize: 13,
+                    fontSize: 'calc(13px * var(--font-scale))',
                     fontWeight: 600,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
@@ -145,7 +157,7 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
                     border: 'none',
                     borderRadius: 7,
                     color: '#fff',
-                    fontSize: 13,
+                    fontSize: 'calc(13px * var(--font-scale))',
                     fontWeight: 600,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
@@ -164,7 +176,7 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
                 background: 'none',
                 border: 'none',
                 color: 'rgba(255,255,255,.7)',
-                fontSize: 24,
+                fontSize: 'calc(24px * var(--font-scale))',
                 lineHeight: 1,
                 cursor: 'pointer',
                 padding: '2px 6px',
@@ -183,7 +195,7 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
             background: 'var(--amber-100)',
             borderBottom: '1px solid var(--amber-100)',
             color: 'var(--amber-700)',
-            fontSize: 12.5,
+            fontSize: 'calc(12.5px * var(--font-scale))',
             flexShrink: 0,
           }}>
             <span>⚠️</span>
@@ -198,32 +210,49 @@ export default function PDFModal({ url, titulo, talonario = false, onClose }) {
         {/* Contenido */}
         <div style={{ flex: 1, overflow: 'hidden', background: '#525659', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {estado === 'cargando' && (
-            <div style={{ color: '#fff', fontSize: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            <div style={{ color: '#fff', fontSize: 'calc(14px * var(--font-scale))', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 36, height: 36, border: '3px solid rgba(255,255,255,.2)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
               Generando PDF…
             </div>
           )}
           {estado === 'error' && (
             <div style={{ color: '#fff', textAlign: 'center', padding: 40 }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>No se pudo generar el PDF</div>
-              <div style={{ opacity: .7, fontSize: 13 }}>{errorMsg}</div>
+              <div style={{ fontSize: 'calc(40px * var(--font-scale))', marginBottom: 12 }}>⚠️</div>
+              <div style={{ fontWeight: 700, fontSize: 'calc(15px * var(--font-scale))', marginBottom: 6 }}>No se pudo generar el PDF</div>
+              <div style={{ opacity: .7, fontSize: 'calc(13px * var(--font-scale))' }}>{errorMsg}</div>
               <button
                 onClick={onClose}
-                style={{ marginTop: 20, padding: '8px 20px', background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.25)', borderRadius: 8, color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13 }}
+                style={{ marginTop: 20, padding: '8px 20px', background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.25)', borderRadius: 8, color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 'calc(13px * var(--font-scale))' }}
               >
                 Cerrar
               </button>
             </div>
           )}
-          {estado === 'ok' && blobUrl && (
+          {estado === 'ok' && blobUrl && (movil ? (
+            <div style={{ color: '#fff', textAlign: 'center', padding: 24, width: '100%', maxWidth: 340, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12 }}>
+              <div style={{ fontSize: 'calc(40px * var(--font-scale))' }}>📄</div>
+              <div style={{ fontWeight: 700, fontSize: 'calc(15px * var(--font-scale))', marginBottom: 8 }}>El PDF está listo</div>
+              <button
+                onClick={abrir}
+                style={{ minHeight: 48, padding: '12px 20px', background: '#1d4ed8', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 600, fontSize: 'calc(15px * var(--font-scale))', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                📄 Abrir PDF
+              </button>
+              <button
+                onClick={descargar}
+                style={{ minHeight: 48, padding: '12px 20px', background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.25)', borderRadius: 8, color: '#fff', fontWeight: 600, fontSize: 'calc(15px * var(--font-scale))', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                ⬇ Descargar
+              </button>
+            </div>
+          ) : (
             <iframe
               ref={iframeRef}
               src={blobUrl}
               title={titulo}
               style={{ width: '100%', height: '100%', border: 'none' }}
             />
-          )}
+          ))}
         </div>
       </div>
 

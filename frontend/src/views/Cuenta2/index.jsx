@@ -23,6 +23,18 @@ const TIPO_STYLE = {
   'SALDO ANTERIOR': { bg: 'var(--gray-100)', color: 'var(--gray-700)', label: 'Saldo anterior' },
 }
 
+function TipoC2({ tipo }) {
+  const ts = TIPO_STYLE[tipo] || { bg: 'var(--gray-100)', color: 'var(--gray-600)', label: tipo }
+  return (
+    <span style={{ background: ts.bg, color: ts.color, padding: '2px 9px', borderRadius: 10, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>
+      {ts.label}
+    </span>
+  )
+}
+
+// Rojo = suma a la deuda, verde = la baja (mismo criterio que las columnas debe/haber/saldo).
+const colorMonto = (v) => (v > 0 ? 'var(--red-500)' : v < 0 ? 'var(--green-600)' : 'var(--gray-600)')
+
 export default function Cuenta2({ tipoSector }) {
   const esVenta = tipoSector === 'venta'
   const [sub, setSub] = useState('ctacte')
@@ -62,7 +74,7 @@ function tabStyle(active) {
     padding: '10px 18px', background: 'transparent', border: 'none',
     borderBottom: active ? '2px solid var(--blue-600)' : '2px solid transparent', marginBottom: -2,
     color: active ? 'var(--blue-600)' : 'var(--gray-500)', fontWeight: active ? 700 : 400,
-    fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+    fontSize: 'calc(13px * var(--font-scale))', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
   }
 }
 
@@ -192,32 +204,37 @@ function RemitosX({ tipoSector }) {
         />
       )}
 
-      {detalle && (
-        <Modal title={`Remito X ${detalle.numero}`} size="lg" onClose={() => setDetalle(null)}>
-          <div className="info-box" style={{ marginBottom: 14 }}>
-            <span>
-              {detalle.entidad_nombre} · {fFecha(detalle.fecha)}
-              {+detalle.descuento_porcentaje > 0 && ` · Descuento ${detalle.descuento_porcentaje}%`}
-            </span>
-          </div>
-          <ItemsTable items={detalle.items || []} readonly />
-          <div className="totales-box">
-            <div className="totales-row"><span>Subtotal</span><span>{$ar(detalle.subtotal)}</span></div>
-            {+detalle.descuento_monto > 0 && (
-              <div className="totales-row">
-                <span>Descuento</span>
-                <span style={{ color: 'var(--red-500)' }}>— {$ar(detalle.descuento_monto)}</span>
-              </div>
-            )}
-            <hr className="totales-divider" />
-            <div className="totales-row total"><span>TOTAL</span><span className="val">{$ar(detalle.total)}</span></div>
-          </div>
-          {detalle.observaciones && (
-            <p style={{ marginTop: 12, fontSize: 13, color: 'var(--gray-600)' }}>{detalle.observaciones}</p>
-          )}
-        </Modal>
-      )}
+      {detalle && <RemitoXDetalle remito={detalle} onClose={() => setDetalle(null)} />}
     </div>
+  )
+}
+
+// Vista de sólo lectura de un Remito X: la usan la solapa Remitos X y la cta. cte. en el celular.
+function RemitoXDetalle({ remito, onClose }) {
+  return (
+    <Modal title={`Remito X ${remito.numero}`} size="lg" onClose={onClose}>
+      <div className="info-box" style={{ marginBottom: 14 }}>
+        <span>
+          {remito.entidad_nombre} · {fFecha(remito.fecha)}
+          {+remito.descuento_porcentaje > 0 && ` · Descuento ${remito.descuento_porcentaje}%`}
+        </span>
+      </div>
+      <ItemsTable items={remito.items || []} readonly />
+      <div className="totales-box">
+        <div className="totales-row"><span>Subtotal</span><span>{$ar(remito.subtotal)}</span></div>
+        {+remito.descuento_monto > 0 && (
+          <div className="totales-row">
+            <span>Descuento</span>
+            <span style={{ color: 'var(--red-500)' }}>— {$ar(remito.descuento_monto)}</span>
+          </div>
+        )}
+        <hr className="totales-divider" />
+        <div className="totales-row total"><span>TOTAL</span><span className="val">{$ar(remito.total)}</span></div>
+      </div>
+      {remito.observaciones && (
+        <p style={{ marginTop: 12, fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-600)' }}>{remito.observaciones}</p>
+      )}
+    </Modal>
   )
 }
 
@@ -331,6 +348,8 @@ function CtaCteC2({ tipoSector }) {
   const [pdfModal, setPdfModal]   = useState(null)
   const [remitoForm, setRemitoForm] = useState(false)
   const [enviandoWA, setEnviandoWA] = useState(false)
+  const [abierto, setAbierto]     = useState(null)   // movimiento desplegado en la lista del celular
+  const [remitoDetalle, setRemitoDetalle] = useState(null)
   const catalogo = useCatalogoC2(tipoSector, remitoForm)
 
   const loadEntidades = useCallback(() => {
@@ -371,6 +390,10 @@ function CtaCteC2({ tipoSector }) {
     setRemitoForm(false); cargar(); loadEntidades()
   }
 
+  const verRemito = (id) => {
+    RemitosC2API.get(id).then(setRemitoDetalle).catch(() => { /* el toast ya lo emitió la capa API */ })
+  }
+
   // wa.me no adjunta archivos: se descarga el PDF (con el filtro aplicado) y se abre el chat con
   // un mensaje corto; el archivo se arrastra a mano. La ventana se abre en el clic: si se abre
   // después del fetch, el navegador la bloquea como popup.
@@ -407,7 +430,6 @@ function CtaCteC2({ tipoSector }) {
   const filtradas = entidades.filter(e =>
     !search || e.nombre.toLowerCase().includes(search.toLowerCase()) || (e.telefono || '').includes(search)
   )
-  const busquedaMovilActiva = search.trim().length >= 2
   const saldo = data?.saldo_total ?? 0
 
   return (
@@ -423,11 +445,8 @@ function CtaCteC2({ tipoSector }) {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        {!busquedaMovilActiva && (!selId || search.trim()) && (
-          <p className="cuenta2-search-hint">Escribí al menos dos caracteres para buscar {esVenta ? 'un cliente' : 'un proveedor'}.</p>
-        )}
-        <div className={`cuenta2-entidades-lista${busquedaMovilActiva ? ' has-query' : ''}`}>
-          {busquedaMovilActiva && filtradas.length === 0 && (
+        <div className="cuenta2-entidades-lista">
+          {search.trim() && filtradas.length === 0 && (
             <p className="cuenta2-sin-resultados">No se encontraron {esVenta ? 'clientes' : 'proveedores'}.</p>
           )}
           {filtradas.map(e => (
@@ -439,10 +458,10 @@ function CtaCteC2({ tipoSector }) {
                 if (window.matchMedia('(max-width: 760px)').matches) setSearch('')
               }}
             >
-              <div style={{ fontWeight: selId === e.id ? 700 : 500, fontSize: 13, color: 'var(--gray-800)' }}>
+              <div style={{ fontWeight: selId === e.id ? 700 : 500, fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-800)' }}>
                 {e.nombre.length > 28 ? e.nombre.slice(0, 28) + '…' : e.nombre}
               </div>
-              <div className="cuenta2-entidad-saldo" style={{ fontSize: 12, fontWeight: 700, color: +e.saldo > 0 ? 'var(--red-500)' : +e.saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
+              <div className="cuenta2-entidad-saldo" style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: +e.saldo > 0 ? 'var(--red-500)' : +e.saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
                 {$ar(e.saldo)} {+e.saldo > 0 ? (esVenta ? '▲ Debe' : '▲ Le debemos') : +e.saldo < 0 ? '▼ A favor' : '✓ Sin saldo'}
               </div>
             </button>
@@ -454,8 +473,8 @@ function CtaCteC2({ tipoSector }) {
       <div className={`cuenta2-detalle${search.trim() ? ' is-searching' : ''}`}>
         {!selId ? (
           <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📒</div>
-            <p style={{ color: 'var(--gray-400)', fontSize: 14 }}>
+            <div style={{ fontSize: 'calc(40px * var(--font-scale))', marginBottom: 12 }}>📒</div>
+            <p style={{ color: 'var(--gray-400)', fontSize: 'calc(14px * var(--font-scale))' }}>
               Seleccione un {esVenta ? 'cliente' : 'proveedor'} para ver su cuenta corriente
             </p>
           </div>
@@ -466,18 +485,18 @@ function CtaCteC2({ tipoSector }) {
             <div className="card" style={{ marginBottom: 14 }}>
               <div className="cuenta2-resumen">
                 <div>
-                  <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--gray-800)' }}>{data.entidad.nombre}</h2>
-                  <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
+                  <h2 style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-800)' }}>{data.entidad.nombre}</h2>
+                  <div style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>
                     {data.entidad.telefono || 'Sin teléfono'}
                     {+data.entidad.descuento_porcentaje > 0 && ` · Descuento ${data.entidad.descuento_porcentaje}%`}
                   </div>
                 </div>
                 <div className="cuenta2-resumen-saldo">
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
+                  <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo actual</div>
+                  <div style={{ fontSize: 'calc(28px * var(--font-scale))', fontWeight: 800, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(saldo)}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
+                  <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 4 }}>
                     {saldo > 0 ? (esVenta ? '⬆ Saldo deudor' : '⬆ Le debemos') : saldo < 0 ? '⬇ Saldo a favor' : '✓ Cuenta balanceada'}
                   </div>
                   <div className="cuenta2-acciones">
@@ -514,7 +533,7 @@ function CtaCteC2({ tipoSector }) {
               </div>
 
               <div className="cuenta2-filtros">
-                <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 600 }}>Filtrar por período:</span>
+                <span style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', fontWeight: 600 }}>Filtrar por período:</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={desde} onChange={e => setDesde(e.target.value)} />
                 <span style={{ color: 'var(--gray-400)' }}>al</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={hasta} onChange={e => setHasta(e.target.value)} />
@@ -523,7 +542,7 @@ function CtaCteC2({ tipoSector }) {
               </div>
             </div>
 
-            <div className="tbl-wrap">
+            <div className="tbl-wrap cuenta2-movs-tabla">
               <table>
                 <thead>
                   <tr>
@@ -540,18 +559,13 @@ function CtaCteC2({ tipoSector }) {
                   {data.movimientos.length === 0 ? (
                     <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--gray-400)' }}>Sin movimientos en el período</td></tr>
                   ) : data.movimientos.map((m, i) => {
-                    const ts = TIPO_STYLE[m.tipo] || { bg: 'var(--gray-100)', color: 'var(--gray-600)', label: m.tipo }
                     // Remitos se borran desde su solapa; la fila de saldo anterior es sintética (id null).
                     const sinEliminar = m.tipo === 'REMITO X' || m.tipo === 'SALDO ANTERIOR'
                     return (
                       <tr key={`${m.tipo}-${m.id}-${i}`}>
                         <td>{fFecha(m.fecha)}</td>
                         <td><span className="code">{m.comprobante}</span></td>
-                        <td>
-                          <span style={{ background: ts.bg, color: ts.color, padding: '2px 9px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
-                            {ts.label}
-                          </span>
-                        </td>
+                        <td><TipoC2 tipo={m.tipo} /></td>
                         <td className="td-right" style={{ color: parseFloat(m.debe) > 0 ? 'var(--red-500)' : 'var(--gray-300)', fontWeight: parseFloat(m.debe) > 0 ? 600 : 400 }}>
                           {parseFloat(m.debe) > 0 ? $ar(m.debe) : '—'}
                         </td>
@@ -572,9 +586,85 @@ function CtaCteC2({ tipoSector }) {
                 </tbody>
               </table>
             </div>
+
+            {/* Celular: en lugar de la tabla de 7 columnas, una fila compacta por movimiento
+                (fecha, tipo, importe y saldo) que se despliega para ver el resto. */}
+            <div className="cuenta2-movs-lista">
+              {data.movimientos.length === 0 ? (
+                <p className="cuenta2-movs-vacio">Sin movimientos en el período</p>
+              ) : data.movimientos.map((m, i) => {
+                const clave = `${m.tipo}-${m.id}`
+                const esSaldoAnterior = m.tipo === 'SALDO ANTERIOR'
+                const sinEliminar = m.tipo === 'REMITO X' || esSaldoAnterior
+                const debe = parseFloat(m.debe), haber = parseFloat(m.haber), saldoMov = parseFloat(m.saldo)
+                const neto = debe - haber
+                const estaAbierto = abierto === clave
+                return (
+                  <div key={`${clave}-${i}`} className={`cuenta2-mov${estaAbierto ? ' is-open' : ''}`}>
+                    <div className="cuenta2-mov-resumen">
+                      <div className="cuenta2-mov-datos-cortos">
+                        <div className="cuenta2-mov-linea">
+                          <span className="cuenta2-mov-fecha">{fFecha(m.fecha)}</span>
+                          <TipoC2 tipo={m.tipo} />
+                          {!esSaldoAnterior && (
+                            <span className="cuenta2-mov-importe" style={{ color: colorMonto(neto) }}>
+                              {neto < 0 ? `− ${$ar(-neto)}` : neto > 0 ? $ar(neto) : '—'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="cuenta2-mov-linea">
+                          <span className="cuenta2-mov-comp">{esSaldoAnterior ? 'Saldo al inicio del período' : m.comprobante}</span>
+                          <span className="cuenta2-mov-saldo">
+                            Saldo <strong style={{ color: colorMonto(saldoMov) }}>{$ar(m.saldo)}</strong>
+                          </span>
+                        </div>
+                      </div>
+                      {!esSaldoAnterior && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary cuenta2-mov-toggle"
+                          aria-expanded={estaAbierto}
+                          aria-controls={`cuenta2-mov-${i}`}
+                          aria-label={estaAbierto ? 'Ocultar detalle' : 'Ver detalle'}
+                          onClick={() => setAbierto(estaAbierto ? null : clave)}
+                        >
+                          <span aria-hidden="true">▾</span>
+                        </button>
+                      )}
+                    </div>
+                    {estaAbierto && (
+                      <div className="cuenta2-mov-detalle" id={`cuenta2-mov-${i}`}>
+                        <dl className="cuenta2-mov-campos">
+                          <dt>Comprobante / concepto</dt>
+                          <dd className="cuenta2-mov-concepto">{m.comprobante}</dd>
+                          <dt>Fecha</dt>
+                          <dd>{fFecha(m.fecha)}</dd>
+                          <dt>Debe</dt>
+                          <dd style={{ color: debe > 0 ? 'var(--red-500)' : 'var(--gray-400)' }}>{debe > 0 ? $ar(m.debe) : '—'}</dd>
+                          <dt>Haber</dt>
+                          <dd style={{ color: haber > 0 ? 'var(--green-600)' : 'var(--gray-400)' }}>{haber > 0 ? $ar(m.haber) : '—'}</dd>
+                          <dt>Saldo</dt>
+                          <dd style={{ color: colorMonto(saldoMov), fontWeight: 700 }}>{$ar(m.saldo)}</dd>
+                        </dl>
+                        <div className="cuenta2-mov-acciones">
+                          {m.tipo === 'REMITO X' && (
+                            <button type="button" className="btn btn-secondary btn-sm" onClick={() => verRemito(m.id)}>Ver remito</button>
+                          )}
+                          {!sinEliminar && (
+                            <button type="button" className="btn btn-danger btn-sm" onClick={() => eliminarMov(m)}>Eliminar movimiento</button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         ) : null}
       </div>
+
+      {remitoDetalle && <RemitoXDetalle remito={remitoDetalle} onClose={() => setRemitoDetalle(null)} />}
 
       {remitoForm && (
         <RemitoXForm

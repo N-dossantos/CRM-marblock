@@ -233,7 +233,7 @@ export default function Informes() {
         {GRUPOS.map(g => (
           <div key={g.titulo} style={{ marginBottom: 6 }}>
             <div style={{
-              padding: '6px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '.5px',
+              padding: '6px 14px', fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, letterSpacing: '.5px',
               textTransform: 'uppercase', color: 'var(--gray-400)',
             }}>
               {g.titulo}
@@ -252,7 +252,7 @@ export default function Informes() {
                   borderLeft: tab === t.id ? '3px solid var(--blue-600)' : '3px solid transparent',
                   color: tab === t.id ? 'var(--blue-600)' : 'var(--gray-600)',
                   fontWeight: tab === t.id ? 700 : 400,
-                  fontSize: 13,
+                  fontSize: 'calc(13px * var(--font-scale))',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   transition: 'background .12s, color .12s',
@@ -420,7 +420,7 @@ export default function Informes() {
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
-                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
                   </div>
                 ))}
               </div>
@@ -428,12 +428,12 @@ export default function Informes() {
               {/* Gráfico por mes */}
               {data.por_mes.length > 0 && (
                 <div className="card" style={{ marginBottom: 18 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>Facturación mensual</div>
+                  <div style={{ fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))', marginBottom: 14 }}>Facturación mensual</div>
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={data.por_mes} margin={{ top: 4, right: 16, bottom: 4, left: 60 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
-                      <XAxis dataKey="mes" tick={{ fontSize: 12, fill: 'var(--gray-500)' }} />
-                      <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: 'var(--gray-500)' }} />
+                      <XAxis dataKey="mes" tick={{ fontSize: 'calc(12px * var(--font-scale))', fill: 'var(--gray-500)' }} />
+                      <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 'calc(11px * var(--font-scale))', fill: 'var(--gray-500)' }} />
                       <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--gray-200)', borderRadius: 8, color: 'var(--gray-800)' }} cursor={{ fill: 'var(--gray-100)' }} formatter={v => [$ar(v), 'Total']} labelStyle={{ fontWeight: 700 }} />
                       <Bar dataKey="total" fill="var(--blue-600)" radius={[4,4,0,0]}>
                         {data.por_mes.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -446,7 +446,7 @@ export default function Informes() {
               {/* Top productos */}
               {data.por_producto.length > 0 && (
                 <div className="card" style={{ marginBottom: 18 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>Top productos facturados</div>
+                  <div style={{ fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))', marginBottom: 14 }}>Top productos facturados</div>
                   <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
                     <table>
                       <thead><tr>
@@ -472,7 +472,7 @@ export default function Informes() {
               {/* Por cliente */}
               {data.por_cliente.length > 0 && (
                 <div className="card">
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>Ventas por cliente</div>
+                  <div style={{ fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))', marginBottom: 14 }}>Ventas por cliente</div>
                   <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
                     <table>
                       <thead><tr>
@@ -503,13 +503,13 @@ export default function Informes() {
           {tab === 'clientes' && Array.isArray(data) && (
             <div>
               <div className="card" style={{ marginBottom: 16 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>Ranking de clientes por volumen de compra</div>
+                <div style={{ fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))', marginBottom: 14 }}>Ranking de clientes por volumen de compra</div>
                 {data.length > 0 && (
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={data.slice(0, 10)} layout="vertical" margin={{ top: 4, right: 60, bottom: 4, left: 180 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
-                      <XAxis type="number" tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: 'var(--gray-500)' }} />
-                      <YAxis type="category" dataKey="razon_social" tick={{ fontSize: 11, fill: 'var(--gray-500)' }} width={175}
+                      <XAxis type="number" tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 'calc(11px * var(--font-scale))', fill: 'var(--gray-500)' }} />
+                      <YAxis type="category" dataKey="razon_social" tick={{ fontSize: 'calc(11px * var(--font-scale))', fill: 'var(--gray-500)' }} width={175}
                         tickFormatter={v => v.length > 24 ? v.slice(0, 24) + '…' : v} />
                       <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--gray-200)', borderRadius: 8, color: 'var(--gray-800)' }} cursor={{ fill: 'var(--gray-100)' }} formatter={v => [$ar(v), 'Total facturado']} />
                       <Bar dataKey="total_facturado" fill="var(--blue-600)" radius={[0,4,4,0]}>
@@ -538,7 +538,7 @@ export default function Informes() {
                           <td className="td-right" style={{ color: parseFloat(c.saldo_pendiente) > 0 ? 'var(--red-500)' : 'var(--green-600)', fontWeight: 600 }}>
                             {parseFloat(c.saldo_pendiente) > 0 ? $ar(c.saldo_pendiente) : '✓'}
                           </td>
-                          <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{fFecha(c.ultima_compra)}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{fFecha(c.ultima_compra)}</td>
                         </tr>
                       ))
                     }
@@ -553,8 +553,8 @@ export default function Informes() {
             <div>
               {data.length === 0 ? (
                 <div className="card" style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--green-600)' }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div>
-                  <p style={{ fontWeight: 700, fontSize: 16 }}>¡Sin deudas pendientes!</p>
+                  <div style={{ fontSize: 'calc(40px * var(--font-scale))', marginBottom: 12 }}>🎉</div>
+                  <p style={{ fontWeight: 700, fontSize: 'calc(16px * var(--font-scale))' }}>¡Sin deudas pendientes!</p>
                   <p style={{ color: 'var(--gray-400)', marginTop: 4 }}>Todos los clientes están al día.</p>
                 </div>
               ) : (
@@ -562,11 +562,11 @@ export default function Informes() {
                   {/* Alerta total adeudado */}
                   <div style={{ background: 'var(--red-50)', border: '1px solid var(--red-100)', borderRadius: 10, padding: '14px 18px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontWeight: 700, color: 'var(--red-600)', fontSize: 15 }}>Total adeudado por clientes</div>
-                      <div style={{ fontSize: 12, color: 'var(--red-600)', marginTop: 2 }}>{data.length} cliente(s) con saldo pendiente</div>
+                      <div style={{ fontWeight: 700, color: 'var(--red-600)', fontSize: 'calc(15px * var(--font-scale))' }}>Total adeudado por clientes</div>
+                      <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--red-600)', marginTop: 2 }}>{data.length} cliente(s) con saldo pendiente</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--red-600)' }}>
+                      <div style={{ fontSize: 'calc(26px * var(--font-scale))', fontWeight: 800, color: 'var(--red-600)' }}>
                         {$ar(data.reduce((a, c) => a + parseFloat(c.total_pendiente || 0), 0))}
                       </div>
                       <button
@@ -593,12 +593,12 @@ export default function Informes() {
                             <td style={{ fontWeight: 800, color: i < 3 ? 'var(--red-500)' : 'var(--gray-400)' }}>{i + 1}</td>
                             <td className="td-bold">{c.razon_social}</td>
                             <td className="td-mono">{fDocNro(c.doc_tipo, c.doc_nro)}</td>
-                            <td style={{ fontSize: 12 }}>{c.telefono || '—'}</td>
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.telefono || '—'}</td>
                             <td className="td-right">{c.facturas_pendientes}</td>
                             <td className="td-right" style={{ color: 'var(--red-500)', fontWeight: 700 }}>{$ar(c.total_pendiente)}</td>
-                            <td className="td-right" style={{ fontSize: 12, color: 'var(--gray-500)' }}>{fFecha(c.factura_mas_antigua)}</td>
+                            <td className="td-right" style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{fFecha(c.factura_mas_antigua)}</td>
                             <td className="td-right">
-                              <span style={{ background: c.dias_deuda > 60 ? 'var(--red-100)' : c.dias_deuda > 30 ? 'var(--amber-100)' : 'var(--green-100)', color: c.dias_deuda > 60 ? 'var(--red-600)' : c.dias_deuda > 30 ? 'var(--amber-600)' : 'var(--green-600)', padding: '2px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700 }}>
+                              <span style={{ background: c.dias_deuda > 60 ? 'var(--red-100)' : c.dias_deuda > 30 ? 'var(--amber-100)' : 'var(--green-100)', color: c.dias_deuda > 60 ? 'var(--red-600)' : c.dias_deuda > 30 ? 'var(--amber-600)' : 'var(--green-600)', padding: '2px 8px', borderRadius: 8, fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700 }}>
                                 {c.dias_deuda} días
                               </span>
                             </td>
@@ -617,12 +617,12 @@ export default function Informes() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
               {/* Remitos pendientes a facturar */}
               <div className="card">
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, color: 'var(--gray-800)' }}>
+                <div style={{ fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))', marginBottom: 14, color: 'var(--gray-800)' }}>
                   🚚 Remitos pendientes de facturar
-                  <span style={{ background: 'var(--amber-100)', color: 'var(--amber-600)', padding: '2px 8px', borderRadius: 10, fontSize: 12, marginLeft: 8 }}>{data.remitos.length}</span>
+                  <span style={{ background: 'var(--amber-100)', color: 'var(--amber-600)', padding: '2px 8px', borderRadius: 10, fontSize: 'calc(12px * var(--font-scale))', marginLeft: 8 }}>{data.remitos.length}</span>
                 </div>
                 {data.remitos.length === 0
-                  ? <p style={{ color: 'var(--gray-400)', fontSize: 13, textAlign: 'center', padding: 20 }}>Sin remitos pendientes</p>
+                  ? <p style={{ color: 'var(--gray-400)', fontSize: 'calc(13px * var(--font-scale))', textAlign: 'center', padding: 20 }}>Sin remitos pendientes</p>
                   : <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
                     <table>
                       <thead><tr><th>Remito</th><th>Fecha</th><th>Cliente</th><th className="th-right">Días</th></tr></thead>
@@ -630,10 +630,10 @@ export default function Informes() {
                         {data.remitos.map(r => (
                           <tr key={r.id}>
                             <td><span className="code">{r.numero}</span></td>
-                            <td style={{ fontSize: 12 }}>{fFecha(r.fecha)}</td>
-                            <td style={{ fontSize: 12, fontWeight: 500 }}>{r.razon_social.length > 22 ? r.razon_social.slice(0, 22) + '…' : r.razon_social}</td>
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(r.fecha)}</td>
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 500 }}>{r.razon_social.length > 22 ? r.razon_social.slice(0, 22) + '…' : r.razon_social}</td>
                             <td className="td-right">
-                              <span style={{ background: r.dias_pendiente > 7 ? 'var(--red-100)' : 'var(--amber-100)', color: r.dias_pendiente > 7 ? 'var(--red-600)' : 'var(--amber-600)', padding: '2px 7px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
+                              <span style={{ background: r.dias_pendiente > 7 ? 'var(--red-100)' : 'var(--amber-100)', color: r.dias_pendiente > 7 ? 'var(--red-600)' : 'var(--amber-600)', padding: '2px 7px', borderRadius: 8, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>
                                 {r.dias_pendiente}d
                               </span>
                             </td>
@@ -647,12 +647,12 @@ export default function Informes() {
 
               {/* Facturas pendientes de remitir */}
               <div className="card">
-                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, color: 'var(--gray-800)' }}>
+                <div style={{ fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))', marginBottom: 14, color: 'var(--gray-800)' }}>
                   🧾 Facturas pendientes de remitir
-                  <span style={{ background: 'var(--blue-100)', color: 'var(--blue-600)', padding: '2px 8px', borderRadius: 10, fontSize: 12, marginLeft: 8 }}>{data.facturas.length}</span>
+                  <span style={{ background: 'var(--blue-100)', color: 'var(--blue-600)', padding: '2px 8px', borderRadius: 10, fontSize: 'calc(12px * var(--font-scale))', marginLeft: 8 }}>{data.facturas.length}</span>
                 </div>
                 {data.facturas.length === 0
-                  ? <p style={{ color: 'var(--gray-400)', fontSize: 13, textAlign: 'center', padding: 20 }}>Sin facturas pendientes</p>
+                  ? <p style={{ color: 'var(--gray-400)', fontSize: 'calc(13px * var(--font-scale))', textAlign: 'center', padding: 20 }}>Sin facturas pendientes</p>
                   : <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
                     <table>
                       <thead><tr><th>Factura</th><th>Fecha</th><th>Cliente</th><th className="th-right">Total</th><th className="th-right">Días</th></tr></thead>
@@ -660,11 +660,11 @@ export default function Informes() {
                         {data.facturas.map(f => (
                           <tr key={f.id}>
                             <td><span className="code">{f.numero}</span></td>
-                            <td style={{ fontSize: 12 }}>{fFecha(f.fecha)}</td>
-                            <td style={{ fontSize: 12, fontWeight: 500 }}>{f.razon_social.length > 18 ? f.razon_social.slice(0, 18) + '…' : f.razon_social}</td>
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(f.fecha)}</td>
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 500 }}>{f.razon_social.length > 18 ? f.razon_social.slice(0, 18) + '…' : f.razon_social}</td>
                             <td className="td-right td-bold">{$ar(f.total)}</td>
                             <td className="td-right">
-                              <span style={{ background: f.dias_pendiente > 7 ? 'var(--red-100)' : 'var(--amber-100)', color: f.dias_pendiente > 7 ? 'var(--red-600)' : 'var(--amber-600)', padding: '2px 7px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
+                              <span style={{ background: f.dias_pendiente > 7 ? 'var(--red-100)' : 'var(--amber-100)', color: f.dias_pendiente > 7 ? 'var(--red-600)' : 'var(--amber-600)', padding: '2px 7px', borderRadius: 8, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>
                                 {f.dias_pendiente}d
                               </span>
                             </td>
@@ -689,14 +689,14 @@ export default function Informes() {
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
-                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
                   </div>
                 ))}
               </div>
 
               {data.resumen.length > 0 && (
                 <div className="card" style={{ marginBottom: 18 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>Resumen por comprobante</div>
+                  <div style={{ fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))', marginBottom: 14 }}>Resumen por comprobante</div>
                   <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
                     <table>
                       <thead><tr>
@@ -735,11 +735,11 @@ export default function Informes() {
                           <td>
                             <span className="badge" style={{ marginRight: 6 }}>{c.comprobante} {c.letra}</span>
                             <span className="code">{c.numero}</span>
-                            {c.anulada && <span style={{ color: 'var(--red-500)', marginLeft: 6, fontSize: 12 }}>(anulada)</span>}
+                            {c.anulada && <span style={{ color: 'var(--red-500)', marginLeft: 6, fontSize: 'calc(12px * var(--font-scale))' }}>(anulada)</span>}
                           </td>
                           <td className="td-bold">{c.razon_social}</td>
                           <td className="td-mono">{fDocNro(c.doc_tipo, c.doc_nro)}</td>
-                          <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.condicion_iva}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{c.condicion_iva}</td>
                           <td className="td-right">{$ar(c.neto_gravado)}</td>
                           <td className="td-right">{$ar(c.iva_monto)}</td>
                           <td className="td-right td-bold" style={{ color: +c.total < 0 ? 'var(--red-500)' : 'inherit' }}>{$ar(c.total)}</td>
@@ -756,11 +756,11 @@ export default function Informes() {
             <div>
               <div className="card" style={{ marginBottom: 16 }}>
                 <div className="kpi-label">Retenciones sufridas del período</div>
-                <div className="kpi-value" style={{ fontSize: 20, color: 'var(--blue-600)' }}>{$ar(data.total)}</div>
-                <div style={{ fontSize: 12, color: 'var(--gray-600)', marginTop: 8 }}>
+                <div className="kpi-value" style={{ fontSize: 'calc(20px * var(--font-scale))', color: 'var(--blue-600)' }}>{$ar(data.total)}</div>
+                <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-600)', marginTop: 8 }}>
                   Con certificado: {$ar(data.total_documentado)} · Históricas pendientes de certificado: {$ar(data.total_pendiente)}
                 </div>
-                {+data.total_pendiente > 0 && <div style={{ fontSize: 12, color: 'var(--amber-700)', marginTop: 6 }}>
+                {+data.total_pendiente > 0 && <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--amber-700)', marginTop: 6 }}>
                   Los registros históricos pendientes usan la fecha del recibo. Verificá certificado, fecha, régimen y jurisdicción con el agente de retención antes de presentarlos al contador o computarlos fiscalmente.
                 </div>}
               </div>
@@ -774,7 +774,7 @@ export default function Informes() {
                     ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin retenciones sufridas en el período</td></tr>
                     : data.retenciones.map((r, i) => <tr key={i}>
                       <td>{fFecha(r.fecha || r.fecha_recibo)}</td><td className="td-bold">{r.cliente}</td>
-                      <td className="code">{r.cuit_agente}</td><td>{r.tipo_retencion}{r.detalle_origen && <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>{r.detalle_origen}</div>}</td>
+                      <td className="code">{r.cuit_agente}</td><td>{r.tipo_retencion}{r.detalle_origen && <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-500)' }}>{r.detalle_origen}</div>}</td>
                       <td>{r.jurisdiccion || '—'}</td><td>{r.codigo_regimen || '—'}</td><td className="code">{r.numero_certificado || '—'}</td>
                       <td>{r.pendiente_documentacion ? 'Pendiente de certificado' : 'Documentada'}</td>
                       <td className="code">{r.recibo_numero}</td><td className="td-right td-bold">{$ar(r.monto)}</td>
@@ -796,7 +796,7 @@ export default function Informes() {
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
-                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
                   </div>
                 ))}
               </div>
@@ -816,7 +816,7 @@ export default function Informes() {
                           <td><span className={`badge badge-${c.tipo}`} style={{ marginRight: 6 }}>{c.comprobante === 'FAC' ? c.tipo : `${c.comprobante} ${c.tipo || ''}`}</span><span className="code">{c.numero}</span></td>
                           <td className="td-bold">{c.razon_social}</td>
                           <td className="td-mono">{c.cuit}</td>
-                          <td style={{ fontSize: 11, color: 'var(--gray-500)' }}>
+                          <td style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-500)' }}>
                             {(c.iva_detalle || []).map((d, j) => (
                               <span key={j} style={{ display: 'inline-block', marginRight: 6 }}>{d.porcentaje}%: {$ar(d.iva_monto)}</span>
                             ))}
@@ -833,7 +833,7 @@ export default function Informes() {
 
               {data.retenciones?.length > 0 && (
                 <div className="card">
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))', marginBottom: 14 }}>
                     Retenciones aplicadas — total {$ar(data.totales.retenciones || 0)}
                   </div>
                   <div className="tbl-wrap" style={{ boxShadow: 'none', border: 'none' }}>
@@ -847,7 +847,7 @@ export default function Informes() {
                             <td>{fFecha(r.fecha)}</td>
                             <td className="td-bold">{r.razon_social}</td>
                             <td>{r.tipo_retencion}</td>
-                            <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{r.jurisdiccion || '—'}</td>
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{r.jurisdiccion || '—'}</td>
                             <td className="code">{r.numero_certificado || '—'}</td>
                             <td className="td-right td-bold">{$ar(r.monto)}</td>
                           </tr>
@@ -875,9 +875,9 @@ export default function Informes() {
                       <tr key={p.id} style={{ opacity: p.activo ? 1 : 0.5 }}>
                         <td className="td-bold">{p.razon_social}</td>
                         <td className="td-mono">{p.cuit}</td>
-                        <td style={{ fontSize: 12 }}>{p.condicion_iva}</td>
-                        <td style={{ fontSize: 12 }}>{p.condicion_compra}</td>
-                        <td style={{ fontSize: 12 }}>{p.telefono || '—'}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{p.condicion_iva}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{p.condicion_compra}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{p.telefono || '—'}</td>
                         <td className="td-right">{p.cantidad_facturas}</td>
                         <td className="td-right td-bold">{$ar(p.total_comprado)}</td>
                         <td className="td-right" style={{ color: parseFloat(p.saldo_pendiente) > 0 ? 'var(--red-500)' : 'var(--green-600)', fontWeight: 600 }}>
@@ -906,10 +906,10 @@ export default function Informes() {
                       <tr key={i}>
                         <td><span className="code">{m.codigo || '—'}</span></td>
                         <td className="td-bold">{m.descripcion || '—'}</td>
-                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.unidad_medida || '—'}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{m.unidad_medida || '—'}</td>
                         <td className="td-right td-bold">{$ar(m.ultimo_precio)}</td>
-                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{fFecha(m.fecha_ultima_compra)}</td>
-                        <td style={{ fontSize: 12 }}>{m.ultimo_proveedor || '—'}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{fFecha(m.fecha_ultima_compra)}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.ultimo_proveedor || '—'}</td>
                       </tr>
                     ))
                   }
@@ -923,9 +923,9 @@ export default function Informes() {
           {tab === 'saldos_tes' && data.agrupaciones && (
             <div>
               <div style={{ background: 'var(--blue-50)', border: '1px solid var(--blue-100)', borderRadius: 10, padding: '14px 18px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 700, color: 'var(--blue-600)', fontSize: 15 }}>Saldo total de tesorería</div>
+                <div style={{ fontWeight: 700, color: 'var(--blue-600)', fontSize: 'calc(15px * var(--font-scale))' }}>Saldo total de tesorería</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--blue-600)' }}>{$ar(data.total_general || 0)}</div>
+                  <div style={{ fontSize: 'calc(24px * var(--font-scale))', fontWeight: 800, color: 'var(--blue-600)' }}>{$ar(data.total_general || 0)}</div>
                   <button
                     className="btn btn-secondary btn-sm"
                     style={{ background: 'var(--red-50)', color: 'var(--red-600)', borderColor: 'var(--red-100)' }}
@@ -940,7 +940,7 @@ export default function Informes() {
                 ? <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin cuentas cargadas</div>
                 : data.agrupaciones.map((g, gi) => (
                   <div className="card" key={gi} style={{ marginBottom: 16 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, display: 'flex', justifyContent: 'space-between' }}>
+                    <div style={{ fontWeight: 700, fontSize: 'calc(14px * var(--font-scale))', marginBottom: 14, display: 'flex', justifyContent: 'space-between' }}>
                       <span>{g.descripcion}</span>
                       <span style={{ color: 'var(--gray-600)' }}>Subtotal: {$ar(g.subtotal || 0)}</span>
                     </div>
@@ -955,7 +955,7 @@ export default function Informes() {
                           {g.cuentas.map(c => (
                             <tr key={c.id}>
                               <td className="td-bold">{c.descripcion}</td>
-                              <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.clase}</td>
+                              <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{c.clase}</td>
                               <td className="td-right">{$ar(c.saldo_inicial || 0)}</td>
                               <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(c.entradas || 0)}</td>
                               <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(c.salidas || 0)}</td>
@@ -989,7 +989,7 @@ export default function Informes() {
                   ].map(k => (
                     <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                       <div className="kpi-label">{k.label}</div>
-                      <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                      <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
                     </div>
                   ))}
                 </div>
@@ -1033,9 +1033,9 @@ export default function Informes() {
                         : sub.movimientos.map(m => (
                           <tr key={m.id} style={{ opacity: m.anulado ? 0.4 : 1 }}>
                             <td>{fFecha(m.fecha)}</td>
-                            {data.todos && <td style={{ fontSize: 12 }}>{m.cuenta_descripcion}</td>}
-                            <td style={{ fontSize: 12 }}><span className="code">{m.tipo_codigo}</span> {m.tipo_descripcion}</td>
-                            <td style={{ fontSize: 12 }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
+                            {data.todos && <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.cuenta_descripcion}</td>}
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}><span className="code">{m.tipo_codigo}</span> {m.tipo_descripcion}</td>
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
                             <td className="td-right" style={{ color: 'var(--red-500)' }}>{m.signo === -1 ? $ar(m.monto) : ''}</td>
                             <td className="td-right" style={{ color: 'var(--green-600)' }}>{m.signo === 1 ? $ar(m.monto) : ''}</td>
                             <td className="td-right td-bold">{$ar(m.saldo)}</td>
@@ -1071,7 +1071,7 @@ export default function Informes() {
                         return (
                           <tr key={c.id}>
                             <td className="td-bold">{c.descripcion}</td>
-                            <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.clase}</td>
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{c.clase}</td>
                             <td className="td-right" style={{ color: 'var(--green-600)' }}>{$ar(c.creditos || 0)}</td>
                             <td className="td-right" style={{ color: 'var(--red-500)' }}>{$ar(c.debitos || 0)}</td>
                             <td className="td-right td-bold" style={{ color: dif < 0 ? 'var(--red-500)' : 'inherit' }}>{$ar(dif)}</td>
@@ -1107,7 +1107,7 @@ export default function Informes() {
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
-                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
                   </div>
                 ))}
               </div>
@@ -1149,7 +1149,7 @@ export default function Informes() {
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
-                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
                   </div>
                 ))}
               </div>
@@ -1164,14 +1164,14 @@ export default function Informes() {
                       ? <tr><td colSpan={9} style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin cheques</td></tr>
                       : data.cheques.map(c => (
                         <tr key={`${c.origen}-${c.id}`}>
-                          <td><span style={{ background: c.origen === 'propio' ? 'var(--amber-100)' : 'var(--blue-100)', color: c.origen === 'propio' ? 'var(--amber-600)' : 'var(--blue-600)', padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{c.origen}</span></td>
+                          <td><span style={{ background: c.origen === 'propio' ? 'var(--amber-100)' : 'var(--blue-100)', color: c.origen === 'propio' ? 'var(--amber-600)' : 'var(--blue-600)', padding: '2px 8px', borderRadius: 8, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>{c.origen}</span></td>
                           <td><span className="code">{c.numero}</span></td>
-                          <td style={{ fontSize: 12 }}>{c.banco || '—'}</td>
-                          <td style={{ fontSize: 12 }}>{c.tipo}</td>
-                          <td style={{ fontSize: 12 }}>{c.entidad || '—'}</td>
-                          <td style={{ fontSize: 12 }}>{fFecha(c.fecha_emision)}</td>
-                          <td style={{ fontSize: 12 }}>{fFecha(c.fecha_venc)}</td>
-                          <td style={{ fontSize: 12 }}>{c.estado}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.banco || '—'}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.tipo}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.entidad || '—'}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(c.fecha_emision)}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(c.fecha_venc)}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.estado}</td>
                           <td className="td-right td-bold">{$ar(c.monto || 0)}</td>
                         </tr>
                       ))
@@ -1194,7 +1194,7 @@ export default function Informes() {
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
-                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
                   </div>
                 ))}
               </div>
@@ -1211,10 +1211,10 @@ export default function Informes() {
                         <tr key={m.id} style={{ opacity: m.anulado ? 0.4 : 1 }}>
                           <td>{fFecha(m.fecha)}</td>
                           <td>{m.numero ? <span className="code">{m.numero}</span> : '—'}</td>
-                          <td style={{ fontSize: 12 }}>{m.cuenta}</td>
-                          <td style={{ fontSize: 12 }}><span className="code">{m.tipo_codigo}</span></td>
-                          <td style={{ fontSize: 12 }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
-                          <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.origen}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.cuenta}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}><span className="code">{m.tipo_codigo}</span></td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{m.origen}</td>
                           <td className="td-right td-bold" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--red-500)' }}>{$ar(m.monto_con_signo || 0)}</td>
                         </tr>
                       ))
@@ -1240,10 +1240,10 @@ export default function Informes() {
                       <tr key={m.id} style={{ opacity: m.anulado ? 0.4 : 1 }}>
                         <td>{fFecha(m.fecha)}</td>
                         <td>{m.numero ? <span className="code">{m.numero}</span> : '—'}</td>
-                        <td style={{ fontSize: 12 }}>{m.cuenta_descripcion}</td>
-                        <td style={{ fontSize: 12 }}><span className="code">{m.tipo_codigo}</span></td>
-                        <td style={{ fontSize: 12 }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
-                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.origen}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.cuenta_descripcion}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}><span className="code">{m.tipo_codigo}</span></td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.concepto || '—'}{m.anulado && <span style={{ color: 'var(--red-500)', marginLeft: 6 }}>(anulado)</span>}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{m.origen}</td>
                         <td className="td-right td-bold" style={{ color: m.signo === 1 ? 'var(--green-600)' : 'var(--red-500)' }}>{$ar(m.monto_con_signo || 0)}</td>
                         <td>{m.conciliado ? '✓' : ''}</td>
                       </tr>
@@ -1267,7 +1267,7 @@ export default function Informes() {
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
-                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
                   </div>
                 ))}
               </div>
@@ -1275,7 +1275,7 @@ export default function Informes() {
                 ? <div className="card" style={{ textAlign: 'center', padding: 40, color: 'var(--gray-400)' }}>Sin asientos confirmados en el período</div>
                 : data.asientos.map(a => (
                   <div className="card" key={a.id} style={{ marginBottom: 14 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 13 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 'calc(13px * var(--font-scale))' }}>
                       <span><span className="code" style={{ fontWeight: 700 }}>{a.numero}</span> · {fFecha(a.fecha)} · <strong>{a.descripcion}</strong></span>
                       <span style={{ color: 'var(--gray-500)' }}>{a.origen}</span>
                     </div>
@@ -1291,7 +1291,7 @@ export default function Informes() {
                             <tr key={i}>
                               <td><span className="code">{l.codigo}</span></td>
                               <td>{l.cuenta}</td>
-                              <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{l.detalle || '—'}</td>
+                              <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{l.detalle || '—'}</td>
                               <td className="td-right">{Number(l.debe)  > 0 ? $ar(l.debe)  : ''}</td>
                               <td className="td-right">{Number(l.haber) > 0 ? $ar(l.haber) : ''}</td>
                             </tr>
@@ -1321,7 +1321,7 @@ export default function Informes() {
                 ].map(k => (
                   <div key={k.label} className="card" style={{ padding: '12px 16px' }}>
                     <div className="kpi-label">{k.label}</div>
-                    <div className="kpi-value" style={{ color: k.color, fontSize: 17, margin: '5px 0 0' }}>{k.val}</div>
+                    <div className="kpi-value" style={{ color: k.color, fontSize: 'calc(17px * var(--font-scale))', margin: '5px 0 0' }}>{k.val}</div>
                   </div>
                 ))}
               </div>
@@ -1341,8 +1341,8 @@ export default function Informes() {
                         <tr key={m.item_id}>
                           <td>{fFecha(m.fecha)}</td>
                           <td><span className="code">{m.numero}</span></td>
-                          <td style={{ fontSize: 12 }}>{m.descripcion}</td>
-                          <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.detalle || '—'}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.descripcion}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{m.detalle || '—'}</td>
                           <td className="td-right">{Number(m.debe)  > 0 ? $ar(m.debe)  : ''}</td>
                           <td className="td-right">{Number(m.haber) > 0 ? $ar(m.haber) : ''}</td>
                           <td className="td-right td-bold">{$ar(m.saldo || 0)}</td>
@@ -1374,7 +1374,7 @@ export default function Informes() {
                           <tr key={c.id}>
                             <td><span className="code">{c.codigo}</span></td>
                             <td className="td-bold">{c.descripcion}</td>
-                            <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{c.tipo_cuenta}</td>
+                            <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{c.tipo_cuenta}</td>
                             <td className="td-right">{$ar(c.saldo_inicial || 0)}</td>
                             <td className="td-right">{$ar(c.debe  || 0)}</td>
                             <td className="td-right">{$ar(c.haber || 0)}</td>

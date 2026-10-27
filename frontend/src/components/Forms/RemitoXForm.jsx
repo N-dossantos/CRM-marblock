@@ -226,7 +226,7 @@ export default function RemitoXForm({
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+        <span style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px' }}>
           Ítems — precios netos, sin impuestos
         </span>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -249,7 +249,7 @@ export default function RemitoXForm({
 
       {ofrecePago && (
         <div style={{ marginTop: 16, paddingTop: 14, borderTop: '2px solid var(--gray-200)' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 'calc(13px * var(--font-scale))', fontWeight: 600 }}>
             <input type="checkbox" checked={conPago} onChange={e => togglePago(e.target.checked)} />
             Registrar el pago al proveedor junto con este remito
           </label>

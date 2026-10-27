@@ -379,7 +379,7 @@ export function IndicadorArca({ estado }) {
   return (
     <span className={`arca-pill ${ok ? 'is-ok' : 'is-err'}`} title={titulo}>
       <span className="arca-pill-dot" aria-hidden />
-      ARCA{estado.ambiente === 'homologacion' ? ' · homologación' : ''}
+      <span className="arca-pill-txt">ARCA{estado.ambiente === 'homologacion' ? ' · homologación' : ''}</span>
     </span>
   )
 }

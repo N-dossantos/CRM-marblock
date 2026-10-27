@@ -86,10 +86,10 @@ export default function ContabilidadPlanCuentas() {
                   >
                     {c.descripcion}
                   </td>
-                  <td style={{ fontSize: 12, fontWeight: 600, color: TIPO_COLOR[c.tipo_cuenta] || 'var(--gray-500)' }}>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 600, color: TIPO_COLOR[c.tipo_cuenta] || 'var(--gray-500)' }}>
                     {c.tipo_cuenta}
                   </td>
-                  <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>
                     {c.imputable ? '✓ Imputable' : 'Agrupación'}
                   </td>
                   <td><button className="btn btn-ghost btn-sm" onClick={() => openEdit(c)}>Editar</button></td>

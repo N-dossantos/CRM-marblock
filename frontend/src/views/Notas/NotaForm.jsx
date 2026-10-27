@@ -152,7 +152,7 @@ export default function NotaForm({ factura, nota = null, productos = [], alicuot
                 <input type="checkbox" checked={marcado(it)} onChange={() => toggleItemFactura(it)} />
                 {it.codigo && <span className="code">{it.codigo}</span>}
                 <span style={{ flex: 1 }}>{it.descripcion}</span>
-                <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>{+it.cantidad} × {$ar(it.precio_unitario)}{+it.descuento_item ? ` −${+it.descuento_item}%` : ''}</span>
+                <span style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{+it.cantidad} × {$ar(it.precio_unitario)}{+it.descuento_item ? ` −${+it.descuento_item}%` : ''}</span>
                 <span style={{ fontWeight: 700, minWidth: 100, textAlign: 'right' }}>{$ar(it.subtotal)}</span>
               </label>
             ))}

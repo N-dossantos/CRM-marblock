@@ -49,7 +49,7 @@ function tabStyle(active) {
     padding: '10px 18px', background: 'transparent', border: 'none',
     borderBottom: active ? '2px solid var(--blue-600)' : '2px solid transparent', marginBottom: -2,
     color: active ? 'var(--blue-600)' : 'var(--gray-500)', fontWeight: active ? 700 : 400,
-    fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+    fontSize: 'calc(13px * var(--font-scale))', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
   }
 }
 
@@ -107,7 +107,7 @@ function Cuentas() {
   return (
     <div>
       <div className="page-toolbar">
-        <div className="toolbar-left" style={{ fontSize: 13, color: 'var(--gray-500)' }}>
+        <div className="toolbar-left" style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-500)' }}>
           Caja default (medios «efectivo»): <strong>{cajaDefault ? (rows.find(r => String(r.id) === String(cajaDefault))?.descripcion || `#${cajaDefault}`) : 'sin definir'}</strong>
         </div>
         <button className="btn btn-primary" onClick={openNew}>+ Nueva cuenta</button>
@@ -128,11 +128,11 @@ function Cuentas() {
                 <tr key={c.id} style={{ opacity: c.activo ? 1 : 0.5 }}>
                   <td className="td-bold">
                     {c.descripcion}
-                    {String(c.id) === String(cajaDefault) && <span style={{ fontSize: 10, marginLeft: 6, background: 'var(--green-100)', color: 'var(--green-700)', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>CAJA DEFAULT</span>}
+                    {String(c.id) === String(cajaDefault) && <span style={{ fontSize: 'calc(10px * var(--font-scale))', marginLeft: 6, background: 'var(--green-100)', color: 'var(--green-700)', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>CAJA DEFAULT</span>}
                   </td>
-                  <td style={{ fontSize: 12 }}>{CLASE_LBL[c.clase] || c.clase}</td>
-                  <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{agrupName(c.agrupacion_id)}</td>
-                  <td style={{ fontSize: 12 }}>{c.banco || '—'}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{CLASE_LBL[c.clase] || c.clase}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{agrupName(c.agrupacion_id)}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{c.banco || '—'}</td>
                   <td className="td-right">{$ar(c.saldo_inicial)}</td>
                   <td className="td-right td-bold" style={{ color: (saldos[c.id] ?? 0) < 0 ? 'var(--red-500)' : 'inherit' }}>{$ar(saldos[c.id] ?? c.saldo_inicial)}</td>
                   <td>
@@ -209,7 +209,7 @@ function Cuentas() {
               </div>
             )}
           </div>
-          <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 10 }}>
+          <p style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 10 }}>
             El saldo inicial se carga del cutover (Tango); el ledger sólo guarda los deltas desde esa fecha.
           </p>
         </Modal>
@@ -312,7 +312,7 @@ function Tipos() {
   return (
     <div>
       <div className="page-toolbar">
-        <div className="toolbar-left" style={{ fontSize: 12, color: 'var(--gray-400)' }}>El signo del movimiento manda; el del tipo es sólo sugerido (0 = lo define el movimiento).</div>
+        <div className="toolbar-left" style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)' }}>El signo del movimiento manda; el del tipo es sólo sugerido (0 = lo define el movimiento).</div>
         <button className="btn btn-primary" onClick={() => setModal({ form: { ...BLANK_TIPO }, isNew: true })}>+ Nuevo tipo</button>
       </div>
       <div className="tbl-wrap">
@@ -324,7 +324,7 @@ function Tipos() {
                 <tr key={t.id} style={{ opacity: t.activo ? 1 : 0.5 }}>
                   <td><span className="code" style={{ fontWeight: 700 }}>{t.codigo}</span></td>
                   <td className="td-bold">{t.descripcion}</td>
-                  <td style={{ fontSize: 12 }}>{signoLbl(t.signo)}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{signoLbl(t.signo)}</td>
                   <td><button className="btn btn-ghost btn-sm" onClick={() => setModal({ form: { ...t }, isNew: false })}>Editar</button></td>
                 </tr>
               ))}

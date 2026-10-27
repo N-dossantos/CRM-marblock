@@ -111,13 +111,13 @@ export default function TesoreriaChequesPropios() {
                 return (
                   <tr key={ch.id} style={{ opacity: ch.estado === 'anulado' ? 0.5 : 1 }}>
                     <td><span className="code" style={{ fontWeight: 700 }}>{ch.numero}</span></td>
-                    <td><span style={{ fontSize: 11, background: ch.tipo === 'echeq' ? 'var(--purple-100)' : 'var(--gray-100)', color: ch.tipo === 'echeq' ? 'var(--purple-700)' : 'var(--gray-600)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</span></td>
-                    <td style={{ fontSize: 12 }}>{ch.cuenta_descripcion}</td>
-                    <td style={{ fontSize: 12 }}>{ch.proveedor_razon_social || ch.beneficiario || '—'}</td>
+                    <td><span style={{ fontSize: 'calc(11px * var(--font-scale))', background: ch.tipo === 'echeq' ? 'var(--purple-100)' : 'var(--gray-100)', color: ch.tipo === 'echeq' ? 'var(--purple-700)' : 'var(--gray-600)', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>{ch.tipo === 'echeq' ? 'E-Cheq' : 'Físico'}</span></td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{ch.cuenta_descripcion}</td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{ch.proveedor_razon_social || ch.beneficiario || '—'}</td>
                     <td className="td-right td-bold">{$ar(ch.monto)}</td>
-                    <td style={{ fontSize: 12 }}>{fFecha(ch.fecha_emision)}</td>
-                    <td style={{ fontSize: 12 }}>{fFecha(ch.fecha_pago)}</td>
-                    <td><span style={{ fontSize: 11, background: b.bg, color: b.fg, padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>{ch.estado}</span></td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(ch.fecha_emision)}</td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(ch.fecha_pago)}</td>
+                    <td><span style={{ fontSize: 'calc(11px * var(--font-scale))', background: b.bg, color: b.fg, padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>{ch.estado}</span></td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {(ACCIONES[ch.estado] || []).map(a => (
@@ -184,7 +184,7 @@ export default function TesoreriaChequesPropios() {
               <input className="inp" value={modal.observaciones} onChange={e => upd('observaciones', e.target.value)} />
             </div>
           </div>
-          <p style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 10 }}>
+          <p style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 10 }}>
             El cheque no afecta el saldo del banco hasta que se marque «pagado» (débito real del banco).
           </p>
         </Modal>

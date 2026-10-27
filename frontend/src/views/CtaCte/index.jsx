@@ -72,15 +72,15 @@ export default function CtaCte() {
                   transition: 'background .12s',
                 }}
               >
-                <div style={{ fontWeight: selCli === c.id ? 700 : 500, fontSize: 13, color: 'var(--gray-800)' }}>
+                <div style={{ fontWeight: selCli === c.id ? 700 : 500, fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-800)' }}>
                   {c.razon_social.length > 28 ? c.razon_social.slice(0, 28) + '…' : c.razon_social}
                 </div>
                 {saldo !== null && (
-                  <div style={{ fontSize: 12, fontWeight: 700, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
+                  <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: saldo > 0 ? 'var(--red-500)' : saldo < 0 ? 'var(--green-600)' : 'var(--gray-400)', marginTop: 2 }}>
                     {$ar(saldo)} {saldo > 0 ? '▲ Debe' : saldo < 0 ? '▼ A favor' : '✓ Sin saldo'}
                   </div>
                 )}
-                {saldo === null && <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 2 }}>{fDocNro(c.doc_tipo, c.doc_nro)}</div>}
+                {saldo === null && <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 2 }}>{fDocNro(c.doc_tipo, c.doc_nro)}</div>}
               </div>
             )
           })}
@@ -91,8 +91,8 @@ export default function CtaCte() {
       <div className="financiero-detalle">
         {!selCli ? (
           <div className="card" style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📒</div>
-            <p style={{ color: 'var(--gray-400)', fontSize: 14 }}>Seleccione un cliente para ver su cuenta corriente</p>
+            <div style={{ fontSize: 'calc(40px * var(--font-scale))', marginBottom: 12 }}>📒</div>
+            <p style={{ color: 'var(--gray-400)', fontSize: 'calc(14px * var(--font-scale))' }}>Seleccione un cliente para ver su cuenta corriente</p>
           </div>
         ) : loading ? (
           <Loading />
@@ -102,18 +102,18 @@ export default function CtaCte() {
             <div className="card" style={{ marginBottom: 14 }}>
               <div className="financiero-resumen">
                 <div>
-                  <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--gray-800)' }}>{data.cliente.razon_social}</h2>
-                  <div style={{ fontSize: 13, color: 'var(--gray-500)', marginTop: 4 }}>
+                  <h2 style={{ fontSize: 'calc(17px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-800)' }}>{data.cliente.razon_social}</h2>
+                  <div style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>
                     {fDoc(data.cliente.doc_tipo, data.cliente.doc_nro)} &nbsp;·&nbsp; {data.cliente.condicion_iva}
                     {data.cliente.email && ` · ${data.cliente.email}`}
                   </div>
                 </div>
                 <div className="financiero-resumen-saldo">
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
+                  <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>{data.hasta ? `Saldo al ${fFecha(data.hasta)}` : 'Saldo actual'}</div>
+                  <div style={{ fontSize: 'calc(28px * var(--font-scale))', fontWeight: 800, color: data.saldo_total > 0 ? 'var(--red-500)' : data.saldo_total < 0 ? 'var(--green-600)' : 'var(--gray-400)', lineHeight: 1 }}>
                     {$ar(data.saldo_total)}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 4 }}>
+                  <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginTop: 4 }}>
                     {data.saldo_total > 0 ? '⬆ Saldo deudor' : data.saldo_total < 0 ? '⬇ Saldo a favor' : '✓ Cuenta balanceada'}
                   </div>
                   <button
@@ -141,7 +141,7 @@ export default function CtaCte() {
 
               {/* Filtro de fechas */}
               <div className="financiero-filtros">
-                <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 600 }}>Filtrar por período:</span>
+                <span style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', fontWeight: 600 }}>Filtrar por período:</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={desde} onChange={e => setDesde(e.target.value)} />
                 <span style={{ color: 'var(--gray-400)' }}>al</span>
                 <input type="date" className="inp" style={{ width: 150 }} value={hasta} onChange={e => setHasta(e.target.value)} />
@@ -173,7 +173,7 @@ export default function CtaCte() {
                         <td>{fFecha(m.fecha)}</td>
                         <td><span className="code">{m.comprobante}</span></td>
                         <td>
-                          <span style={{ background: ts.bg, color: ts.color, padding: '2px 9px', borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+                          <span style={{ background: ts.bg, color: ts.color, padding: '2px 9px', borderRadius: 10, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>
                             {ts.label}
                           </span>
                         </td>

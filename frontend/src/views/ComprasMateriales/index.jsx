@@ -61,7 +61,7 @@ export default function ComprasMateriales() {
                 <tr key={m.id} style={{ opacity: m.activo ? 1 : 0.5 }}>
                   <td><span className="code" style={{ fontWeight: 700 }}>{m.codigo}</span></td>
                   <td className="td-bold">{m.descripcion}</td>
-                  <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.unidad_medida}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{m.unidad_medida}</td>
                   <td className="td-right">{$ar(m.precio_referencia)}</td>
                   <td><button className="btn btn-ghost btn-sm" onClick={() => openEdit(m)}>Editar</button></td>
                 </tr>

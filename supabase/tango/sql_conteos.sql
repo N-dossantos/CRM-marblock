@@ -6,6 +6,7 @@ WITH esperado(tabla, n) AS (VALUES
   ('clientes', 695), ('proveedores', 379), ('cuentas_bancarias', 11), ('plan_de_cuentas', 152),
   ('materiales', 19), ('productos', 25),
   ('facturas', 4596), ('factura_items', 10878), ('remitos', 6835), ('remito_items', 14685),
+  ('remito_item_facturas', 14850),
   ('notas', 375), ('nota_items', 578), ('recibos', 3701), ('recibo_facturas', 5299),
   ('recibo_medios', 7812), ('cheques', 4986),
   ('facturas_compra', 6191), ('factura_compra_iva_detalle', 7945), ('facturas_compra_items', 6200),

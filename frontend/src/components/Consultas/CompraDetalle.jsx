@@ -23,8 +23,8 @@ const MEDIO_LABEL = {
 function Field({ label, children }) {
   return (
     <div style={{ minWidth: 120 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
-      <div style={{ fontSize: 13, color: 'var(--gray-800)', marginTop: 2 }}>{children ?? '—'}</div>
+      <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
+      <div style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-800)', marginTop: 2 }}>{children ?? '—'}</div>
     </div>
   )
 }
@@ -86,8 +86,8 @@ export default function CompraDetalle({ doc, onClose }) {
       {/* Cabecera común: proveedor */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 12, marginBottom: 14, borderBottom: '1px solid var(--gray-100)' }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-800)' }}>{doc.razon_social}</div>
-          <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+          <div style={{ fontSize: 'calc(15px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-800)' }}>{doc.razon_social}</div>
+          <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 2 }}>
             CUIT {doc.cuit}{doc.condicion_iva ? ` · ${doc.condicion_iva}` : ''}
           </div>
         </div>
@@ -112,10 +112,10 @@ export default function CompraDetalle({ doc, onClose }) {
           <ItemsCompra items={doc.items || []} conAlicuota />
           {(doc.iva_detalle || []).length > 0 && (
             <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', marginBottom: 6 }}>Desglose de IVA</div>
+              <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-600)', marginBottom: 6 }}>Desglose de IVA</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {doc.iva_detalle.map((d, i) => (
-                  <span key={i} style={{ background: 'var(--gray-100)', borderRadius: 8, padding: '4px 10px', fontSize: 12 }}>
+                  <span key={i} style={{ background: 'var(--gray-100)', borderRadius: 8, padding: '4px 10px', fontSize: 'calc(12px * var(--font-scale))' }}>
                     <b>{d.porcentaje}%</b> · neto {$ar(d.neto_gravado)} · IVA {$ar(d.iva_monto)}
                   </span>
                 ))}
@@ -170,16 +170,16 @@ export default function CompraDetalle({ doc, onClose }) {
             <Field label="Total pagado"><b>{$ar(doc.total)}</b></Field>
           </div>
 
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Facturas imputadas</div>
+          <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Facturas imputadas</div>
           {(doc.facturas || []).length === 0
-            ? <div style={{ fontSize: 12, color: 'var(--gray-400)', marginBottom: 12 }}>Sin imputación (pago a cuenta)</div>
+            ? <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-400)', marginBottom: 12 }}>Sin imputación (pago a cuenta)</div>
             : (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                 {doc.facturas.map((f, i) => <span key={i} className="code">{f.numero}</span>)}
               </div>
             )}
 
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Medios de pago</div>
+          <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Medios de pago</div>
           <div className="tbl-wrap" style={{ boxShadow: 'none', border: '1px solid var(--gray-200)', marginBottom: 12 }}>
             <table>
               <thead><tr><th>Medio</th><th>Detalle</th><th className="th-right">Monto</th></tr></thead>
@@ -187,7 +187,7 @@ export default function CompraDetalle({ doc, onClose }) {
                 {(doc.medios || []).map((m, i) => (
                   <tr key={m.id ?? i}>
                     <td>{MEDIO_LABEL[m.tipo] || m.tipo}</td>
-                    <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{m.detalle || '—'}</td>
+                    <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{m.detalle || '—'}</td>
                     <td className="td-right td-bold">{$ar(m.monto)}</td>
                   </tr>
                 ))}
@@ -197,7 +197,7 @@ export default function CompraDetalle({ doc, onClose }) {
 
           {(doc.retenciones || []).length > 0 && (
             <>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Retenciones</div>
+              <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-600)', margin: '4px 0 6px' }}>Retenciones</div>
               <div className="tbl-wrap" style={{ boxShadow: 'none', border: '1px solid var(--gray-200)' }}>
                 <table>
                   <thead><tr>
@@ -208,7 +208,7 @@ export default function CompraDetalle({ doc, onClose }) {
                     {doc.retenciones.map((r, i) => (
                       <tr key={r.id ?? i}>
                         <td>{r.tipo_retencion}</td>
-                        <td style={{ fontSize: 12, color: 'var(--gray-500)' }}>{r.jurisdiccion || '—'}</td>
+                        <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>{r.jurisdiccion || '—'}</td>
                         <td className="code">{r.numero_certificado || '—'}</td>
                         <td className="td-right">{$ar(r.base_imponible)}</td>
                         <td className="td-right">{r.alicuota}%</td>
@@ -224,7 +224,7 @@ export default function CompraDetalle({ doc, onClose }) {
       )}
 
       {doc.observaciones && (
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--gray-100)', fontSize: 12, color: 'var(--gray-500)' }}>
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--gray-100)', fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>
           <b style={{ color: 'var(--gray-600)' }}>Observaciones:</b> {doc.observaciones}
         </div>
       )}

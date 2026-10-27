@@ -102,9 +102,9 @@ export default function TesoreriaConciliacion() {
             <tbody>
               {concils.length === 0 ? <EmptyState icon="📄" message="Sin conciliaciones" /> : concils.map(c => (
                 <tr key={c.id} onClick={() => openConcil(c)} style={{ cursor: 'pointer', background: active?.id === c.id ? 'var(--blue-50)' : 'transparent' }}>
-                  <td style={{ fontSize: 12 }}>{fFecha(c.fecha_desde)} → {fFecha(c.fecha_hasta)}</td>
+                  <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(c.fecha_desde)} → {fFecha(c.fecha_hasta)}</td>
                   <td><span className={`badge ${c.estado === 'cerrada' ? 'badge-cobrada' : 'badge-pendiente'}`}>{c.estado}</span></td>
-                  <td className="td-right" style={{ fontSize: 12, color: c.diferencia && parseFloat(c.diferencia) !== 0 ? 'var(--red-500)' : 'var(--green-600)' }}>
+                  <td className="td-right" style={{ fontSize: 'calc(12px * var(--font-scale))', color: c.diferencia && parseFloat(c.diferencia) !== 0 ? 'var(--red-500)' : 'var(--green-600)' }}>
                     {c.estado === 'cerrada' ? $ar(c.diferencia) : '—'}
                   </td>
                 </tr>
@@ -151,9 +151,9 @@ export default function TesoreriaConciliacion() {
                           <td style={{ textAlign: 'center' }}>
                             <input type="checkbox" checked={selected.has(m.id)} onChange={() => toggle(m.id)} />
                           </td>
-                          <td style={{ fontSize: 12 }}>{fFecha(m.fecha)}</td>
-                          <td style={{ fontSize: 12 }}>{m.tipo_descripcion}</td>
-                          <td style={{ fontSize: 12, color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{fFecha(m.fecha)}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))' }}>{m.tipo_descripcion}</td>
+                          <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-600)' }}>{m.concepto || '—'}</td>
                           <td className="td-right td-bold" style={{ color: 'var(--green-700)' }}>{m.signo === 1 ? $ar(m.monto) : ''}</td>
                           <td className="td-right td-bold" style={{ color: 'var(--red-500)' }}>{m.signo === -1 ? $ar(m.monto) : ''}</td>
                         </tr>
@@ -187,7 +187,7 @@ function Stat({ label, val, color }) {
   return (
     <div>
       <div className="kpi-label">{label}</div>
-      <div className="kpi-value" style={{ color: color || 'var(--gray-700)', fontSize: 18, margin: '4px 0 0' }}>{val}</div>
+      <div className="kpi-value" style={{ color: color || 'var(--gray-700)', fontSize: 'calc(18px * var(--font-scale))', margin: '4px 0 0' }}>{val}</div>
     </div>
   )
 }

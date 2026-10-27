@@ -36,17 +36,24 @@ BEGIN
     INTO v_total, v_2026
   FROM crm_facturas_pendientes(NULL) p
   JOIN facturas f ON f.id = p.factura_id;
-  PERFORM pg_temp.ok(v_total = 266, format('facturas con algo pendiente de remitir: %s (se esperan 266)', v_total));
-  PERFORM pg_temp.ok(v_2026 = 26, format('de 2026: %s (se esperan 26)', v_2026));
+  PERFORM pg_temp.ok(v_total = 65, format('facturas con algo pendiente de remitir: %s (se esperan 65)', v_total));
+  PERFORM pg_temp.ok(v_2026 = 19, format('de 2026: %s (se esperan 19)', v_2026));
 END $$;
 
-\echo '── Almajo: FAC A 2296 y 2230'
+\echo '── Almajo: FAC A 2296 y 2230 (y viejas en 0)'
 DO $$
 DECLARE
   r record;
   v_bloques numeric;
   v_pallets numeric;
+  v_viejas  numeric;
 BEGIN
+  -- Facturas viejas de Almajo (2013, 2043, 2114) deben tener 0 pendiente
+  SELECT COALESCE(sum(p.pendiente), 0) INTO v_viejas
+  FROM crm_facturas_pendientes(482) p
+  WHERE p.factura_id IN (8129, 8189, 8330);
+  PERFORM pg_temp.ok(v_viejas = 0, format('Almajo facturas viejas (2013, 2043, 2114): %s pendiente (se espera 0)', v_viejas));
+
   FOR r IN SELECT * FROM (VALUES
       (8699, '00002-00002296', 25200, 240),
       (8564, '00002-00002230',  4830,  46)) t(id, numero, bloques, pallets)

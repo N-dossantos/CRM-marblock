@@ -29,16 +29,16 @@ export default class ErrorBoundary extends Component {
 
     return (
       <div className="card" style={{ maxWidth: 620, margin: '48px auto', textAlign: 'center' }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 8 }}>
+        <div style={{ fontSize: 'calc(40px * var(--font-scale))', marginBottom: 12 }}>⚠️</div>
+        <h2 style={{ fontSize: 'calc(18px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-800)', marginBottom: 8 }}>
           Se rompió esta pantalla
         </h2>
-        <p style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 16 }}>
+        <p style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-500)', marginBottom: 16 }}>
           El resto del sistema sigue funcionando. Los datos que no se llegaron a guardar se perdieron.
         </p>
         <pre style={{
           textAlign: 'left', background: 'var(--gray-100)', borderRadius: 8, padding: 12,
-          fontSize: 12, color: 'var(--red-500)', overflowX: 'auto', marginBottom: 16,
+          fontSize: 'calc(12px * var(--font-scale))', color: 'var(--red-500)', overflowX: 'auto', marginBottom: 16,
         }}>
           {error.message || String(error)}
         </pre>

@@ -22,8 +22,8 @@ const ORIGEN_LABEL = {
 function Field({ label, children }) {
   return (
     <div style={{ minWidth: 120 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
-      <div style={{ fontSize: 13, color: 'var(--gray-800)', marginTop: 2 }}>{children ?? '—'}</div>
+      <div style={{ fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.4px' }}>{label}</div>
+      <div style={{ fontSize: 'calc(13px * var(--font-scale))', color: 'var(--gray-800)', marginTop: 2 }}>{children ?? '—'}</div>
     </div>
   )
 }
@@ -59,8 +59,8 @@ export default function MovimientoDetalle({ mov, onClose }) {
         {/* Cabecera: cuenta + estado */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: 12, marginBottom: 14, borderBottom: '1px solid var(--gray-100)' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-800)' }}>{mov.cuenta_descripcion}</div>
-            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+            <div style={{ fontSize: 'calc(15px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-800)' }}>{mov.cuenta_descripcion}</div>
+            <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 2 }}>
               {mov.cuenta_clase ? mov.cuenta_clase[0].toUpperCase() + mov.cuenta_clase.slice(1) : '—'}
             </div>
           </div>
@@ -72,10 +72,10 @@ export default function MovimientoDetalle({ mov, onClose }) {
 
         {/* Importe destacado */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 10, padding: '14px 18px', marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+          <div style={{ fontSize: 'calc(12px * var(--font-scale))', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '.4px' }}>
             {esEntrada ? '▲ Entrada' : '▼ Salida'}
           </div>
-          <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1, color: esEntrada ? 'var(--green-600)' : 'var(--red-500)' }}>
+          <div style={{ fontSize: 'calc(26px * var(--font-scale))', fontWeight: 800, lineHeight: 1, color: esEntrada ? 'var(--green-600)' : 'var(--red-500)' }}>
             {esEntrada ? '' : '− '}{$ar(mov.monto)}
           </div>
         </div>
@@ -90,7 +90,7 @@ export default function MovimientoDetalle({ mov, onClose }) {
         </div>
 
         {mov.concepto && (
-          <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--gray-100)', fontSize: 12, color: 'var(--gray-500)' }}>
+          <div style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--gray-100)', fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>
             <b style={{ color: 'var(--gray-600)' }}>Concepto:</b> {mov.concepto}
           </div>
         )}

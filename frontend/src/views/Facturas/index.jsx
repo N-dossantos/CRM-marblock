@@ -186,13 +186,13 @@ export default function Facturas() {
                     <td>{fFecha(f.fecha)}</td>
                     <td>
                       <div className="td-bold">{f.razon_social}</div>
-                      <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{fDocNro(f.doc_tipo, f.doc_nro)}</div>
+                      <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-400)' }}>{fDocNro(f.doc_tipo, f.doc_nro)}</div>
                     </td>
                     <td>
                       {/* Una factura puede cubrir varios remitos: primero el suyo (remito_numero), después el resto. */}
                       <Vinculados
                         numeros={[...new Set([f.remito_numero, ...(f.remitos || []).map(r => r.numero)].filter(Boolean))]}
-                        vacio={<span style={{ color: 'var(--gray-400)', fontSize: 12 }}>—</span>}
+                        vacio={<span style={{ color: 'var(--gray-400)', fontSize: 'calc(12px * var(--font-scale))' }}>—</span>}
                       />
                     </td>
                     <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(f.neto_gravado)}</td>
