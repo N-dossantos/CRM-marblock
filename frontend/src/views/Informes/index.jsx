@@ -758,10 +758,10 @@ export default function Informes() {
                 <div className="kpi-label">Retenciones sufridas del período</div>
                 <div className="kpi-value" style={{ fontSize: 'calc(20px * var(--font-scale))', color: 'var(--blue-600)' }}>{$ar(data.total)}</div>
                 <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-600)', marginTop: 8 }}>
-                  Con certificado: {$ar(data.total_documentado)} · Históricas pendientes de certificado: {$ar(data.total_pendiente)}
+                  Con certificado: {$ar(data.total_documentado)} · Históricas sin certificado: {$ar(data.total_pendiente)}
                 </div>
-                {+data.total_pendiente > 0 && <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--amber-700)', marginTop: 6 }}>
-                  Los registros históricos pendientes usan la fecha del recibo. Verificá certificado, fecha, régimen y jurisdicción con el agente de retención antes de presentarlos al contador o computarlos fiscalmente.
+                {+data.total_pendiente > 0 && <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 6 }}>
+                  Las históricas vienen de Tango sin número ni fecha de certificado: se ubican por la fecha del recibo.
                 </div>}
               </div>
               <div className="tbl-wrap">
@@ -776,7 +776,7 @@ export default function Informes() {
                       <td>{fFecha(r.fecha || r.fecha_recibo)}</td><td className="td-bold">{r.cliente}</td>
                       <td className="code">{r.cuit_agente}</td><td>{r.tipo_retencion}{r.detalle_origen && <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-500)' }}>{r.detalle_origen}</div>}</td>
                       <td>{r.jurisdiccion || '—'}</td><td>{r.codigo_regimen || '—'}</td><td className="code">{r.numero_certificado || '—'}</td>
-                      <td>{r.pendiente_documentacion ? 'Pendiente de certificado' : 'Documentada'}</td>
+                      <td>{r.pendiente_documentacion ? 'Histórica, sin certificado' : 'Documentada'}</td>
                       <td className="code">{r.recibo_numero}</td><td className="td-right td-bold">{$ar(r.monto)}</td>
                     </tr>)}</tbody>
                 </table>

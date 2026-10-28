@@ -263,7 +263,7 @@ export async function generarRecibo(recibo: any, empresa: any): Promise<Uint8Arr
            .text($ar(r.monto), M + 10, y + 6, { width: ancho - 20, align: 'right' })
         doc.fillColor(COLORES.gris_texto).font('Helvetica').fontSize(8)
            .text(r.pendiente_documentacion
-             ? `Registro histórico · certificado pendiente · CUIT ${r.cuit_agente}${r.detalle_origen ? ` · ${r.detalle_origen}` : ''}`
+             ? `Registro histórico · sin certificado · CUIT ${r.cuit_agente}${r.detalle_origen ? ` · ${r.detalle_origen}` : ''}`
              : `Certificado ${r.numero_certificado}${r.codigo_regimen ? ` · Rég. ${r.codigo_regimen}` : ''} · ${fFecha(r.fecha)} · CUIT ${r.cuit_agente}`,
              M + 10, y + 23, { width: ancho - 20 })
         y += 40

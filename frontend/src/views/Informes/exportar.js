@@ -117,9 +117,9 @@ export const EXCEL = {
     archivo: nombreArchivo('Retenciones_sufridas', f.desde, f.hasta),
     hojas: [{
       nombre: 'Retenciones sufridas',
-      encabezado: ['Retenciones sufridas', periodo(f), 'Los registros históricos pendientes usan la fecha del recibo. Verificar certificado, régimen y jurisdicción antes de su cómputo fiscal.'],
+      encabezado: ['Retenciones sufridas', periodo(f), 'Las históricas vienen de Tango sin número ni fecha de certificado: se ubican por la fecha del recibo.'],
       columnas: [
-        col('Estado', r => r.pendiente_documentacion ? 'Pendiente de certificado' : 'Documentada', 'texto', 25),
+        col('Estado', r => r.pendiente_documentacion ? 'Histórica, sin certificado' : 'Documentada', 'texto', 25),
         col('Fecha del período', r => r.fecha || r.fecha_recibo, 'fecha'),
         col('Fecha certificado', r => r.fecha, 'fecha'),
         col('Cliente', r => r.cliente, 'texto', 34),

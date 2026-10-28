@@ -241,7 +241,7 @@ export default function VentaDetalle({ doc, onClose, acciones = null, fiscal = n
                   <thead><tr><th>Impuesto</th><th>Certificado</th><th>Fecha</th><th className="th-right">Monto</th></tr></thead>
                   <tbody>{doc.retenciones.map(r => <tr key={r.id}>
                     <td>{r.tipo_retencion}{r.jurisdiccion ? ` · ${r.jurisdiccion}` : ''}</td>
-                    <td className="code">{r.pendiente_documentacion ? 'Pendiente de registrar' : r.numero_certificado}</td>
+                    <td className="code">{r.pendiente_documentacion ? 'Histórica, sin certificado' : r.numero_certificado}</td>
                     <td>{r.fecha ? fFecha(r.fecha) : '—'}</td>
                     <td className="td-right td-bold">{$ar(r.monto)}</td>
                   </tr>)}</tbody>

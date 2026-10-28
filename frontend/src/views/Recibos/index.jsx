@@ -109,7 +109,7 @@ export default function Recibos() {
                         ))}
                         {r.retenciones?.map((ret, i) => (
                           <span key={`ret-${i}`} style={{ background: 'var(--amber-100)', color: 'var(--amber-700)', padding: '2px 8px', borderRadius: 10, fontSize: 'calc(11px * var(--font-scale))', fontWeight: 700 }}>
-                            Ret. {ret.tipo_retencion}{ret.pendiente_documentacion ? ' · certificado pendiente' : ''} {$ar(ret.monto)}
+                            Ret. {ret.tipo_retencion}{ret.pendiente_documentacion ? ' · sin certificado' : ''} {$ar(ret.monto)}
                           </span>
                         ))}
                       </div>
@@ -200,7 +200,7 @@ export default function Recibos() {
                 </div>
                 <div style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', marginTop: 4 }}>
                   {ret.pendiente_documentacion
-                    ? `Registro histórico · certificado pendiente · ${ret.detalle_origen || 'sin detalle original'} · CUIT agente ${ret.cuit_agente}`
+                    ? `Registro histórico · sin certificado · ${ret.detalle_origen || 'sin detalle original'} · CUIT agente ${ret.cuit_agente}`
                     : `Certificado ${ret.numero_certificado}${ret.codigo_regimen ? ` · Régimen ${ret.codigo_regimen}` : ''} · ${fFecha(ret.fecha)} · CUIT agente ${ret.cuit_agente}`}
                 </div>
               {ret.pendiente_documentacion && certificado?.id !== ret.id &&
