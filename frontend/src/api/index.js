@@ -13,6 +13,13 @@ import { datosEvento } from '../utils'
 // `total_filas` = total que cumple el filtro, para armar el "página X de Y".
 const pagina = (limit, offset) => (limit ? { p_limit: limit, p_offset: offset || 0 } : {})
 
+// Recibos y remitos llevan el número de la hoja del talonario, cargado a mano: el formulario
+// pregunta mientras se escribe si ya hay uno con ese número, para frenarlo antes de guardar. Sin
+// toast si la consulta falla: es sólo un aviso y el UNIQUE de `numero` lo vuelve a frenar al guardar.
+const buscarNumero = (tabla, numero) => supabase.from(tabla)
+  .select('numero, fecha, clientes(razon_social)').eq('numero', numero).maybeSingle()
+  .then(({ data }) => data && { numero: data.numero, fecha: data.fecha, razon_social: data.clientes?.razon_social ?? null })
+
 // Eventos del calendario compartido: cada escritura es una sola fila, sin RPC.
 export const CalendarioAPI = {
   list: ({ desde, hasta }) => supabase.from('calendario').select('*')
@@ -187,6 +194,7 @@ export const RemitosAPI = {
   // El número de los remitos de venta lo da el talonario preimpreso, no el sistema:
   // esto sólo SUGIERE el siguiente (peek de sólo lectura, no consume numeración).
   numeroSugerido: () => rpc('remito_numero_sugerido').then(one),
+  buscarNumero: (numero) => buscarNumero('remitos', numero),
   create: (data) => rpc('crear_remito', {
     p_cliente_id:        data.cliente_id,
     p_numero:            data.numero,
@@ -329,6 +337,7 @@ export const RecibosAPI = {
     .select('punto_venta, ultimo_numero').eq('tipo', 'recibo').maybeSingle()
     .then(unwrap)
     .then(c => c && `${c.punto_venta}-${String(c.ultimo_numero + 1).padStart(8, '0')}`),
+  buscarNumero: (numero) => buscarNumero('recibos', numero),
 }
 
 // ── CHEQUES ──────────────────────────────────────────────────────────

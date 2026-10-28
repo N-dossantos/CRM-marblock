@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { ItemsTable, TotalesBox, TotalesBoxMulti, Modal, ClienteSearch, agregarProductos } from '../UI'
 import { ElegirProductosBtn } from '../UI/ProductoPicker'
-import { calcTotalesMulti, renglonesDeRemito } from '../../utils'
+import { calcTotalesMulti, renglonesDeRemito, fFecha } from '../../utils'
 import { armarItems, revisarRemito, llevaDesdeItems } from '../../utils/pendientes'
 import { usePalletsVacios } from '../../hooks/usePalletsVacios'
+import { useNumeroRepetido } from '../../hooks/useNumeroRepetido'
 import { RemitosAPI, ArcaAPI } from '../../api'
 import { revisarEmision } from '../Arca'
 import FacturasPendientesRemitir from './FacturasPendientesRemitir'
@@ -223,6 +224,8 @@ export default function ComprobanteForm({
     const dif = parseInt(m[2], 10) - numeroSugerido.numero
     return Math.abs(dif) > UMBRAL_DESVIO ? dif : null
   })()
+  // Un número que ya usó otro remito, en cambio, sí bloquea: se avisa mientras se escribe.
+  const repetido = useNumeroRepetido(RemitosAPI.buscarNumero, (form.numero || '').trim(), esRemitoNuevo)
 
   // La letra la decide la clase de la condición IVA del cliente en el catálogo de ARCA (A: Resp.
   // Inscripto y monotributos; B: el resto). No se elige: el servidor rechaza cualquier otra.
@@ -266,6 +269,7 @@ export default function ComprobanteForm({
     if (esRemitoNuevo && !/^\d{5}-\d{8}$/.test((form.numero || '').trim())) {
       toast.error('El número del remito debe tener el formato 00001-00012345'); return
     }
+    if (repetido) { toast.error(`El remito ${repetido.numero} ya existe: revisá el número de la hoja`); return }
     // Una hoja del talonario tiene RENGLONES_TALONARIO renglones, y una hoja es un número es
     // un remito: lo que no entra no se puede continuar en otra hoja sin gastar otro número.
     if (esRemito && form.items.length > RENGLONES_TALONARIO) {
@@ -365,7 +369,7 @@ export default function ComprobanteForm({
             </button>
           )}
           <button className="btn btn-secondary" onClick={cerrar} disabled={!!loading}>Cancelar</button>
-          <button className="btn btn-primary" onClick={() => save(false)} disabled={!!loading}>
+          <button className="btn btn-primary" onClick={() => save(false)} disabled={!!loading || !!repetido}>
             {loading === 'guardar' ? 'Guardando…' : '✓ Guardar'}
           </button>
         </>
@@ -408,13 +412,18 @@ export default function ComprobanteForm({
           <div className="field">
             <label className="lbl">N° de remito {esRemitoNuevo && '*'}</label>
             <input
-              className="inp"
+              className={`inp${repetido ? ' inp-error' : ''}`}
               value={form.numero || ''}
               readOnly={!esRemitoNuevo}
               placeholder="00001-00012345"
               onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
               style={{ fontFamily: 'monospace', ...(esRemitoNuevo ? {} : { background: 'var(--gray-50)', color: 'var(--gray-500)' }) }}
             />
+            {repetido && (
+              <div className="field-error">
+                Ya existe el remito {repetido.numero}{repetido.razon_social ? ` de ${repetido.razon_social}` : ''} ({fFecha(repetido.fecha)}).
+              </div>
+            )}
           </div>
         )}
 

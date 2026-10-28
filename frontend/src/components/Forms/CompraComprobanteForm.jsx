@@ -7,7 +7,7 @@
 //   * la factura puede traer percepciones sufridas (§3.9): el monto es el del papel del
 //     proveedor y se suma al total, no se recalcula.
 import { useState, useEffect } from 'react'
-import { Modal, TotalesBoxMulti, PercepcionesTable, DecimalInput } from '../UI'
+import { Modal, TotalesBoxMulti, PercepcionesTable, DecimalInput, enterAvanza } from '../UI'
 import { calcTotalesMulti, calcSubtotalItem, $ar, hoy } from '../../utils'
 import { RemitosCompraAPI } from '../../api'
 import toast from 'react-hot-toast'
@@ -252,7 +252,7 @@ export default function CompraComprobanteForm({
         <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
       </div>
 
-      <div className="items-table-wrap">
+      <div className="items-table-wrap" onKeyDown={enterAvanza}>
         <table className="items-table">
           <thead>
             <tr>

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useListaPaginada, POR_PAGINA } from '../../hooks/useListaPaginada'
 import { RecibosAPI, ClientesAPI } from '../../api'
 import { $ar, fFecha, fDoc } from '../../utils'
-import { Loading, EmptyState, Modal, Paginador } from '../../components/UI'
+import { Loading, EmptyState, Modal, Paginador, Vinculados } from '../../components/UI'
 import ReciboForm from '../../components/Forms/ReciboForm'
 import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
@@ -95,10 +95,10 @@ export default function Recibos() {
                     <td>{fFecha(r.fecha)}</td>
                     <td className="td-bold">{r.razon_social}</td>
                     <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)' }}>
-                      {r.facturas?.length > 0
-                        ? r.facturas.map(f => <span key={f.factura_id} className="code" style={{ marginRight: 4 }}>{f.numero}</span>)
-                        : <span style={{ color: 'var(--amber-600)' }}>Pago a cuenta</span>
-                      }
+                      <Vinculados
+                        numeros={(r.facturas || []).map(f => f.numero)}
+                        vacio={<span style={{ color: 'var(--amber-600)' }}>Pago a cuenta</span>}
+                      />
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>

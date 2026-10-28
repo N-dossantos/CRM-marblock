@@ -8,7 +8,7 @@
 //   * puede traer percepciones sufridas (§3.9): el proveedor las devuelve con signo contrario en
 //     una NC, así que el monto se carga tal cual figura en el papel y no se recalcula.
 import { useState } from 'react'
-import { Modal, TotalesBoxMulti, PercepcionesTable, DecimalInput } from '../UI'
+import { Modal, TotalesBoxMulti, PercepcionesTable, DecimalInput, enterAvanza } from '../UI'
 import { calcTotalesMulti, calcSubtotalItem, $ar, fFecha, hoy } from '../../utils'
 import toast from 'react-hot-toast'
 
@@ -162,7 +162,7 @@ export default function NotaCompraForm({ factura, materiales = [], alicuotas = [
         <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Agregar ítem</button>
       </div>
 
-      <div className="items-table-wrap">
+      <div className="items-table-wrap" onKeyDown={enterAvanza}>
         <table className="items-table">
           <thead>
             <tr>

@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { NotasAPI, FacturasAPI, ProductosAPI, AlicuotasIvaAPI } from '../../api'
-import { $ar, fFecha } from '../../utils'
+import { $ar, fFecha, fDocNro } from '../../utils'
 import { Badge, Loading, EmptyState, Modal, RowActions } from '../../components/UI'
 import { FiscalBadge, PanelArca, BandejaArca, FILTROS_ARCA, estadosDeFiltro, esEditable, emitirEnArca, FISCALES } from '../../components/Arca'
 import NotaForm from './NotaForm'
@@ -11,6 +11,15 @@ import PDFModal from '../../components/PDFModal'
 import toast from 'react-hot-toast'
 
 const nombreNota = (n) => `${n.tipo === 'NC' ? 'Nota de Crédito' : 'Nota de Débito'} ${n.tipo_letra || ''}`.trim()
+
+// notas_list ordena sólo por fecha y las del mismo día llegaban en cualquier orden. Como la lista
+// viene entera, se termina de ordenar acá: más nuevas arriba y, en el día, primero los borradores
+// (sin número) y después por número.
+const ordenNotas = (a, b) =>
+  (b.fecha || '').localeCompare(a.fecha || '')
+  || (a.numero ? 1 : 0) - (b.numero ? 1 : 0)
+  || (b.numero || '').localeCompare(a.numero || '')
+  || b.id - a.id
 
 // Como las facturas, una nota nace borrador y ajusta el saldo de su factura recién con su propio
 // CAE (PLAN_ARCA.md §4). La lista no es paginada (son pocas): el filtro de ARCA se aplica acá.
@@ -31,7 +40,7 @@ export default function Notas() {
 
   const load = useCallback(() => {
     setLoading(true)
-    return NotasAPI.list({ q: search, tipo: filtroTipo }).then(setRows).finally(() => setLoading(false))
+    return NotasAPI.list({ q: search, tipo: filtroTipo }).then(ns => setRows((ns || []).sort(ordenNotas))).finally(() => setLoading(false))
   }, [search, filtroTipo])
 
   useEffect(() => { load() }, [load])
@@ -166,9 +175,8 @@ export default function Notas() {
           <table>
             <thead>
               <tr>
-                <th>Número</th><th>Tipo</th><th>Fecha</th><th>Factura orig.</th>
-                <th>Cliente</th><th>Motivo</th>
-                <th className="th-right">Neto</th><th className="th-right">IVA</th><th className="th-right">Total</th>
+                <th>Número</th><th>Tipo</th><th>Fecha</th><th>Cliente</th>
+                <th>Factura orig.</th><th className="th-right">Total</th>
                 <th>ARCA</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
@@ -182,11 +190,11 @@ export default function Notas() {
                       : <span className="sin-numero">sin número</span>}</td>
                     <td><Badge estado={n.tipo} /> <span style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-500)' }}>{n.tipo_letra}</span></td>
                     <td>{fFecha(n.fecha)}</td>
+                    <td>
+                      <div className="td-bold">{n.razon_social}</div>
+                      <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--gray-400)' }}>{fDocNro(n.doc_tipo, n.doc_nro)}</div>
+                    </td>
                     <td><span className="code">{n.factura_numero}</span></td>
-                    <td className="td-bold">{n.razon_social}</td>
-                    <td style={{ fontSize: 'calc(12px * var(--font-scale))', color: 'var(--gray-500)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.motivo || '—'}</td>
-                    <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(n.neto_gravado)}</td>
-                    <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(n.iva_monto)}</td>
                     <td className="td-right td-bold">{$ar(n.total)}</td>
                     <td><FiscalBadge estado={n.estado_fiscal} cae={n.cae} /></td>
                     <td>

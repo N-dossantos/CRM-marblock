@@ -168,8 +168,7 @@ export default function Facturas() {
             <thead>
               <tr>
                 <th>Número</th><th>Tipo</th><th>Fecha</th><th>Cliente</th>
-                <th>Remito</th><th className="th-right">Neto</th>
-                <th className="th-right">IVA</th><th className="th-right">Total</th>
+                <th>Remito</th><th className="th-right">Total</th>
                 <th>ARCA</th><th>Estado</th><th className="th-right" style={{ width: 150 }}>Acciones</th>
               </tr>
             </thead>
@@ -195,8 +194,6 @@ export default function Facturas() {
                         vacio={<span style={{ color: 'var(--gray-400)', fontSize: 'calc(12px * var(--font-scale))' }}>—</span>}
                       />
                     </td>
-                    <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(f.neto_gravado)}</td>
-                    <td className="td-right" style={{ color: 'var(--gray-500)' }}>{$ar(f.iva_monto)}</td>
                     <td className="td-right td-bold">{$ar(f.total)}</td>
                     <td><FiscalBadge estado={f.estado_fiscal} cae={f.cae} /></td>
                     {/* El estado de cobranza sólo existe en lo fiscal: un borrador no se cobra. */}

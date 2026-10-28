@@ -1,8 +1,9 @@
 // src/components/Forms/ReciboForm.jsx
 import { useState, useEffect } from 'react'
-import { Modal, ClienteSearch } from '../UI'
-import { $ar, hoy } from '../../utils'
+import { Modal, ClienteSearch, DecimalInput } from '../UI'
+import { $ar, hoy, fFecha } from '../../utils'
 import { ConfigAPI, RecibosAPI } from '../../api'
+import { useNumeroRepetido } from '../../hooks/useNumeroRepetido'
 import toast from 'react-hot-toast'
 
 const MEDIO_BASE = { tipo: 'efectivo', detalle: '', monto: 0, cuenta_bancaria_id: '' }
@@ -25,18 +26,25 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
   // El recibo se escribe sobre talonario: el número se prellena con el próximo de `contadores`, pero
   // queda editable porque a veces una hoja se tacha o se pierde la copia (M7). Sólo se manda si el
   // operador lo cambió; si no, lo asigna crear_recibo al guardar (dos formularios abiertos a la vez
-  // no chocan por el mismo sugerido).
+  // no chocan por el mismo sugerido). Punto de venta y número van en casilleros separados: el PV
+  // arranca en 00001 (o el del contador) y el número se escribe sin ceros, "4303" = 00004303.
   const [sugerido, setSugerido] = useState(null)
-  const [numero, setNumero]     = useState('')
+  // null = el operador no lo tocó: se ve el sugerido (que puede llegar después de abrir el formulario).
+  const [pvEscrito, setPv]   = useState(null)
+  const [nroEscrito, setNro] = useState(null)
+  const [pvSug, nroSug] = (sugerido || '').split('-')
+  const pv  = pvEscrito ?? (pvSug || '00001')
+  const nro = nroEscrito ?? (nroSug || '')
 
   useEffect(() => {
     ConfigAPI.cuentasBancarias().then(setCuentas)
-    RecibosAPI.numeroSugerido()
-      .then(n => { setSugerido(n); setNumero(actual => actual || n || '') })
-      .catch(() => {})
+    RecibosAPI.numeroSugerido().then(setSugerido).catch(() => {})
   }, [])
 
-  const numeroManual = numero.trim() && numero.trim() !== sugerido ? numero.trim() : null
+  const numero = pv && nro ? `${pv.padStart(5, '0')}-${nro.padStart(8, '0')}` : ''
+  const numeroManual = numero && numero !== sugerido ? numero : null
+  const repetido = useNumeroRepetido(RecibosAPI.buscarNumero, numero)
+  const soloDigitos = (v, largo) => v.replace(/\D/g, '').slice(0, largo)
 
   // El saldo disponible llega calculado por la base, considerando recibos y NC autorizadas.
   useEffect(() => {
@@ -145,9 +153,7 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
       toast.error('Revisá el importe aplicado a cada factura'); return
     }
     if (totalImputado > totalRecibo + 0.001) { toast.error('La suma aplicada a facturas supera el total del recibo'); return }
-    if (numeroManual && !/^\d{5}-\d{8}$/.test(numeroManual)) {
-      toast.error('El número del recibo debe tener el formato 00001-00004289'); return
-    }
+    if (repetido) { toast.error(`El recibo ${repetido.numero} ya existe: revisá el número de la hoja`); return }
 
     setLoading(true)
     try {
@@ -173,7 +179,7 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
       footer={
         <>
           <button className="btn btn-secondary" onClick={onClose} disabled={loading}>Cancelar</button>
-          <button className="btn btn-success" onClick={save} disabled={loading}>
+          <button className="btn btn-success" onClick={save} disabled={loading || !!repetido}>
             {loading ? 'Guardando…' : '✓ Registrar cobro'}
           </button>
         </>
@@ -192,15 +198,36 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
 
         {/* Número de la hoja del talonario */}
         <div className="field">
-          <label className="lbl">N° de recibo</label>
-          <input
-            className="inp"
-            value={numero}
-            placeholder="00001-00004289"
-            onChange={e => setNumero(e.target.value)}
-            style={{ fontFamily: 'monospace' }}
-          />
-          {numeroManual && sugerido && (
+          <label className="lbl" htmlFor="recibo-numero">N° de recibo</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input
+              className={`inp${repetido ? ' inp-error' : ''}`}
+              aria-label="Punto de venta"
+              title="Punto de venta"
+              inputMode="numeric"
+              value={pv}
+              placeholder="00001"
+              onChange={e => setPv(soloDigitos(e.target.value, 5))}
+              onBlur={() => pv && setPv(pv.padStart(5, '0'))}
+              style={{ fontFamily: 'monospace', width: 76, flex: 'none' }}
+            />
+            <span>-</span>
+            <input
+              id="recibo-numero"
+              className={`inp${repetido ? ' inp-error' : ''}`}
+              inputMode="numeric"
+              value={nro}
+              placeholder="4289"
+              onChange={e => setNro(soloDigitos(e.target.value, 8))}
+              onBlur={() => nro && setNro(nro.padStart(8, '0'))}
+              style={{ fontFamily: 'monospace', minWidth: 0 }}
+            />
+          </div>
+          {repetido ? (
+            <div className="field-error">
+              Ya existe el recibo {repetido.numero}{repetido.razon_social ? ` de ${repetido.razon_social}` : ''} ({fFecha(repetido.fecha)}).
+            </div>
+          ) : numeroManual && sugerido && (
             <div style={{ fontSize: 'calc(11px * var(--font-scale))', color: 'var(--orange-500)', marginTop: 4 }}>
               Distinto del sugerido ({sugerido}): se usa el que cargaste.
             </div>
@@ -224,8 +251,8 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
                   </label>
                   {imp && <div className="field" style={{ width: 150 }}>
                     <label className="lbl" htmlFor={`importe-factura-${f.id}`}>Aplicar $</label>
-                    <input id={`importe-factura-${f.id}`} type="number" className="inp inp-right" min="0.01" max={f.saldo} step="0.01"
-                      value={imp.importe} onChange={e => updateImputacion(f.id, e.target.value)} />
+                    <DecimalInput id={`importe-factura-${f.id}`} className="inp inp-right"
+                      value={imp.importe} onChange={n => updateImputacion(f.id, n)} />
                   </div>}
                 </div>
               )
@@ -278,7 +305,7 @@ export default function ReciboForm({ clientes = [], initial = {}, onSave, onClos
               <input className="inp" value={r.jurisdiccion} onChange={e => updateRetencion(i, 'jurisdiccion', e.target.value)} placeholder="Ej: Buenos Aires" />
             </div>}
             <div className="field"><label className="lbl">Monto retenido $ *</label>
-              <input type="number" className="inp inp-right" min="0.01" step="0.01" value={r.monto} onChange={e => updateRetencion(i, 'monto', e.target.value)} />
+              <DecimalInput className="inp inp-right" value={r.monto} onChange={n => updateRetencion(i, 'monto', n)} />
             </div>
           </div>
           <div style={{ textAlign: 'right', marginTop: 8 }}>
@@ -343,7 +370,7 @@ function MedioCard({ medio, index, cuentas, onChange, onCuenta, onRemove }) {
 
         <div className="field">
           <label className="lbl">Monto $</label>
-          <input type="number" className="inp inp-right" value={medio.monto} min="0" step="0.01" onChange={e => onChange(index, 'monto', e.target.value)} />
+          <DecimalInput className="inp inp-right" value={medio.monto} onChange={n => onChange(index, 'monto', n)} />
         </div>
       </div>
 

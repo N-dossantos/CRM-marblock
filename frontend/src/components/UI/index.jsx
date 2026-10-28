@@ -79,7 +79,7 @@ export function Modal({ title, size = 'md', onClose, footer, calendario = true, 
 }
 
 // ── CAMPO DECIMAL ────────────────────────────────────────────────────
-// Precio, cantidad y descuento de las grillas de ítems. Es texto y no type="number": el campo
+// Precio, cantidad y descuento de las grillas de ítems, y los montos del recibo. Es texto y no type="number": el campo
 // numérico del navegador en español no toma el punto, y acá el punto y la coma valen los dos como
 // decimal. Un 0 se ve vacío, así que se escribe directo sin borrar nada. El texto vive acá mientras
 // se escribe ("12." todavía no es un número); al padre le llega siempre el número.
@@ -312,34 +312,62 @@ export function TotalesBoxMulti({ totales, percepciones = [] }) {
   )
 }
 
-// ── PRODUCTO BUSCADOR (autocompletar por ID corto o texto) ─────────
+// ── ENTER AVANZA ─────────────────────────────────────────────────────
+// En las grillas de ítems Enter pasa al casillero siguiente, como Tab: código → descripción →
+// pallets → … → renglón siguiente. Después del último sigue con el próximo campo del formulario;
+// si no hay, el cursor se queda (nunca cae en un botón: con dos Enter se tocaría "Cancelar"). Los ×
+// de quitar renglón tampoco cuentan. Va en el onKeyDown del contenedor de la grilla.
+const CASILLEROS = 'input:not([disabled]):not([readonly]):not([type="checkbox"]):not([type="radio"]), select:not([disabled]), textarea:not([disabled]):not([readonly])'
+const visibles = (els) => [...els].filter(el => el.getClientRects().length > 0)
+
+export function enterAvanza(e) {
+  if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || e.nativeEvent.isComposing) return
+  if (e.target.tagName === 'TEXTAREA' || !e.target.matches(CASILLEROS)) return
+  const grilla = e.currentTarget
+  const casilleros = visibles(grilla.querySelectorAll(CASILLEROS))
+  const i = casilleros.indexOf(e.target)
+  if (i === -1) return
+  e.preventDefault()
+  const sig = casilleros[i + 1] || visibles((grilla.closest('.modal') || document).querySelectorAll(CASILLEROS))
+    .find(el => !grilla.contains(el) && (grilla.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING))
+  if (!sig) return
+  sig.focus()
+  if (sig.tagName === 'INPUT') sig.select()
+}
+
+// ── PRODUCTO BUSCADOR (autocompletar por código o texto) ───────────
 // <input list> + <datalist>: usa el desplegable nativo del navegador en vez de uno propio con
 // position:absolute, que quedaría recortado por .items-table-wrap (overflow:hidden) y
-// .modal-body (overflow-y:auto). Cada <option> vale la etiqueta completa "[ID] Descripción — X
-// un/pallet"; al elegirla el navegador ya deja ese texto en el input, así que sólo hace falta
-// resolverla contra el catálogo. Tipear sólo el ID (sin abrir el desplegable) también funciona: se
-// resuelve por código exacto al perder el foco o con Enter — productos.md §3.2.1.
+// .modal-body (overflow-y:auto). Cada <option> vale la etiqueta completa "[código] Descripción — X
+// un/pallet", para poder buscar también por descripción; al elegirla el navegador deja ese texto en
+// el input, se resuelve contra el catálogo y el casillero queda con el código solo (la descripción
+// tiene su columna). Tipear sólo el código (sin abrir el desplegable) también funciona: se resuelve
+// por código exacto al perder el foco o con Enter — productos.md §3.2.1.
 const productoLabel = (p) =>
   `[${p.codigo}] ${p.descripcion}${p.unidades_por_pallet > 1 ? ` — ${p.unidades_por_pallet} un/pallet` : ''}`
 
 function ProductoBuscador({ value, productos, onSelect }) {
   const activos = productos.filter(p => p.activo)
-  // El desplegable sólo ofrece activos, pero la etiqueta se resuelve contra el catálogo completo:
-  // un comprobante viejo puede referenciar un producto dado de baja y el combo quedaría en blanco.
+  // El desplegable sólo ofrece activos, pero el código se resuelve contra el catálogo completo:
+  // un comprobante viejo puede referenciar un producto dado de baja y el casillero quedaría en blanco.
   const selected = productos.find(p => p.id === value)
-  const [text, setText] = useState(selected ? productoLabel(selected) : '')
+  const [text, setText] = useState(selected?.codigo ?? '')
 
   useEffect(() => {
-    setText(selected ? productoLabel(selected) : '')
+    setText(selected?.codigo ?? '')
   }, [selected])
 
   const byLabel  = new Map(activos.map(p => [productoLabel(p), p]))
   const byCodigo = new Map(activos.map(p => [p.codigo, p]))
 
+  // Devuelve false si lo escrito no es ningún producto (y vuelve al código que estaba).
   const commit = (raw) => {
     const picked = byLabel.get(raw) || byCodigo.get(raw.trim())
-    if (picked) { onSelect(picked); setText(productoLabel(picked)); return }
-    setText(selected ? productoLabel(selected) : '')
+    setText((picked || selected)?.codigo ?? '')
+    // El mismo producto que ya tenía el renglón no lo rearma: pasar con Tab por el casillero lo
+    // volvía a 1 pallet y pisaba las unidades, el precio y la descripción que se habían cargado.
+    if (picked && picked.id !== selected?.id) onSelect(picked)
+    return !!picked || !raw.trim() || raw.trim() === selected?.codigo
   }
 
   // useId: el id debe ser único en todo el documento, no sólo dentro de la grilla — dos ItemsTable
@@ -352,15 +380,17 @@ function ProductoBuscador({ value, productos, onSelect }) {
         className="inp inp-sm"
         list={listId}
         value={text}
-        placeholder="ID o descripción…"
+        placeholder="Código…"
+        title="Código o descripción"
         onChange={(e) => {
           const raw = e.target.value
-          setText(raw)
-          const exact = byLabel.get(raw)
-          if (exact) onSelect(exact)
+          // Elegido en el desplegable: llega la etiqueta entera.
+          if (byLabel.has(raw)) commit(raw)
+          else setText(raw)
         }}
         onBlur={(e) => commit(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); commit(e.target.value) } }}
+        // Un código que no existe no deja avanzar con Enter (enterAvanza, en la grilla).
+        onKeyDown={(e) => { if (e.key === 'Enter' && !commit(e.target.value)) { e.preventDefault(); e.stopPropagation() } }}
       />
       <datalist id={listId}>
         {activos.map(p => <option key={p.id} value={productoLabel(p)} />)}
@@ -470,11 +500,11 @@ export function ItemsTable({ items, productos = [], alicuotas = [], readonly = f
   const remove = (i) => onChange && onChange(items.filter((_, idx) => idx !== i))
 
   return (
-    <div className="items-table-wrap">
+    <div className="items-table-wrap" onKeyDown={readonly ? undefined : enterAvanza}>
       <table className="items-table">
         <thead>
           <tr>
-            <th style={{ width: 170 }}>Producto</th>
+            <th style={{ width: 110 }}>Código</th>
             <th>Descripción</th>
             <th className="th-right" style={{ width: 65 }}>Pallets</th>
             <th className="th-right" style={{ width: 80 }}>Unidades</th>
